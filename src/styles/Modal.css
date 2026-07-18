@@ -1,0 +1,209 @@
+/*
+ * MERGED AND CORRECTED MODAL STYLES
+ * This file combines the user's original styling with the modern
+ * component's class structure for a perfect fit.
+ */
+
+/* Keyframe Animations from your original file */
+/* @keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+} */
+
+/* @keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+} */
+
+@keyframes modal-content-popup {
+  0% {
+    transform: scale(0);
+  }
+  /* 65% {
+    transform: scale(1.1);
+  } */
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Modal Overlay (The fixed background) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: 0.1s;
+
+  /* background darken effect */
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Modal Container (Your styled content box) */
+.modal-container {
+  /* Sizing from your original .modal-content */
+  width: max-content;
+  max-width: 75%;
+  min-width: min-content;
+  height: max-content;
+  
+  /* Styling from your original .modal-content */
+  position: relative;
+  padding: 35px 40px;
+  padding-right: 7px; /* the value here + the padding right of the .modal-content should be equal to 40px so that the .modal-content is centered in terms of padding */
+  border-radius: 30px;
+  /* border: 3px solid #b0c1ff; */
+  border: 3px solid #f9f9f9;
+  background: #add5ff45; /* semi transparent background for the blur effect to work */
+  background: #6c6c6c45;
+  background: #add5ff17;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); /* For Safari */
+  
+  /* Hides the container when modal is closed */
+  transform: scale(0);
+
+  width: 900px;
+  height: 500px;
+}
+
+.modal-container label{
+  color: white;
+}
+
+.modal-content{
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 33px; /* the value here + the padding right of the .modal-container should be equal to 40px so that the .modal-content is centered in terms of padding */
+}
+
+/* width */
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Track */
+.modal-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Handle */
+.modal-content::-webkit-scrollbar-thumb {
+  background: #f9f9f9;
+  border-radius: 10px;
+}
+
+/* Handle on hover */
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: #d1d1d1;
+}
+
+/* --- Animation Control Classes --- */
+
+/* OPENING ANIMATION */
+.modal-overlay.fade-in {
+  /* animation: fadeIn 0.2s ease-out forwards; */
+  opacity: 1;
+}
+
+.modal-overlay.fade-in .modal-container {
+  animation: modal-content-popup 0.15s cubic-bezier(0.67, 0.58, 0.41, 0.9) forwards;
+}
+
+/* CLOSING ANIMATION */
+.modal-overlay.fade-out {
+  /* animation: fadeOut 0.1s ease-in forwards; */
+  opacity: 0;
+}
+
+/* The container scales down smoothly during the fade-out */
+.modal-overlay.fade-out .modal-container {
+  transform: scale(0);
+  transition: transform 0.1s;
+}
+
+/* Close on Hover Section (Copied from your original file) */
+.close-modal-on-hover {
+  display: flex; /* Added for centering text */
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%); /* Better for centering */
+  width: 50%;
+  height: 10%;
+  background-color: var(--theme-color-bg);
+  border: 5px dashed var(--theme-color-accent-1);
+  border-bottom: none;
+  border-radius: 7rem 7rem 0 0;
+  min-width: max-content;
+  padding: 0 4rem;
+  cursor: pointer;
+}
+
+.close-modal-on-hover > label {
+  color: var(--theme-color-accent-1);
+  font-size: 5rem;
+  font-weight: 700;
+  pointer-events: none; /* Prevents the label from interfering with hover */
+}
+
+/* Styles for the Overwrite Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #3e3e3e;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: var(--main-color-2);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+.slider.round {
+  border-radius: 28px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
