@@ -328,3 +328,42 @@ pub async fn send_user_message(
         assistant_message,
     })
 }
+
+#[tauri::command]
+pub async fn rename_task(
+    state: State<'_, AppState>,
+    task_id: String,
+    title: String,
+) -> Result<(), String> {
+    let title = title.trim().to_string();
+    if title.is_empty() {
+        return Err("Title cannot be empty.".into());
+    }
+    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    connection
+        .execute(
+            "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
+            params![title, now_iso(), task_id],
+        )
+        .map_err(|e| format!("Failed to rename the task: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_task(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    // Delete children first (messages, credit events), then the task row
+    connection
+        .execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete messages: {}", e))?;
+    connection
+        .execute("DELETE FROM credit_events WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete credit events: {}", e))?;
+    connection
+        .execute("DELETE FROM tasks WHERE id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete the task: {}", e))?;
+    Ok(())
+}

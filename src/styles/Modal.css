@@ -207,3 +207,15 @@ input:checked + .slider:before {
 .slider.round:before {
   border-radius: 50%;
 }
+
+/* Compact variant for confirm dialogs */
+.modal-container.compact {
+  width: 520px;
+  height: auto;
+  max-height: 80vh;
+  padding: 30px 34px;
+}
+
+.modal-container.compact .modal-content {
+  padding-right: 0;
+}

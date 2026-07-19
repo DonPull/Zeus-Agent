@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { formatCredits, formatTime } from "../utils";
 
 function ChatMessage({ message, streaming = false }) {
@@ -7,7 +8,7 @@ function ChatMessage({ message, streaming = false }) {
             <div className="chat-message user">
                 <div className="chat-bubble">
                     <div className="chat-bubble-content markdown-body">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                     </div>
                 </div>
             </div>
@@ -30,7 +31,7 @@ function ChatMessage({ message, streaming = false }) {
             <div className="chat-bubble column">
                 {!streaming && <label className="chat-bubble-author">Zeus</label>}
                 <div className={`chat-bubble-content markdown-body ${streaming ? "streaming" : ""}`}>
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                 </div>
                 {!streaming && (
                     <div className="chat-bubble-footer align-center gap-10 no-user-select">

@@ -315,6 +315,7 @@
 .markdown-body strong {
     display: contents;
     font-family: 'Lato-Bold';
+    color: #ffffff;
 }
 
 .markdown-body a {
@@ -454,4 +455,159 @@
 
 #chat-region {
     position: relative;
+}
+
+/* ---- Fix inline markdown elements broken by body * { display: flex } ---- */
+.markdown-body em,
+.markdown-body i {
+    display: inline;
+    font-style: italic;
+}
+
+.markdown-body span {
+    display: inline;
+}
+
+.markdown-body a {
+    display: inline;
+    color: var(--zeus-accent);
+    text-decoration: underline;
+}
+
+.markdown-body br {
+    display: block;
+}
+
+.markdown-body hr {
+    display: block;
+    border: none;
+    border-top: 1px solid var(--zeus-border);
+    margin: 12px 0;
+}
+
+/* tables */
+.markdown-body table {
+    display: table;
+    border-collapse: collapse;
+    margin: 10px 0;
+    width: 100%;
+}
+
+.markdown-body thead { display: table-header-group; }
+.markdown-body tbody { display: table-row-group;    }
+.markdown-body tfoot { display: table-footer-group; }
+
+.markdown-body tr {
+    display: table-row;
+}
+
+.markdown-body th,
+.markdown-body td {
+    display: table-cell;
+    border: 1px solid var(--zeus-border);
+    padding: 6px 10px;
+    text-align: left;
+    font-size: 14px;
+}
+
+.markdown-body th {
+    background-color: var(--zeus-panel-2);
+    font-family: 'Lato-Bold';
+}
+
+/* ---- chat log button in top bar ---- */
+#chat-log-button {
+    background-color: var(--zeus-panel-2);
+    border: 1px solid var(--zeus-border);
+    border-radius: 8px;
+    padding: 5px 12px;
+    transition: 120ms;
+}
+
+#chat-log-button label {
+    color: var(--zeus-text-dim);
+    font-size: 13px;
+}
+
+#chat-log-button:hover {
+    border-color: #ffffff2e;
+}
+
+#chat-log-button:hover label {
+    color: var(--zeus-text);
+}
+
+/* ---- chat log modal content ---- */
+#chat-log-modal {
+    width: 100%;
+    height: 100%;
+}
+
+#chat-log-title {
+    font-size: 24px;
+    font-family: 'Lato-Bold';
+    color: #fff;
+}
+
+.chat-log-close-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background-color: var(--zeus-panel-2);
+    border: 2px solid var(--zeus-border);
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    transition: 120ms;
+}
+
+.chat-log-close-btn label {
+    color: var(--zeus-text);
+    font-size: 14px;
+}
+
+.chat-log-close-btn:hover {
+    background-color: #eaeaea1a;
+    border-color: #ff5c5c66;
+}
+
+#chat-log-entries {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+#chat-log-entries::-webkit-scrollbar        { width: 6px; }
+#chat-log-entries::-webkit-scrollbar-track  { background: transparent; }
+#chat-log-entries::-webkit-scrollbar-thumb  { background: var(--main-color-1-dim); border-radius: 10px; }
+#chat-log-entries::-webkit-scrollbar-thumb:hover { background: var(--zeus-accent); }
+
+.chat-log-entry {
+    border: 1px solid var(--zeus-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+}
+
+.chat-log-entry.user      { background-color: #242033; border-color: #ffffff1f; }
+.chat-log-entry.assistant { background-color: var(--zeus-panel); }
+
+.chat-log-role {
+    font-family: 'Lato-Bold';
+    font-size: 13px;
+    color: var(--zeus-accent);
+}
+
+.chat-log-entry.user .chat-log-role {
+    color: var(--zeus-text-dim);
+}
+
+.chat-log-content {
+    display: block;
+    color: var(--zeus-text);
+    font-family: 'Lato', sans-serif;
+    font-size: 14px;
+    line-height: 21px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
 }

@@ -1,14 +1,25 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::sync::OnceLock;
 
 pub const ROUTELLM_BASE_URL: &str = "https://routellm.abacus.ai/v1";
 
 /// Weights used to convert usage into "units": 1 unit = 1 token or 1 tool
 /// call. Images will get their own weight when image models arrive. Units are
-/// the billing-agnostic proxy the budget ledger runs on until the real
-/// credits-per-token rate is confirmed from the user's RouteLLM billing page.
+/// the billing-agnostic proxy the budget ledger runs on until real credits are
+/// computed from the /v1/models pricing map (planned for M1b).
 const UNIT_PER_TOKEN: f64 = 1.0;
 const UNIT_PER_TOOL_CALL: f64 = 1.0;
+
+/// One shared HTTP client for the whole process. Creating a reqwest::Client
+/// per request pays a fresh TLS handshake on every message; a shared client
+/// reuses connections (keep-alive), shaving latency off every call after the
+/// first one.
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(reqwest::Client::new)
+}
 
 pub fn compute_units(input_tokens: i64, output_tokens: i64, reasoning_tokens: i64, tool_calls: i64, images: i64) -> f64 {
     (input_tokens + output_tokens + reasoning_tokens + images) as f64 * UNIT_PER_TOKEN
@@ -76,7 +87,7 @@ pub async fn chat_completion(model: &str, messages: &[ChatMessage]) -> Result<(S
     let api_key = crate::settings::load_api_key()?;
     let body = json!({ "model": model, "messages": messages });
 
-    let client = reqwest::Client::new();
+    let client = http_client();
     let response = client
         .post(format!("{}/chat/completions", ROUTELLM_BASE_URL))
         .bearer_auth(api_key)
@@ -117,7 +128,7 @@ where
     let api_key = crate::settings::load_api_key()?;
     let body = json!({ "model": model, "messages": messages, "stream": true });
 
-    let client = reqwest::Client::new();
+    let client = http_client();
     let response = client
         .post(format!("{}/chat/completions", ROUTELLM_BASE_URL))
         .bearer_auth(api_key)
@@ -139,6 +150,7 @@ where
     let mut usage_json = String::new();
     let mut model_used: Option<String> = None;
     let mut saw_first_delta = false;
+    let mut saw_reasoning = false;
 
     // RouteLLM streams Server-Sent Events: lines of "data: {json}" with a
     // final "data: [DONE]". We read the body incrementally and parse per line.
@@ -177,6 +189,19 @@ where
                 usage_json = uj;
             }
 
+            // Thinking-style models stream their chain-of-thought in
+            // `delta.reasoning_content` (or `delta.reasoning`) BEFORE any
+            // visible answer text. Surface it as its own stage so the UI shows
+            // progress instead of looking frozen during that phase.
+            let reasoning_piece = json["choices"][0]["delta"]["reasoning_content"]
+                .as_str()
+                .or_else(|| json["choices"][0]["delta"]["reasoning"].as_str())
+                .unwrap_or("");
+            if !reasoning_piece.is_empty() && !saw_reasoning && !saw_first_delta {
+                saw_reasoning = true;
+                on_event(StreamEventPayload::Status { stage: "reasoning".into() });
+            }
+
             if let Some(delta) = json["choices"][0]["delta"]["content"].as_str() {
                 if !delta.is_empty() {
                     if !saw_first_delta {
@@ -200,7 +225,7 @@ where
 #[tauri::command]
 pub async fn fetch_available_models() -> Result<Vec<String>, String> {
     let api_key = crate::settings::load_api_key()?;
-    let client = reqwest::Client::new();
+    let client = http_client();
     let response = client
         .get(format!("{}/models", ROUTELLM_BASE_URL))
         .bearer_auth(api_key)

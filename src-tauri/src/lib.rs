@@ -26,6 +26,8 @@ pub fn run() {
             chat::get_task_messages,
             chat::get_task_spend,
             chat::send_user_message,
+            chat::rename_task,
+            chat::delete_task,
             settings::get_settings,
             settings::save_settings,
             settings::set_api_key,

@@ -12,7 +12,7 @@ import '../styles/Modal.css';
  * @param {React.ReactNode} props.children - The content to be displayed inside the modal.
  * @returns {React.ReactPortal|null} The modal portal or null if not open.
  */
-const Modal = ({ isOpen, onClose, onOpen, closeOnHover = false, children }) => {
+const Modal = ({ isOpen, onClose, onOpen, closeOnHover = false, className = "", children }) => {
   const [isClosing, setIsClosing] = useState(false);
 
   // Effect to handle the onOpen callback
@@ -68,7 +68,7 @@ const Modal = ({ isOpen, onClose, onOpen, closeOnHover = false, children }) => {
       onClick={handleClose}
       onTransitionEnd={handleTransitionEnd}>
       <div
-        className="modal-container"
+        className={`modal-container ${className}`}
         // Stop clicks inside the modal from closing it
         onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
