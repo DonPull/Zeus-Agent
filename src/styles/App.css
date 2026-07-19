@@ -1,0 +1,92 @@
+:root {
+  color: #eaeaea;
+  background-color: #0b0a0f;
+
+  --zeus-black: #0b0a0f;
+  --zeus-panel: #14121a;
+  --zeus-panel-2: #1a1822;
+  --zeus-border: #ffffff12;
+  --zeus-text: #eaeaea;
+  --zeus-text-dim: #9d9dab;
+  --zeus-gradient: linear-gradient(230deg, #ffae00 0%, #ffe65f 100%);
+  --zeus-glow: 0 0 20px #ffd35bb8, 0 0 2px #ff0, 0 0 5px #ff6f00;
+  --zeus-accent: #ffcf3f;
+  --danger: #ff5c5c;
+
+  /* consumed by common.css (spinner, switch, bullet-point) */
+  --main-color-1: #14121a;
+  --main-color-1-dim: #2c2a38;
+  --main-color-2: #ffcf3f;
+  --main-color-2-dim: #ffe65f;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+@font-face {
+  font-family: 'Lato';
+  src: url('../assets/Lato-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Lato-Bold';
+  src: url('../assets/Lato-Bold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: 'Lato', sans-serif;
+}
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  overflow: hidden;
+}
+
+body * {
+  display: flex;
+}
+
+a {
+  all: unset;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button {
+  font-family: 'Lato-Bold';
+  border: none;
+  cursor: pointer;
+  margin: 0;
+}
+
+button * {
+  cursor: pointer;
+}
+
+input, textarea {
+  outline: none;
+}
+
+img {
+  user-select: none;
+}
+
+#app-container {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, #13121a 30%, #0b0a0f 100%);
+}
