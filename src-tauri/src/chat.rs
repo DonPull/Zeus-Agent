@@ -1,22 +1,12 @@
 use crate::db::{new_id, now_iso, AppState};
 use crate::gateway::{self, ChatMessage};
+use crate::orchestrator::{self, Directive};
 use crate::settings;
 use rusqlite::{params, Connection};
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 pub const DEFAULT_TASK_TITLE: &str = "New agent task";
-
-/// The M0 master prompt. M1 replaces the conversational part with the
-/// structured directive protocol; the identity and honesty rules stay.
-pub const MASTER_SYSTEM_PROMPT: &str = "You are ZEUS, the Master orchestrator of the Zeus Agent desktop app.
-The user brings you goals. Think like an orchestrator, not a chatbot.
-
-How to operate:
-- If the goal is underspecified in a way that changes the plan materially, ask the user for exactly the missing information (list each item plainly). Do not ask for things you can reasonably infer.
-- If you and the user appear aligned, do NOT end with an open-ended offer (\"let me know if you want X\"). Instead, immediately lay out the final action plan yourself: a numbered plan where each step says what happens, what external access or credentials it needs, and what it roughly costs; then ask for explicit go-ahead (\"Reply GO to start\").
-- During execution (coming in a later build) you will emit structured JSON directives the app runs: spawn workers, run code actions, request approvals. Your plans should already be written with that execution in mind.
-- Never claim to have taken actions or fetched data you have not. Be direct and practical.";
 
 #[derive(Serialize)]
 pub struct TaskDto {
@@ -29,7 +19,7 @@ pub struct TaskDto {
     pub updated_at: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct MessageDto {
     pub id: String,
     pub task_id: String,
@@ -106,13 +96,17 @@ fn insert_message(connection: &Connection, message: &MessageDto) -> Result<(), S
     Ok(())
 }
 
-/// Builds the message array sent to the master model: system prompt first,
-/// then the full master conversation in order.
+/// Emits a message to the frontend immediately so action cards appear live.
+fn emit_message(app_handle: &tauri::AppHandle, task_id: &str, message: &MessageDto) {
+    let _ = app_handle.emit(
+        "task-message",
+        serde_json::json!({ "task_id": task_id, "message": message }),
+    );
+}
+
 fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<ChatMessage>, String> {
-    let mut history = vec![ChatMessage {
-        role: "system".into(),
-        content: MASTER_SYSTEM_PROMPT.into(),
-    }];
+    let system_prompt = settings::load_master_prompt()?;
+    let mut history = vec![ChatMessage { role: "system".into(), content: system_prompt }];
 
     let mut statement = connection
         .prepare(
@@ -123,9 +117,7 @@ fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<Cha
         .map_err(|e| format!("Failed to prepare the history query: {}", e))?;
 
     let rows = statement
-        .query_map(params![task_id], |row| {
-            Ok(ChatMessage { role: row.get(0)?, content: row.get(1)? })
-        })
+        .query_map(params![task_id], |row| Ok(ChatMessage { role: row.get(0)?, content: row.get(1)? }))
         .map_err(|e| format!("Failed to load the conversation history: {}", e))?;
 
     for row in rows {
@@ -158,7 +150,6 @@ pub async fn create_task(state: State<'_, AppState>, title: Option<String>) -> R
         )
         .map_err(|e| format!("Failed to create the task: {}", e))?;
 
-    // Create the per-task workspace folder so later milestones can assume it exists
     let _ = crate::utils::task_workspace(&task.id);
 
     Ok(task)
@@ -168,15 +159,10 @@ pub async fn create_task(state: State<'_, AppState>, title: Option<String>) -> R
 pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<TaskDto>, String> {
     let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let mut statement = connection
-        .prepare(
-            "SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at
-             FROM tasks ORDER BY updated_at DESC",
-        )
+        .prepare("SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at FROM tasks ORDER BY updated_at DESC")
         .map_err(|e| format!("Failed to prepare the task list query: {}", e))?;
 
-    let rows = statement
-        .query_map([], row_to_task)
-        .map_err(|e| format!("Failed to load the task list: {}", e))?;
+    let rows = statement.query_map([], row_to_task).map_err(|e| format!("Failed to load the task list: {}", e))?;
 
     let mut tasks = Vec::new();
     for row in rows {
@@ -196,9 +182,7 @@ pub async fn get_task_messages(state: State<'_, AppState>, task_id: String) -> R
         )
         .map_err(|e| format!("Failed to prepare the messages query: {}", e))?;
 
-    let rows = statement
-        .query_map(params![task_id], row_to_message)
-        .map_err(|e| format!("Failed to load the messages: {}", e))?;
+    let rows = statement.query_map(params![task_id], row_to_message).map_err(|e| format!("Failed to load the messages: {}", e))?;
 
     let mut messages = Vec::new();
     for row in rows {
@@ -214,6 +198,39 @@ pub async fn get_task_spend(state: State<'_, AppState>, task_id: String) -> Resu
     Ok(SpendDto { spent_units: task.spent_credits, budget_units: task.budget_credits })
 }
 
+/// Records a model call in the ledger and bumps the task's spend. Returns the
+/// unit cost so the caller can attach it to the assistant message.
+fn record_spend(
+    connection: &Connection,
+    task_id: &str,
+    model: &str,
+    usage: &gateway::UsageInfo,
+    usage_json: &str,
+) -> Result<f64, String> {
+    let units = usage.units();
+    let now = now_iso();
+    connection
+        .execute(
+            "INSERT INTO credit_events (id, task_id, model, input_tokens, output_tokens, reasoning_tokens, total_tokens, units, tool_calls, images, credits, raw_usage_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11, ?12)",
+            params![
+                new_id(), task_id, model,
+                usage.input_tokens, usage.output_tokens, usage.reasoning_tokens, usage.total_tokens,
+                units, usage.tool_calls, usage.images, usage_json, now
+            ],
+        )
+        .map_err(|e| format!("Failed to log the credit event: {}", e))?;
+
+    connection
+        .execute(
+            "UPDATE tasks SET spent_credits = spent_credits + ?1, updated_at = ?2 WHERE id = ?3",
+            params![units, now_iso(), task_id],
+        )
+        .map_err(|e| format!("Failed to update the task spend: {}", e))?;
+
+    Ok(units)
+}
+
 #[tauri::command]
 pub async fn send_user_message(
     state: State<'_, AppState>,
@@ -221,14 +238,13 @@ pub async fn send_user_message(
     task_id: String,
     content: String,
 ) -> Result<SendResultDto, String> {
-    use tauri::Emitter;
     let content = content.trim().to_string();
     if content.is_empty() {
         return Err("Cannot send an empty message.".into());
     }
 
-    // 1) Lock the db only for local reads/writes, never across the network call
-    let (history, user_message, task, master_model) = {
+    // 1) Lock the db only for local reads/writes, never across network calls.
+    let (history, user_message, task, master_model, mut current_spend) = {
         let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
         let app_settings = settings::read_settings(&connection)?;
         let mut task = load_task(&connection, &task_id)?;
@@ -251,7 +267,6 @@ pub async fn send_user_message(
         };
         insert_message(&connection, &user_message)?;
 
-        // Auto-title the task from the first user message
         if task.title == DEFAULT_TASK_TITLE {
             let mut title: String = content.chars().take(48).collect();
             if content.chars().count() > 48 {
@@ -264,106 +279,290 @@ pub async fn send_user_message(
         }
 
         let history = load_master_history(&connection, &task_id)?;
-        (history, user_message, task, app_settings.master_model)
+        let current_spend = task.spent_credits;
+        (history, user_message, task, app_settings.master_model, current_spend)
     };
 
-    // 2) Stream the master reply, forwarding deltas to the frontend (no lock held)
-    let stream_task_id = task_id.clone();
-    let stream_handle = app_handle.clone();
-    let (reply_text, usage, usage_json, model_used) =
-        gateway::chat_completion_stream(&master_model, &history, move |event| {
-            let _ = stream_handle.emit("chat-stream", serde_json::json!({
-                "task_id": stream_task_id,
-                "event": event,
-            }));
-        })
-        .await?;
+    let budget_units = task.budget_credits;
+    let mut history = history;
+    let mut final_assistant: Option<MessageDto> = None;
 
-    // 3) Persist the assistant reply, the ledger event and the task spend
-    let units = usage.units();
-    let assistant_message = {
-        let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-        let now = now_iso();
+    // 2) Orchestration loop. Each iteration may add directive-result messages
+    //    to `history` (and persist them) before re-calling the master.
+    for _iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+        if current_spend >= budget_units as f64 {
+            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            let note = MessageDto {
+                id: new_id(),
+                task_id: task_id.clone(),
+                conversation: "master".into(),
+                role: "event".into(),
+                kind: "chat".into(),
+                content: "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
+                credits_used: None,
+                model: None,
+                created_at: now_iso(),
+            };
+            insert_message(&connection, &note)?;
+            emit_message(&app_handle, &task_id, &note);
+            drop(connection);
+            break;
+        }
 
-        let assistant_message = MessageDto {
-            id: new_id(),
-            task_id: task_id.clone(),
-            conversation: "master".into(),
-            role: "assistant".into(),
-            kind: "chat".into(),
-            content: reply_text,
-            credits_used: Some(units),
-            model: Some(model_used.unwrap_or_else(|| master_model.clone())),
-            created_at: now.clone(),
+        let stream_handle = app_handle.clone();
+        let stream_task_id = task_id.clone();
+        let (reply_text, _reasoning_summary, usage, usage_json, model_used) =
+            gateway::stream_model_reply(&master_model, &history, move |event| {
+                let _ = stream_handle.emit("chat-stream", serde_json::json!({
+                    "task_id": stream_task_id,
+                    "event": event,
+                }));
+            })
+            .await?;
+
+        let model_name = model_used.unwrap_or_else(|| master_model.clone());
+
+        // Persist the spend + assistant reply for this iteration.
+        let units = {
+            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            record_spend(&connection, &task_id, &model_name, &usage, &usage_json)?
         };
-        insert_message(&connection, &assistant_message)?;
+        current_spend += units;
 
-        connection
-            .execute(
-                "INSERT INTO credit_events (id, task_id, model, input_tokens, output_tokens, reasoning_tokens, total_tokens, units, tool_calls, images, credits, raw_usage_json, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11, ?12)",
-                params![
-                    new_id(), task_id, master_model,
-                    usage.input_tokens, usage.output_tokens, usage.reasoning_tokens, usage.total_tokens,
-                    units, usage.tool_calls, usage.images,
-                    usage_json, now
-                ],
-            )
-            .map_err(|e| format!("Failed to log the credit event: {}", e))?;
+        match orchestrator::parse_master_reply(&reply_text) {
+            orchestrator::MasterReply::Text(text) => {
+                let assistant_message = MessageDto {
+                    id: new_id(),
+                    task_id: task_id.clone(),
+                    conversation: "master".into(),
+                    role: "assistant".into(),
+                    kind: "chat".into(),
+                    content: text.clone(),
+                    credits_used: Some(units),
+                    model: Some(model_name.clone()),
+                    created_at: now_iso(),
+                };
+                {
+                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                    insert_message(&connection, &assistant_message)?;
+                }
+                history.push(ChatMessage { role: "assistant".into(), content: text });
+                final_assistant = Some(assistant_message);
+                break;
+            }
+            orchestrator::MasterReply::Directive(directive, raw) => {
+                // Persist the master's directive reply (so the chat log shows it).
+                {
+                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                    let meta = MessageDto {
+                        id: new_id(),
+                        task_id: task_id.clone(),
+                        conversation: "master".into(),
+                        role: "assistant".into(),
+                        kind: "chat".into(),
+                        content: raw.clone(),
+                        credits_used: Some(units),
+                        model: Some(model_name.clone()),
+                        created_at: now_iso(),
+                    };
+                    insert_message(&connection, &meta)?;
+                }
+                history.push(ChatMessage { role: "assistant".into(), content: raw });
 
-        connection
-            .execute(
-                "UPDATE tasks SET spent_credits = spent_credits + ?1, updated_at = ?2 WHERE id = ?3",
-                params![units, now_iso(), task_id],
-            )
-            .map_err(|e| format!("Failed to update the task spend: {}", e))?;
+                match directive {
+                    Directive::FinalAnswer { final_answer } => {
+                        let assistant_message = MessageDto {
+                            id: new_id(),
+                            task_id: task_id.clone(),
+                            conversation: "master".into(),
+                            role: "assistant".into(),
+                            kind: "chat".into(),
+                            content: final_answer.summary.clone(),
+                            credits_used: None,
+                            model: Some(model_name.clone()),
+                            created_at: now_iso(),
+                        };
+                        {
+                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            insert_message(&connection, &assistant_message)?;
+                        }
+                        history.push(ChatMessage { role: "assistant".into(), content: final_answer.summary });
+                        final_assistant = Some(assistant_message);
+                        break;
+                    }
+                    Directive::TaskUpdate { update } => {
+                        let detail: String;
+                        if let Some(new_title) = update.title.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            let res = connection.execute(
+                                "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
+                                params![new_title, now_iso(), task_id],
+                            );
+                            detail = match res {
+                                Ok(_) => format!("title set to \"{}\"", new_title),
+                                Err(e) => format!("failed to set title: {}", e),
+                            };
+                        } else {
+                            detail = "no changes requested".into();
+                        }
+                        let result_json = orchestrator::task_update_result_json(true, &detail);
+                        let msg = orchestrator::directive_result_message(&result_json);
+                        history.push(ChatMessage { role: "user".into(), content: msg });
+                        // Loop: call the master again with the result.
+                    }
+                    Directive::RequestApproval { approval } => {
+                        let approval_message = MessageDto {
+                            id: new_id(),
+                            task_id: task_id.clone(),
+                            conversation: "master".into(),
+                            role: "event".into(),
+                            kind: "approval".into(),
+                            content: serde_json::json!({
+                                "summary": approval.summary,
+                                "detail": approval.detail,
+                                "status": "pending",
+                            })
+                            .to_string(),
+                            credits_used: None,
+                            model: None,
+                            created_at: now_iso(),
+                        };
+                        {
+                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            insert_message(&connection, &approval_message)?;
+                        }
+                        emit_message(&app_handle, &task_id, &approval_message);
+                        // Stop the loop: the user's decision will arrive as a
+                        // new send, which restarts orchestration.
+                        let assistant_message = MessageDto {
+                            id: new_id(),
+                            task_id: task_id.clone(),
+                            conversation: "master".into(),
+                            role: "assistant".into(),
+                            kind: "chat".into(),
+                            content: "I need your approval before continuing — see the card above.".into(),
+                            credits_used: None,
+                            model: Some(model_name.clone()),
+                            created_at: now_iso(),
+                        };
+                        {
+                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            insert_message(&connection, &assistant_message)?;
+                        }
+                        final_assistant = Some(assistant_message);
+                        break;
+                    }
+                    Directive::RunAction { action, success_criteria } => {
+                        let workspace = crate::utils::task_workspace(&task_id)?;
+                        let outcome = crate::python_runner::run_python_action(
+                            &workspace,
+                            &action.code,
+                            action.timeout_secs,
+                        )
+                        .await?;
 
-        assistant_message
+                        let result_json = orchestrator::action_result_json(
+                            &outcome.stdout,
+                            &outcome.stderr,
+                            outcome.exit_code,
+                            outcome.timed_out,
+                            &outcome.interpreter,
+                        );
+
+                        let action_message = MessageDto {
+                            id: new_id(),
+                            task_id: task_id.clone(),
+                            conversation: "master".into(),
+                            role: "event".into(),
+                            kind: "action".into(),
+                            content: serde_json::json!({
+                                "language": action.language,
+                                "code": action.code,
+                                "success_criteria": success_criteria,
+                                "exit_code": outcome.exit_code,
+                                "timed_out": outcome.timed_out,
+                                "interpreter": outcome.interpreter,
+                                "stdout": outcome.stdout,
+                                "stderr": outcome.stderr,
+                            })
+                            .to_string(),
+                            credits_used: None,
+                            model: None,
+                            created_at: now_iso(),
+                        };
+                        {
+                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            insert_message(&connection, &action_message)?;
+                        }
+                        emit_message(&app_handle, &task_id, &action_message);
+
+                        let msg = orchestrator::directive_result_message(&result_json);
+                        history.push(ChatMessage { role: "user".into(), content: msg });
+                        // Loop: call the master again with the action result.
+                    }
+                }
+            }
+        }
+    }
+
+    // 3) Resolve the final assistant message (fallback if the cap was hit).
+    let assistant_message = match final_assistant {
+        Some(m) => m,
+        None => {
+            let m = MessageDto {
+                id: new_id(),
+                task_id: task_id.clone(),
+                conversation: "master".into(),
+                role: "assistant".into(),
+                kind: "chat".into(),
+                content: "I reached the maximum number of orchestration steps for this turn. Tell me to continue and I'll pick up from here.".into(),
+                credits_used: None,
+                model: Some(master_model.clone()),
+                created_at: now_iso(),
+            };
+            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            insert_message(&connection, &m)?;
+            m
+        }
     };
 
     Ok(SendResultDto {
         user_message,
-        spent_credits: task.spent_credits + units,
-        budget_credits: task.budget_credits,
+        spent_credits: current_spend,
+        budget_credits: budget_units,
         assistant_message,
     })
 }
 
 #[tauri::command]
-pub async fn rename_task(
-    state: State<'_, AppState>,
-    task_id: String,
-    title: String,
-) -> Result<(), String> {
-    let title = title.trim().to_string();
+pub async fn rename_task(state: State<'_, AppState>, task_id: String, new_title: String) -> Result<(), String> {
+    let title = new_title.trim();
     if title.is_empty() {
-        return Err("Title cannot be empty.".into());
+        return Err("The task title cannot be empty.".into());
     }
     let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     connection
-        .execute(
-            "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
-            params![title, now_iso(), task_id],
-        )
+        .execute("UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3", params![title, now_iso(), task_id])
         .map_err(|e| format!("Failed to rename the task: {}", e))?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn delete_task(
-    state: State<'_, AppState>,
-    task_id: String,
-) -> Result<(), String> {
+pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
     let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    // Delete children first (messages, credit events), then the task row
     connection
         .execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])
-        .map_err(|e| format!("Failed to delete messages: {}", e))?;
+        .map_err(|e| format!("Failed to delete the task messages: {}", e))?;
     connection
         .execute("DELETE FROM credit_events WHERE task_id = ?1", params![task_id])
-        .map_err(|e| format!("Failed to delete credit events: {}", e))?;
+        .map_err(|e| format!("Failed to delete the task credit events: {}", e))?;
+    let _ = connection.execute("DELETE FROM approvals WHERE task_id = ?1", params![task_id]);
     connection
         .execute("DELETE FROM tasks WHERE id = ?1", params![task_id])
         .map_err(|e| format!("Failed to delete the task: {}", e))?;
+    drop(connection);
+    if let Ok(workspace) = crate::utils::task_workspace(&task_id) {
+        let _ = std::fs::remove_dir_all(workspace);
+    }
     Ok(())
 }

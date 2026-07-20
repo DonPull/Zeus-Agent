@@ -2,6 +2,7 @@ use crate::db::AppState;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use std::fs;
 
 const KEYRING_SERVICE: &str = "zeus-agent";
 const KEYRING_USER: &str = "routellm-api-key";
@@ -99,4 +100,40 @@ pub fn load_api_key() -> Result<String, String> {
     entry
         .get_password()
         .map_err(|_| "No RouteLLM API key is set. Open Settings and add one.".to_string())
+}
+
+/// M1a ships the prompt as an editable file (fast iteration). When shipping,
+/// flip this to true so the app uses the baked-in prompt and never writes the file.
+pub const EMBED_PROMPT: bool = false;
+
+/// The file name inside the per-user app data dir.
+pub const PROMPT_FILE_NAME: &str = "master.txt";
+
+/// The default master prompt, embedded at compile time from this crate.
+pub const DEFAULT_MASTER_PROMPT: &str = include_str!("prompts/default_master.txt");
+
+fn app_data_dir() -> Result<std::path::PathBuf, String> {
+    crate::utils::workspace_root()
+}
+
+/// Ensures the prompts directory and prompt file exist, seeding the file from
+/// the embedded default on first run. Returns the prompt content to use.
+pub fn load_master_prompt() -> Result<String, String> {
+    if EMBED_PROMPT {
+        return Ok(DEFAULT_MASTER_PROMPT.to_string());
+    }
+    let dir = app_data_dir()?.join("prompts");
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create the prompts folder: {}", e))?;
+    let path = dir.join(PROMPT_FILE_NAME);
+    if !path.exists() {
+        fs::write(&path, DEFAULT_MASTER_PROMPT)
+            .map_err(|e| format!("Failed to seed the master prompt file: {}", e))?;
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read the master prompt file: {}", e))?;
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Ok(DEFAULT_MASTER_PROMPT.to_string());
+    }
+    Ok(trimmed.to_string())
 }

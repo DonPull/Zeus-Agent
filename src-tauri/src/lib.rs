@@ -3,6 +3,8 @@
 mod chat;
 mod db;
 mod gateway;
+mod orchestrator;
+mod python_runner;
 mod settings;
 mod utils;
 

@@ -1,0 +1,28 @@
+{
+  "root": "D:\\Hristian projects\\Zeus-Agent",
+  "rules": {
+    "file_types": {
+      "status": "exclude",
+      "data_array": [
+        ".svg"
+      ]
+    },
+    "folders": {
+      "status": "exclude",
+      "data_array": [
+        "D:\\Hristian projects\\Zeus-Agent\\.git",
+        "D:\\Hristian projects\\Zeus-Agent\\.vscode",
+        "D:\\Hristian projects\\Zeus-Agent\\node_modules",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\target",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\gen",
+        "D:\\Hristian projects\\Zeus-Agent\\public"
+      ]
+    },
+    "files": {
+      "status": "include",
+      "data_array": [
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\gen\\schemas\\capabilities.json"
+      ]
+    }
+  }
+}
