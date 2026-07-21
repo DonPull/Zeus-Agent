@@ -64,39 +64,86 @@ pub async fn run_python_action(
     let timeout = Duration::from_secs(timeout_secs.max(5));
     let mut timed_out = false;
 
-    let status = match tokio::time::timeout(timeout, child.wait()).await {
-        Ok(res) => res.map_err(|e| format!("Failed to wait on the Python process: {}", e))?,
+    // Read stdout/stderr concurrently with waiting. Pipes have a fixed OS
+    // buffer; if we wait for exit before draining, output past the buffer is
+    // dropped (this is what produced the "(empty)" stdout runs).
+    let mut stdout_handle = child.stdout.take();
+    let mut stderr_handle = child.stderr.take();
+
+    let stdout_reader = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(ref mut out) = stdout_handle {
+            let _ = out.read_to_end(&mut buf).await;
+        }
+        buf
+    });
+    let stderr_reader = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(ref mut err) = stderr_handle {
+            let _ = err.read_to_end(&mut buf).await;
+        }
+        buf
+    });
+
+    let wait_result = tokio::time::timeout(timeout, child.wait()).await;
+    let status = match wait_result {
+        Ok(res) => Some(res.map_err(|e| format!("Failed to wait on the Python process: {}", e))?),
         Err(_) => {
             timed_out = true;
             let _ = child.kill().await;
-            // Reap the process so we can read the pipes.
             let _ = child.wait().await;
-            return Ok(ActionOutcome {
-                stdout: String::new(),
-                stderr: format!("Action timed out after {}s and was killed.", timeout_secs),
-                exit_code: -1,
-                timed_out,
-                interpreter,
-            });
+            None
         }
     };
 
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    if let Some(mut out) = child.stdout.take() {
-        let _ = out.read_to_string(&mut stdout).await;
-    }
-    if let Some(mut err) = child.stderr.take() {
-        let _ = err.read_to_string(&mut stderr).await;
-    }
+    let stdout_bytes = stdout_reader.await.unwrap_or_default();
+    let stderr_bytes = stderr_reader.await.unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
+    let stderr = String::from_utf8_lossy(&stderr_bytes).to_string();
 
     let _ = std::fs::remove_file(&script_path);
+
+    if timed_out {
+        return Ok(ActionOutcome {
+            stdout,
+            stderr: if stderr.is_empty() { format!("Action timed out after {}s and was killed.", timeout_secs) } else { stderr },
+            exit_code: -1,
+            timed_out,
+            interpreter,
+        });
+    }
 
     Ok(ActionOutcome {
         stdout,
         stderr,
-        exit_code: status.code().unwrap_or(-1),
+        exit_code: status.and_then(|s| s.code()).unwrap_or(-1),
         timed_out,
         interpreter,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression test for the pipe-buffer bug: stdout larger than the OS pipe
+    // buffer must arrive intact (this used to come back empty).
+    #[tokio::test]
+    async fn large_stdout_is_not_dropped() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+        let outcome = run_python_action(&workspace, "print('x' * 200000)", 30).await.expect("runner failed");
+        assert_eq!(outcome.exit_code, 0);
+        assert!(!outcome.timed_out);
+        assert!(outcome.stdout.trim().len() >= 200000, "stdout was dropped: got {} bytes", outcome.stdout.len());
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test]
+    async fn nonzero_exit_and_stderr_are_captured() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+        let outcome = run_python_action(&workspace, "import sys\nsys.stderr.write('boom')\nsys.exit(3)", 30).await.expect("runner failed");
+        assert_eq!(outcome.exit_code, 3);
+        assert!(outcome.stderr.contains("boom"));
+        let _ = std::fs::remove_dir_all(workspace);
+    }
 }

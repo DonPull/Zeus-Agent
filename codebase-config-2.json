@@ -1,0 +1,36 @@
+{
+  "root": "D:\\Hristian projects\\Zeus-Agent",
+  "rules": {
+    "file_types": {
+      "status": "exclude",
+      "data_array": [
+        ".svg"
+      ]
+    },
+    "folders": {
+      "status": "exclude",
+      "data_array": [
+        "D:\\Hristian projects\\Zeus-Agent\\.git",
+        "D:\\Hristian projects\\Zeus-Agent\\.vscode",
+        "D:\\Hristian projects\\Zeus-Agent\\node_modules",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\target",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\gen",
+        "D:\\Hristian projects\\Zeus-Agent\\public",
+        "D:\\Hristian projects\\Zeus-Agent\\src\\assets",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\icons"
+      ]
+    },
+    "files": {
+      "status": "exclude",
+      "data_array": [
+        "D:\\Hristian projects\\Zeus-Agent\\.gitignore",
+        "D:\\Hristian projects\\Zeus-Agent\\BRIDGE.md",
+        "D:\\Hristian projects\\Zeus-Agent\\index.html",
+        "D:\\Hristian projects\\Zeus-Agent\\README.md",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\.gitignore",
+        "D:\\Hristian projects\\Zeus-Agent\\src-tauri\\tauri.conf.json",
+        "D:\\Hristian projects\\Zeus-Agent\\vite.config.js"
+      ]
+    }
+  }
+}

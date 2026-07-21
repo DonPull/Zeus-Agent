@@ -11,6 +11,13 @@ function parseEventContent(message) {
     }
 }
 
+function isDirectiveMessage(content) {
+    // Any assistant content carrying a directive fence is pipeline-internal.
+    // No JSON validation: a malformed directive must be hidden too, never
+    // rendered as raw JSON (App.jsx filters first; this is defense-in-depth).
+    return typeof content === "string" && content.includes("```zeus-directive");
+}
+
 function ActionCard({ message }) {
     const data = useMemo(() => parseEventContent(message), [message]);
     const [showCode, setShowCode] = useState(false);
@@ -121,6 +128,8 @@ function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDec
             </div>
         );
     }
+
+    if (isDirectiveMessage(message.content)) return null;
 
     // assistant
     return (

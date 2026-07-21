@@ -3,6 +3,7 @@
 mod chat;
 mod db;
 mod gateway;
+mod logger;
 mod orchestrator;
 mod python_runner;
 mod settings;
@@ -35,6 +36,7 @@ pub fn run() {
             settings::set_api_key,
             settings::has_api_key,
             gateway::fetch_available_models,
+            logger::get_debug_log,
         ])
         .run(generate_context!())
         .expect("error while running tauri application");

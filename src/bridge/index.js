@@ -22,6 +22,7 @@ export const saveSettings       = (settings)      => invoke("save_settings",    
 export const setApiKey          = (apiKey)        => invoke("set_api_key",          { apiKey });
 export const hasApiKey          = ()              => invoke("has_api_key");
 export const fetchAvailableModels = ()            => invoke("fetch_available_models");
+export const getDebugLog       = (taskId)         => invoke("get_debug_log", { taskId });
 
 // ---- Events (used from M1 onward; the core emits task progress here) --------
 export const onTaskEvent   = (callback) => listen("task-event",   (event) => callback(event.payload));

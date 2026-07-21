@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { formatTime } from "../utils";
+import { isHiddenPipelineMessage } from "../utils";
+import * as bridge from "../bridge";
 
 function renderEntry(m) {
     const time = m.created_at ? formatTime(m.created_at) : "";
@@ -28,9 +30,15 @@ function renderEntry(m) {
     return `[${time}] EVENT\n${m.content}\n`;
 }
 
-function ChatLogModal({ messages, taskTitle }) {
+function ChatLogModal({ messages, taskTitle, taskId }) {
     const [copied, setCopied] = useState(false);
-    const text = messages.map(renderEntry).join("\n----------------------------------------\n\n");
+    const [debugCopied, setDebugCopied] = useState(false);
+
+    // The SAME filter the chat UI uses — the log is consistent by construction.
+    const text = messages
+        .filter((m) => !isHiddenPipelineMessage(m))
+        .map(renderEntry)
+        .join("\n----------------------------------------\n\n");
 
     const copyAll = async () => {
         try {
@@ -42,13 +50,40 @@ function ChatLogModal({ messages, taskTitle }) {
         }
     };
 
+    // TEMPORARY (dev builds): copies backend debug log + the raw message list
+    // (including hidden directive messages) for bug reports. Messages are
+    // fetched fresh from the DB so the log is identical before/after refresh.
+    const copyDebugLog = async () => {
+        try {
+            const [backendLog, dbMessages] = await Promise.all([
+                bridge.getDebugLog(taskId),
+                bridge.getTaskMessages(taskId),
+            ]);
+            const rawMessages = dbMessages
+                .map((m) => `[${m.created_at}] role=${m.role} kind=${m.kind}\n${m.content}`)
+                .join("\n----------------------------------------\n");
+            await navigator.clipboard.writeText(
+                `===== ZEUS DEBUG LOG (task ${taskId}) =====\n\n--- BACKEND EVENTS ---\n${backendLog || "(empty)"}\n\n--- RAW MESSAGES (incl. hidden) ---\n${rawMessages}`
+            );
+            setDebugCopied(true);
+            setTimeout(() => setDebugCopied(false), 2000);
+        } catch {
+            setDebugCopied(false);
+        }
+    };
+
     return (
         <div id="chat-log-modal" className="column gap-15">
             <div className="align-center justify-space-between">
                 <label id="chat-log-title">Chat log — {taskTitle}</label>
-                <button id="chat-log-copy" className="confirm-dialog-button" onClick={copyAll}>
-                    <label>{copied ? "Copied!" : "Copy all"}</label>
-                </button>
+                <div className="align-center gap-10">
+                    <button id="chat-log-copy-debug" className="confirm-dialog-button" onClick={copyDebugLog} title="TEMPORARY: copies internal debug info for bug reports">
+                        <label>{debugCopied ? "Copied!" : "Copy debug log"}</label>
+                    </button>
+                    <button id="chat-log-copy" className="confirm-dialog-button" onClick={copyAll}>
+                        <label>{copied ? "Copied!" : "Copy all"}</label>
+                    </button>
+                </div>
             </div>
             <pre id="chat-log-body">{text}</pre>
         </div>

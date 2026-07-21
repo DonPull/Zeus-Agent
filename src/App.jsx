@@ -13,7 +13,7 @@ import SettingsModal from "./components/SettingsModal";
 import ChatLogModal from "./components/ChatLogModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
-import { formatCredits } from "./utils";
+import { formatCredits, isHiddenPipelineMessage } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
 
@@ -23,9 +23,10 @@ function App() {
     const [messages, setMessages] = useState([]);
     const [spend, setSpend] = useState({ spent_credits: 0, budget_credits: 3000 });
     const [sending, setSending] = useState(false);
-    const [thinkingStage, setThinkingStage] = useState(null); // null | "connecting" | "connected" | "reasoning" | "generating"
+    const [thinkingStage, setThinkingStage] = useState(null);
     const [streamText, setStreamText] = useState("");
     const [reasoningText, setReasoningText] = useState("");
+    const [directiveMode, setDirectiveMode] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
@@ -35,6 +36,8 @@ function App() {
     const messagesContainerRef = useRef(null);
     const streamTextRef = useRef("");
     const reasoningTextRef = useRef("");
+    const directiveModeRef = useRef(false);
+    const streamFlushedRef = useRef(false);
     const activeTaskIdRef = useRef(null);
 
     const activeTask = tasks.find((t) => t.id === activeTaskId) || null;
@@ -59,6 +62,9 @@ function App() {
         setReasoningText("");
         streamTextRef.current = "";
         reasoningTextRef.current = "";
+        directiveModeRef.current = false;
+        streamFlushedRef.current = false;
+        setDirectiveMode(false);
         try {
             setMessages(await bridge.getTaskMessages(task.id));
         } catch (err) {
@@ -102,7 +108,6 @@ function App() {
     };
 
     const handleApprovalDecision = (approved, note) => {
-        // Reuse the normal send path: the decision restarts orchestration.
         const verb = approved ? "APPROVED" : "DENIED";
         const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
         handleSend(`[APPROVAL DECISION] ${verb}.${extra}`);
@@ -119,6 +124,9 @@ function App() {
         setReasoningText("");
         streamTextRef.current = "";
         reasoningTextRef.current = "";
+        directiveModeRef.current = false;
+        streamFlushedRef.current = false;
+        setDirectiveMode(false);
 
         const optimisticUserMessage = {
             id: `local-${Date.now()}`,
@@ -132,31 +140,30 @@ function App() {
 
         try {
             const result = await bridge.sendUserMessage(activeTaskId, content);
-            setMessages((prev) => [
-                ...prev.filter((m) => m.id !== optimisticUserMessage.id),
-                result.user_message,
-                result.assistant_message,
-            ]);
+            setMessages((prev) => {
+                const next = prev.map((m) => (m.id === optimisticUserMessage.id ? result.user_message : m));
+                next.push(result.assistant_message);
+                return next;
+            });
             setSpend({ spent_credits: result.spent_credits, budget_credits: result.budget_credits });
             refreshTasks();
         } catch (err) {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: `error-${Date.now()}`,
-                    task_id: activeTaskId,
-                    role: "event",
-                    kind: "chat",
-                    content: String(err).includes("BUDGET_EXCEEDED")
-                        ? "This task reached its unit budget. Per-task budget editing lands in M1b — start a new task for now."
-                        : `Zeus failed to respond: ${err}. Your message above is preserved — you can resend it.`,
-                    created_at: new Date().toISOString(),
-                },
-            ]);
-            if (String(err).includes("BUDGET_EXCEEDED")) {
+            const errStr = String(err);
+            if (errStr.includes("BUDGET_EXCEEDED")) {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: `error-${Date.now()}`,
+                        task_id: activeTaskId,
+                        role: "event",
+                        kind: "error",
+                        content: "This task reached its unit budget. Per-task budget editing lands in M1b — start a new task for now.",
+                        created_at: new Date().toISOString(),
+                    },
+                ]);
                 showToast("This task reached its unit budget.", "warning", 7000);
             } else {
-                showToast(String(err), "error", 8000);
+                showToast(errStr, "error", 8000);
             }
         } finally {
             setSending(false);
@@ -165,6 +172,9 @@ function App() {
             setReasoningText("");
             streamTextRef.current = "";
             reasoningTextRef.current = "";
+            directiveModeRef.current = false;
+            streamFlushedRef.current = false;
+            setDirectiveMode(false);
         }
     };
 
@@ -194,16 +204,43 @@ function App() {
         activeTaskIdRef.current = activeTaskId;
     }, [activeTaskId]);
 
-    // Token stream from the backend.
     useEffect(() => {
         let unlistenPromise = bridge.onChatStream((payload) => {
             if (!payload || payload.task_id !== activeTaskIdRef.current) return;
             const event = payload.event;
             if (event.type === "status") {
                 setThinkingStage(event.stage);
+                if (event.stage === "connected") {
+                    // A new model stream iteration started. Reset buffers.
+                    streamTextRef.current = "";
+                    reasoningTextRef.current = "";
+                    setStreamText("");
+                    setReasoningText("");
+                    directiveModeRef.current = false;
+                    setDirectiveMode(false);
+                    streamFlushedRef.current = false;
+                }
             } else if (event.type === "delta") {
                 streamTextRef.current += event.text;
-                setStreamText(streamTextRef.current);
+                const full = streamTextRef.current;
+                const directiveIdx = full.indexOf("```zeus-directive");
+                if (directiveIdx !== -1) {
+                    if (!directiveModeRef.current) {
+                        directiveModeRef.current = true;
+                        setDirectiveMode(true);
+                    }
+                    setStreamText(full.slice(0, directiveIdx));
+                    return;
+                }
+                if (!streamFlushedRef.current) {
+                    const head = full.trimStart();
+                    if (head.length >= 17 || (head.length > 0 && !"```zeus-directive".startsWith(head))) {
+                        streamFlushedRef.current = true;
+                        setStreamText(full);
+                    }
+                    return;
+                }
+                setStreamText(full);
             } else if (event.type === "reasoning_delta") {
                 reasoningTextRef.current += event.text;
                 setReasoningText(reasoningTextRef.current);
@@ -214,12 +251,13 @@ function App() {
         };
     }, []);
 
-    // Live task messages (action cards, approvals) during orchestration.
     useEffect(() => {
         let unlistenPromise = bridge.onTaskMessage((payload) => {
             if (!payload || payload.task_id !== activeTaskIdRef.current) return;
             setMessages((prev) => {
-                if (prev.some((m) => m.id === payload.message.id)) return prev;
+                if (prev.some((m) => m.id === payload.message.id)) {
+                    return prev.map((m) => (m.id === payload.message.id ? payload.message : m));
+                }
                 return [...prev, payload.message];
             });
         });
@@ -245,8 +283,8 @@ function App() {
         <main id="app-container">
             {toastObj.show && (
                 <Toast
-                    possition="bottom right"
                     closeToastCallbackFunction={() => setToastObj((prev) => ({ ...prev, show: false }))}
+                    position="bottom right"
                     toastMessage={toastObj.message}
                     notificationDurationInMs={toastObj.duration}
                     notificationType={toastObj.type}
@@ -254,21 +292,21 @@ function App() {
             )}
 
             <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} closeOnHover={false}>
-                <SettingsModal onToast={showToast} onClose={() => setIsSettingsOpen(false)} />
+                <SettingsModal onClose={() => setIsSettingsOpen(false)} onToast={showToast} />
             </Modal>
 
             <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
-                {activeTask && <ChatLogModal messages={messages} taskTitle={activeTask.title} />}
+                {activeTask && <ChatLogModal messages={messages} taskId={activeTask.id} taskTitle={activeTask.title} />}
             </Modal>
 
             <Sidebar
-                tasks={tasks}
                 activeTaskId={activeTaskId}
-                onSelectTask={handleSelectTask}
-                onNewTask={handleNewTask}
-                onRenameTask={handleRenameTask}
                 onDeleteTask={handleDeleteTask}
+                onNewTask={handleNewTask}
                 onOpenSettings={() => setIsSettingsOpen(true)}
+                onRenameTask={handleRenameTask}
+                onSelectTask={handleSelectTask}
+                tasks={tasks}
             />
 
             <div id="chat-region" className="column">
@@ -307,7 +345,7 @@ function App() {
                         </div>
 
                         <div ref={messagesContainerRef} id="chat-messages" className="column gap-15">
-                            {messages.map((message) => (
+                            {messages.filter((m) => !isHiddenPipelineMessage(m)).map((message) => (
                                 <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} />
                             ))}
                             {sending && (
@@ -315,11 +353,7 @@ function App() {
                                     <div className="chat-bubble column">
                                         <label className="chat-bubble-author">Zeus</label>
                                         {showReasoningPill && (
-                                            <ChatMessage
-                                                message={{ role: "assistant", content: "" }}
-                                                streaming={true}
-                                                reasoning={reasoningText}
-                                            />
+                                            <ChatMessage message={{ role: "assistant", content: "", reasoning: reasoningText, streaming: true }} />
                                         )}
                                         {streamText ? (
                                             <div className="chat-bubble-content markdown-body streaming">
@@ -328,7 +362,7 @@ function App() {
                                         ) : !showReasoningPill ? (
                                             <div id="thinking-indicator" className="align-center gap-10 no-user-select">
                                                 <div id="thinking-dots"><span></span><span></span><span></span></div>
-                                                <label>{thinkingLabel}</label>
+                                                <label>{directiveMode ? "Zeus is working (executing a plan)..." : thinkingLabel}</label>
                                             </div>
                                         ) : null}
                                     </div>

@@ -99,21 +99,20 @@ pub enum StreamEventPayload {
     Done,
 }
 
-/// Which wire protocol to use for a model. Reasoning models must go through
-/// the Responses API (the only endpoint that exposes reasoning); some models
-/// reject the Responses API entirely and must use Chat Completions.
+/// Which wire protocol to use for a model. Only OpenAI reasoning families
+/// (gpt-5, o-series) are routed to the Responses API — RouteLLM documents it
+/// for those, and live tests showed Kimi, DeepSeek, and grok-4.5 all 500 there.
+/// Everything else uses Chat Completions; if a Responses call fails before the
+/// first token, we silently retry on Chat Completions for the rest of the session.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApiKind {
     Responses,
     ChatCompletions,
 }
 
-/// Picks the endpoint for a model. Reasoning models (kimi, deepseek, o-series,
-/// gpt-5, grok-4) use the Responses API so we receive reasoning summaries and
-/// never 400 on chat/completions' lack of reasoning support.
 pub fn api_kind_for_model(model: &str) -> ApiKind {
     let m = model.to_lowercase();
-    let responses_markers = ["gpt-5", "o1", "o3", "o4", "grok"];
+    let responses_markers = ["gpt-5", "o1", "o3", "o4"];
     if responses_markers.iter().any(|k| m.contains(k)) {
         ApiKind::Responses
     } else {
@@ -447,11 +446,10 @@ where
 }
 
 /// Streams a reply from the model, choosing the wire protocol per model.
-/// Models with documented Responses API support (GPT-5 family, o-series, Grok)
-/// are tried there first to get reasoning summaries; if that call fails BEFORE
-/// anything was streamed, we silently retry on Chat Completions and remember
-/// the model for the rest of the session. A mid-stream failure is surfaced
-/// (retrying would duplicate output).
+/// Only OpenAI reasoning families (gpt-5, o-series) are routed to the
+/// Responses API (RouteLLM documents it for those). Everything else uses
+/// Chat Completions; if a Responses call fails before the first token, we
+/// silently retry on Chat Completions for the rest of the session.
 /// Returns (text, reasoning_summary, usage, usage_json, model_used).
 pub async fn stream_model_reply<F>(
     model: &str,
