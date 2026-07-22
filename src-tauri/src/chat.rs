@@ -30,12 +30,17 @@ pub struct MessageDto {
     pub credits_used: Option<f64>,
     pub model: Option<String>,
     pub created_at: String,
+    /// DB rowid — the single authoritative ordering key (P0 "Bedrock").
+    /// 0 until the message is persisted.
+    pub seq: i64,
+    pub visible: bool,
 }
 
+/// P0 contract: send_user_message no longer returns messages. Every message
+/// is persisted and then delivered via 'task-message' events, so live state
+/// and DB state cannot diverge.
 #[derive(Serialize)]
 pub struct SendResultDto {
-    pub user_message: MessageDto,
-    pub assistant_message: MessageDto,
     pub spent_credits: f64,
     pub budget_credits: i64,
 }
@@ -58,6 +63,9 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<TaskDto> {
     })
 }
 
+const MESSAGE_COLUMNS: &str =
+    "id, task_id, conversation, role, kind, content, credits_used, model, created_at, rowid, visible";
+
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
     Ok(MessageDto {
         id: row.get(0)?,
@@ -69,6 +77,8 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
         credits_used: row.get(6)?,
         model: row.get(7)?,
         created_at: row.get(8)?,
+        seq: row.get(9)?,
+        visible: row.get(10)?,
     })
 }
 
@@ -82,52 +92,72 @@ fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> 
         .map_err(|_| format!("Task not found: {}", task_id))
 }
 
-fn insert_message(connection: &Connection, message: &MessageDto) -> Result<(), String> {
-    connection
-        .execute(
-            "INSERT INTO messages (id, task_id, conversation, role, kind, content, credits_used, model, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                message.id, message.task_id, message.conversation, message.role,
-                message.kind, message.content, message.credits_used, message.model, message.created_at
-            ],
-        )
-        .map_err(|e| format!("Failed to save the message: {}", e))?;
-    Ok(())
-}
-
-/// Persists a hidden pipeline message (directive / directive_result) and
-/// returns it. These are model-context messages the UI never renders.
-fn insert_hidden_message(
-    connection: &Connection,
+/// Builds an unsaved MessageDto. `seq` stays 0 until insert_message stamps it.
+fn new_message(
     task_id: &str,
     role: &str,
     kind: &str,
-    content: &str,
+    content: String,
     credits_used: Option<f64>,
     model: Option<String>,
-) -> Result<MessageDto, String> {
-    let message = MessageDto {
+    visible: bool,
+) -> MessageDto {
+    MessageDto {
         id: new_id(),
         task_id: task_id.to_string(),
         conversation: "master".into(),
         role: role.into(),
         kind: kind.into(),
-        content: content.to_string(),
+        content,
         credits_used,
         model,
         created_at: now_iso(),
-    };
-    insert_message(connection, &message)?;
-    Ok(message)
+        seq: 0,
+        visible,
+    }
 }
 
-/// Emits a message to the frontend immediately so action cards appear live.
+/// Persists the message and stamps its authoritative `seq` from the DB rowid.
+fn insert_message(connection: &Connection, message: &mut MessageDto) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO messages (id, task_id, conversation, role, kind, content, credits_used, model, created_at, visible)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                message.id, message.task_id, message.conversation, message.role,
+                message.kind, message.content, message.credits_used, message.model,
+                message.created_at, message.visible
+            ],
+        )
+        .map_err(|e| format!("Failed to save the message: {}", e))?;
+    message.seq = connection.last_insert_rowid();
+    Ok(())
+}
+
+/// Emits a message to the frontend. P0: this is the ONLY channel through which
+/// messages reach the UI — send_user_message returns no message payloads.
 fn emit_message(app_handle: &tauri::AppHandle, task_id: &str, message: &MessageDto) {
     let _ = app_handle.emit(
         "task-message",
         serde_json::json!({ "task_id": task_id, "message": message }),
     );
+}
+
+/// The one write path for messages: persist (stamping seq), then emit.
+fn persist_and_emit(
+    state: &State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    message: &mut MessageDto,
+) -> Result<(), String> {
+    {
+        let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+        insert_message(&connection, message)?;
+    }
+    // Hidden pipeline messages are still emitted: the reducer stores them and
+    // the debug log sees them live, but the UI renders only visible ones.
+    emit_message(app_handle, task_id, message);
+    Ok(())
 }
 
 fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<ChatMessage>, String> {
@@ -198,17 +228,25 @@ pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<TaskDto>, Stri
 }
 
 #[tauri::command]
-pub async fn get_task_messages(state: State<'_, AppState>, task_id: String) -> Result<Vec<MessageDto>, String> {
+pub async fn get_task_messages(
+    state: State<'_, AppState>,
+    task_id: String,
+    include_hidden: Option<bool>,
+) -> Result<Vec<MessageDto>, String> {
+    let include_hidden = include_hidden.unwrap_or(false);
     let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let mut statement = connection
-        .prepare(
-            "SELECT id, task_id, conversation, role, kind, content, credits_used, model, created_at
-             FROM messages WHERE task_id = ?1 AND conversation = 'master'
+        .prepare(&format!(
+            "SELECT {} FROM messages
+             WHERE task_id = ?1 AND conversation = 'master' AND (?2 OR visible = 1)
              ORDER BY rowid ASC",
-        )
+            MESSAGE_COLUMNS
+        ))
         .map_err(|e| format!("Failed to prepare the messages query: {}", e))?;
 
-    let rows = statement.query_map(params![task_id], row_to_message).map_err(|e| format!("Failed to load the messages: {}", e))?;
+    let rows = statement
+        .query_map(params![task_id, include_hidden], row_to_message)
+        .map_err(|e| format!("Failed to load the messages: {}", e))?;
 
     let mut messages = Vec::new();
     for row in rows {
@@ -280,18 +318,8 @@ pub async fn send_user_message(
         }
 
         let now = now_iso();
-        let user_message = MessageDto {
-            id: new_id(),
-            task_id: task_id.clone(),
-            conversation: "master".into(),
-            role: "user".into(),
-            kind: "chat".into(),
-            content: content.clone(),
-            credits_used: None,
-            model: None,
-            created_at: now.clone(),
-        };
-        insert_message(&connection, &user_message)?;
+        let mut user_message = new_message(&task_id, "user", "chat", content.clone(), None, None, true);
+        insert_message(&connection, &mut user_message)?;
 
         // If this message carries an approval decision, stamp the latest pending
         // approval card so it deactivates and the decision survives reloads.
@@ -304,9 +332,11 @@ pub async fn send_user_message(
                 .unwrap_or_default();
             let latest = connection
                 .query_row(
-                    "SELECT id, task_id, conversation, role, kind, content, credits_used, model, created_at
-                     FROM messages WHERE task_id = ?1 AND kind = 'approval'
-                     ORDER BY rowid DESC LIMIT 1",
+                    &format!(
+                        "SELECT {} FROM messages WHERE task_id = ?1 AND kind = 'approval'
+                         ORDER BY rowid DESC LIMIT 1",
+                        MESSAGE_COLUMNS
+                    ),
                     params![task_id],
                     row_to_message,
                 )
@@ -344,33 +374,27 @@ pub async fn send_user_message(
         (history, user_message, task, app_settings.master_model, current_spend, updated_approval)
     };
 
+    // P0: the user message reaches the UI the same way as everything else.
+    emit_message(&app_handle, &task_id, &user_message);
     if let Some(msg) = updated_approval {
         emit_message(&app_handle, &task_id, &msg);
     }
 
     let budget_units = task.budget_credits;
     let mut history = history;
-    let mut final_assistant: Option<MessageDto> = None;
+    let mut produced_final = false;
 
     // 2) Orchestration loop. Each iteration may add directive-result messages
     //    to `history` (and persist them) before re-calling the master.
     for _iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
         if current_spend >= budget_units as f64 {
-            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-            let note = MessageDto {
-                id: new_id(),
-                task_id: task_id.clone(),
-                conversation: "master".into(),
-                role: "event".into(),
-                kind: "chat".into(),
-                content: "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
-                credits_used: None,
-                model: None,
-                created_at: now_iso(),
-            };
-            insert_message(&connection, &note)?;
-            emit_message(&app_handle, &task_id, &note);
-            drop(connection);
+            let mut note = new_message(
+                &task_id, "event", "chat",
+                "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
+                None, None, true,
+            );
+            persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
+            produced_final = true;
             break;
         }
 
@@ -386,32 +410,21 @@ pub async fn send_user_message(
         let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
             Ok(v) => v,
             Err(e) => {
-                // Persist the failure as an event so it survives reloads —
-                // previously it lived only in frontend state and vanished on refresh.
+                // Persist the failure as an event so it survives reloads.
                 crate::logger::log(&task_id, "gateway", &format!("model call failed: {}", e));
-                let error_message = MessageDto {
-                    id: new_id(),
-                    task_id: task_id.clone(),
-                    conversation: "master".into(),
-                    role: "event".into(),
-                    kind: "error".into(),
-                    content: format!("Zeus failed to respond: {}. Your message above is preserved — you can resend it.", e),
-                    credits_used: None,
-                    model: None,
-                    created_at: now_iso(),
-                };
-                {
-                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                    insert_message(&connection, &error_message)?;
-                }
-                emit_message(&app_handle, &task_id, &error_message);
+                let mut error_message = new_message(
+                    &task_id, "event", "error",
+                    format!("Zeus failed to respond: {}. Your message above is preserved — you can resend it.", e),
+                    None, None, true,
+                );
+                persist_and_emit(&state, &app_handle, &task_id, &mut error_message)?;
                 return Err(e);
             }
         };
 
         let model_name = model_used.unwrap_or_else(|| master_model.clone());
 
-        // Persist the spend + assistant reply for this iteration.
+        // Persist the spend for this iteration.
         let units = {
             let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
             record_spend(&connection, &task_id, &model_name, &usage, &usage_json)?
@@ -420,71 +433,49 @@ pub async fn send_user_message(
 
         match orchestrator::parse_master_reply(&reply_text) {
             orchestrator::MasterReply::Text(text) => {
-                let assistant_message = MessageDto {
-                    id: new_id(),
-                    task_id: task_id.clone(),
-                    conversation: "master".into(),
-                    role: "assistant".into(),
-                    kind: "chat".into(),
-                    content: text.clone(),
-                    credits_used: Some(units),
-                    model: Some(model_name.clone()),
-                    created_at: now_iso(),
-                };
-                {
-                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                    insert_message(&connection, &assistant_message)?;
-                }
+                let mut assistant_message = new_message(
+                    &task_id, "assistant", "chat", text.clone(), Some(units), Some(model_name.clone()), true,
+                );
+                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
                 history.push(ChatMessage { role: "assistant".into(), content: text });
-                final_assistant = Some(assistant_message);
+                produced_final = true;
                 break;
             }
             orchestrator::MasterReply::MalformedDirective(error, raw) => {
-                // Never show raw directive JSON to the user. Persist it hidden,
-                // tell the model what went wrong, and loop so it can self-heal.
                 crate::logger::log(&task_id, "orchestrator", &format!("MALFORMED directive: {}", error));
                 let feedback = format!(
                     "[DIRECTIVE_ERROR] Your directive block could not be parsed: {}. Re-emit exactly ONE valid ```zeus-directive block (single JSON object, nothing after the closing fence), or reply in plain text if no action is needed.",
                     error
                 );
-                {
-                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                    insert_hidden_message(&connection, &task_id, "assistant", "directive", &raw, Some(units), Some(model_name.clone()))?;
-                    insert_hidden_message(&connection, &task_id, "user", "directive_result", &feedback, None, None)?;
-                }
+                let mut hidden_directive = new_message(
+                    &task_id, "assistant", "directive", raw.clone(), Some(units), Some(model_name.clone()), false,
+                );
+                let mut hidden_result = new_message(
+                    &task_id, "user", "directive_result", feedback.clone(), None, None, false,
+                );
+                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_directive)?;
+                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                 history.push(ChatMessage { role: "assistant".into(), content: raw });
                 history.push(ChatMessage { role: "user".into(), content: feedback });
                 // Loop: call the master again with the error feedback.
             }
             orchestrator::MasterReply::Directive(directive, raw) => {
-                // Persist the directive reply as kind 'directive' — model
-                // context only, hidden from the UI and the chat log.
                 crate::logger::log(&task_id, "orchestrator", &format!("directive parsed: {:?}", &directive));
-                {
-                    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                    insert_hidden_message(&connection, &task_id, "assistant", "directive", &raw, Some(units), Some(model_name.clone()))?;
-                }
+                let mut hidden_directive = new_message(
+                    &task_id, "assistant", "directive", raw.clone(), Some(units), Some(model_name.clone()), false,
+                );
+                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_directive)?;
                 history.push(ChatMessage { role: "assistant".into(), content: raw });
 
                 match directive {
                     Directive::FinalAnswer { final_answer } => {
-                        let assistant_message = MessageDto {
-                            id: new_id(),
-                            task_id: task_id.clone(),
-                            conversation: "master".into(),
-                            role: "assistant".into(),
-                            kind: "chat".into(),
-                            content: final_answer.summary.clone(),
-                            credits_used: Some(units),
-                            model: Some(model_name.clone()),
-                            created_at: now_iso(),
-                        };
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_message(&connection, &assistant_message)?;
-                        }
+                        let mut assistant_message = new_message(
+                            &task_id, "assistant", "chat", final_answer.summary.clone(),
+                            Some(units), Some(model_name.clone()), true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
                         history.push(ChatMessage { role: "assistant".into(), content: final_answer.summary });
-                        final_assistant = Some(assistant_message);
+                        produced_final = true;
                         break;
                     }
                     Directive::TaskUpdate { update } => {
@@ -504,53 +495,32 @@ pub async fn send_user_message(
                         }
                         let result_json = orchestrator::task_update_result_json(true, &detail);
                         let msg = orchestrator::directive_result_message(&result_json);
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_hidden_message(&connection, &task_id, "user", "directive_result", &msg, None, None)?;
-                        }
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { role: "user".into(), content: msg });
                         // Loop: call the master again with the result.
                     }
                     Directive::RequestApproval { approval } => {
-                        let approval_message = MessageDto {
-                            id: new_id(),
-                            task_id: task_id.clone(),
-                            conversation: "master".into(),
-                            role: "event".into(),
-                            kind: "approval".into(),
-                            content: serde_json::json!({
+                        let mut approval_message = new_message(
+                            &task_id, "event", "approval",
+                            serde_json::json!({
                                 "summary": approval.summary,
                                 "detail": approval.detail,
                                 "status": "pending",
                             })
                             .to_string(),
-                            credits_used: None,
-                            model: None,
-                            created_at: now_iso(),
-                        };
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_message(&connection, &approval_message)?;
-                        }
-                        emit_message(&app_handle, &task_id, &approval_message);
+                            None, None, true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
                         // Stop the loop: the user's decision will arrive as a
                         // new send, which restarts orchestration.
-                        let assistant_message = MessageDto {
-                            id: new_id(),
-                            task_id: task_id.clone(),
-                            conversation: "master".into(),
-                            role: "assistant".into(),
-                            kind: "chat".into(),
-                            content: "I need your approval before continuing — see the card above.".into(),
-                            credits_used: Some(units),
-                            model: Some(model_name.clone()),
-                            created_at: now_iso(),
-                        };
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_message(&connection, &assistant_message)?;
-                        }
-                        final_assistant = Some(assistant_message);
+                        let mut assistant_message = new_message(
+                            &task_id, "assistant", "chat",
+                            "I need your approval before continuing — see the card above.".into(),
+                            Some(units), Some(model_name.clone()), true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                        produced_final = true;
                         break;
                     }
                     Directive::RunAction { action, success_criteria } => {
@@ -570,13 +540,9 @@ pub async fn send_user_message(
                             &outcome.interpreter,
                         );
 
-                        let action_message = MessageDto {
-                            id: new_id(),
-                            task_id: task_id.clone(),
-                            conversation: "master".into(),
-                            role: "event".into(),
-                            kind: "action".into(),
-                            content: serde_json::json!({
+                        let mut action_message = new_message(
+                            &task_id, "event", "action",
+                            serde_json::json!({
                                 "language": action.language,
                                 "code": action.code,
                                 "success_criteria": success_criteria,
@@ -587,22 +553,14 @@ pub async fn send_user_message(
                                 "stderr": outcome.stderr,
                             })
                             .to_string(),
-                            credits_used: None,
-                            model: None,
-                            created_at: now_iso(),
-                        };
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_message(&connection, &action_message)?;
-                        }
-                        emit_message(&app_handle, &task_id, &action_message);
+                            None, None, true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut action_message)?;
 
                         crate::logger::log(&task_id, "runner", &format!("action exit={} timed_out={} stdout_len={} stderr_len={}", outcome.exit_code, outcome.timed_out, outcome.stdout.len(), outcome.stderr.len()));
                         let msg = orchestrator::directive_result_message(&result_json);
-                        {
-                            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            insert_hidden_message(&connection, &task_id, "user", "directive_result", &msg, None, None)?;
-                        }
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { role: "user".into(), content: msg });
                         // Loop: call the master again with the action result.
                     }
@@ -611,32 +569,19 @@ pub async fn send_user_message(
         }
     }
 
-    // 3) Resolve the final assistant message (fallback if the cap was hit).
-    let assistant_message = match final_assistant {
-        Some(m) => m,
-        None => {
-            let m = MessageDto {
-                id: new_id(),
-                task_id: task_id.clone(),
-                conversation: "master".into(),
-                role: "assistant".into(),
-                kind: "chat".into(),
-                content: "I reached the maximum number of orchestration steps for this turn. Tell me to continue and I'll pick up from here.".into(),
-                credits_used: None,
-                model: Some(master_model.clone()),
-                created_at: now_iso(),
-            };
-            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-            insert_message(&connection, &m)?;
-            m
-        }
-    };
+    // 3) Fallback if the iteration cap was hit without a final reply.
+    if !produced_final {
+        let mut fallback = new_message(
+            &task_id, "assistant", "chat",
+            "I reached the maximum number of orchestration steps for this turn. Tell me to continue and I'll pick up from here.".into(),
+            None, Some(master_model.clone()), true,
+        );
+        persist_and_emit(&state, &app_handle, &task_id, &mut fallback)?;
+    }
 
     Ok(SendResultDto {
-        user_message,
         spent_credits: current_spend,
         budget_credits: budget_units,
-        assistant_message,
     })
 }
 

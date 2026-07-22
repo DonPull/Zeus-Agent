@@ -8,17 +8,19 @@ human-readable string (a `BUDGET_EXCEEDED` substring signals the budget stop).
 
 ## Tasks
 
-- `createTask(title: string | null) → TaskDto`
-  Creates a task. `null` uses the default title; the first user message
-  auto-titles it (48 chars + …). Also creates the per-task workspace folder.
-- `listTasks() → TaskDto[]` — ordered by `updated_at` descending.
-- `getTaskMessages(taskId: string) → MessageDto[]` — master conversation, oldest first.
+- `getTaskMessages(taskId: string, includeHidden?: boolean) → MessageDto[]`
+  Master conversation, oldest first (ordered by `seq`). By default returns
+  only `visible` messages — the backend owns visibility; the UI never filters
+  by content. `includeHidden: true` is for debug tooling only.
 - `getTaskSpend(taskId: string) → { spent_credits: number, budget_credits: number }`
 - `sendUserMessage(taskId: string, content: string) → SendResultDto`
-  Persists the user message, calls the master model, persists the reply,
-  logs a credit event, updates the task spend.
+  Persists the user message, runs the orchestration loop, returns ONLY spend
+  totals. ALL messages (the user echo included) are delivered exclusively via
+  `task-message` events carrying their DB `seq`. The UI must upsert by `id`
+  and sort by `seq`; on send completion it should re-fetch `getTaskMessages`
+  to reconcile with the DB.
 
 ```json
 TaskDto       { "id", "title", "status", "budget_credits", "spent_credits", "created_at", "updated_at" }
-MessageDto    { "id", "task_id", "conversation", "role", "kind", "content", "credits_used", "model", "created_at" }
-SendResultDto { "user_message": MessageDto, "assistant_message": MessageDto, "spent_credits", "budget_credits" }
+MessageDto    { "id", "task_id", "conversation", "role", "kind", "content", "credits_used", "model", "created_at", "seq", "visible" }
+SendResultDto { "spent_credits", "budget_credits" }

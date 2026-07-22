@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatTime } from "../utils";
-import { isHiddenPipelineMessage } from "../utils";
 import * as bridge from "../bridge";
 
 function renderEntry(m) {
@@ -30,15 +29,22 @@ function renderEntry(m) {
     return `[${time}] EVENT\n${m.content}\n`;
 }
 
-function ChatLogModal({ messages, taskTitle, taskId }) {
+function ChatLogModal({ taskTitle, taskId }) {
     const [copied, setCopied] = useState(false);
     const [debugCopied, setDebugCopied] = useState(false);
+    const [messages, setMessages] = useState(null); // null = loading
 
-    // The SAME filter the chat UI uses — the log is consistent by construction.
-    const text = messages
-        .filter((m) => !isHiddenPipelineMessage(m))
-        .map(renderEntry)
-        .join("\n----------------------------------------\n\n");
+    // P0: fetch fresh from the DB (visible-only, backend-filtered). The log
+    // shows exactly what the chat UI shows after a refresh — by construction.
+    useEffect(() => {
+        let cancelled = false;
+        bridge.getTaskMessages(taskId)
+            .then((m) => { if (!cancelled) setMessages(m); })
+            .catch(() => { if (!cancelled) setMessages([]); });
+        return () => { cancelled = true; };
+    }, [taskId]);
+
+    const text = (messages || []).map(renderEntry).join("\n----------------------------------------\n\n");
 
     const copyAll = async () => {
         try {
@@ -51,16 +57,15 @@ function ChatLogModal({ messages, taskTitle, taskId }) {
     };
 
     // TEMPORARY (dev builds): copies backend debug log + the raw message list
-    // (including hidden directive messages) for bug reports. Messages are
-    // fetched fresh from the DB so the log is identical before/after refresh.
+    // (including hidden directive messages) for bug reports.
     const copyDebugLog = async () => {
         try {
             const [backendLog, dbMessages] = await Promise.all([
                 bridge.getDebugLog(taskId),
-                bridge.getTaskMessages(taskId),
+                bridge.getTaskMessages(taskId, true),
             ]);
             const rawMessages = dbMessages
-                .map((m) => `[${m.created_at}] role=${m.role} kind=${m.kind}\n${m.content}`)
+                .map((m) => `[${m.created_at}] seq=${m.seq} role=${m.role} kind=${m.kind} visible=${m.visible}\n${m.content}`)
                 .join("\n----------------------------------------\n");
             await navigator.clipboard.writeText(
                 `===== ZEUS DEBUG LOG (task ${taskId}) =====\n\n--- BACKEND EVENTS ---\n${backendLog || "(empty)"}\n\n--- RAW MESSAGES (incl. hidden) ---\n${rawMessages}`
@@ -85,7 +90,7 @@ function ChatLogModal({ messages, taskTitle, taskId }) {
                     </button>
                 </div>
             </div>
-            <pre id="chat-log-body">{text}</pre>
+            <pre id="chat-log-body">{messages === null ? "Loading…" : text}</pre>
         </div>
     );
 }

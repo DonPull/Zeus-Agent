@@ -13,7 +13,7 @@ import SettingsModal from "./components/SettingsModal";
 import ChatLogModal from "./components/ChatLogModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
-import { formatCredits, isHiddenPipelineMessage } from "./utils";
+import { formatCredits, mergeMessages } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
 
@@ -55,8 +55,22 @@ function App() {
         }
     };
 
+    // P0: the ONE reconcile path. Re-fetches the visible message list from the
+    // DB and replaces local state wholesale, guarded by the active task.
+    // Guarantees "live state" === "state after refresh" by construction.
+    const reconcileMessages = async (taskId) => {
+        try {
+            const fresh = await bridge.getTaskMessages(taskId);
+            if (activeTaskIdRef.current !== taskId) return;
+            setMessages(fresh);
+        } catch (err) {
+            showToast(`Failed to load messages: ${err}`);
+        }
+    };
+
     const handleSelectTask = async (task) => {
         setActiveTaskId(task.id);
+        activeTaskIdRef.current = task.id; // set synchronously so the reconcile guard passes
         setSpend({ spent_credits: task.spent_credits, budget_credits: task.budget_credits });
         setStreamText("");
         setReasoningText("");
@@ -65,11 +79,8 @@ function App() {
         directiveModeRef.current = false;
         streamFlushedRef.current = false;
         setDirectiveMode(false);
-        try {
-            setMessages(await bridge.getTaskMessages(task.id));
-        } catch (err) {
-            showToast(`Failed to load messages: ${err}`);
-        }
+        setMessages([]);
+        await reconcileMessages(task.id);
     };
 
     const handleNewTask = async () => {
@@ -77,6 +88,7 @@ function App() {
             const task = await bridge.createTask(null);
             setTasks((prev) => [task, ...prev]);
             setActiveTaskId(task.id);
+            activeTaskIdRef.current = task.id;
             setMessages([]);
             setSpend({ spent_credits: task.spent_credits, budget_credits: task.budget_credits });
         } catch (err) {
@@ -98,6 +110,7 @@ function App() {
             await bridge.deleteTask(taskId);
             if (activeTaskId === taskId) {
                 setActiveTaskId(null);
+                activeTaskIdRef.current = null;
                 setMessages([]);
             }
             refreshTasks();
@@ -117,6 +130,11 @@ function App() {
         const content = (typeof overrideContent === "string" ? overrideContent : inputValue).trim();
         if (!content || sending || !activeTaskId) return;
 
+        // P0: capture the task this send belongs to. Every state update below
+        // is guarded against it, so switching tasks mid-run can never stitch
+        // results into the wrong conversation.
+        const taskAtSend = activeTaskId;
+
         if (typeof overrideContent !== "string") setInputValue("");
         setSending(true);
         setThinkingStage("connecting");
@@ -128,42 +146,45 @@ function App() {
         streamFlushedRef.current = false;
         setDirectiveMode(false);
 
-        const optimisticUserMessage = {
-            id: `local-${Date.now()}`,
-            task_id: activeTaskId,
+        // Optimistic echo. No seq → sorts last; the backend's user-message
+        // event (same content, real seq) plus the reconcile fetch replace it.
+        const optimisticId = `local-${Date.now()}`;
+        setMessages((prev) => mergeMessages(prev, {
+            id: optimisticId,
+            task_id: taskAtSend,
             role: "user",
             kind: "chat",
             content,
             created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, optimisticUserMessage]);
+        }));
 
         try {
-            const result = await bridge.sendUserMessage(activeTaskId, content);
-            setMessages((prev) => {
-                const next = prev.map((m) => (m.id === optimisticUserMessage.id ? result.user_message : m));
-                next.push(result.assistant_message);
-                return next;
-            });
-            setSpend({ spent_credits: result.spent_credits, budget_credits: result.budget_credits });
+            const result = await bridge.sendUserMessage(taskAtSend, content);
+            if (activeTaskIdRef.current === taskAtSend) {
+                setSpend({ spent_credits: result.spent_credits, budget_credits: result.budget_credits });
+                // Reconcile drops the optimistic echo and guarantees the list
+                // matches the DB exactly (order, content, approval stamps).
+                await reconcileMessages(taskAtSend);
+            }
             refreshTasks();
         } catch (err) {
             const errStr = String(err);
             if (errStr.includes("BUDGET_EXCEEDED")) {
-                setMessages((prev) => [
-                    ...prev,
-                    {
+                if (activeTaskIdRef.current === taskAtSend) {
+                    setMessages((prev) => mergeMessages(prev, {
                         id: `error-${Date.now()}`,
-                        task_id: activeTaskId,
+                        task_id: taskAtSend,
                         role: "event",
                         kind: "error",
                         content: "This task reached its unit budget. Per-task budget editing lands in M1b — start a new task for now.",
                         created_at: new Date().toISOString(),
-                    },
-                ]);
+                    }));
+                }
                 showToast("This task reached its unit budget.", "warning", 7000);
             } else {
                 showToast(errStr, "error", 8000);
+                // The backend persists errors as events; reconcile picks them up.
+                if (activeTaskIdRef.current === taskAtSend) await reconcileMessages(taskAtSend);
             }
         } finally {
             setSending(false);
@@ -254,12 +275,7 @@ function App() {
     useEffect(() => {
         let unlistenPromise = bridge.onTaskMessage((payload) => {
             if (!payload || payload.task_id !== activeTaskIdRef.current) return;
-            setMessages((prev) => {
-                if (prev.some((m) => m.id === payload.message.id)) {
-                    return prev.map((m) => (m.id === payload.message.id ? payload.message : m));
-                }
-                return [...prev, payload.message];
-            });
+            setMessages((prev) => mergeMessages(prev, payload.message));
         });
         return () => {
             unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
@@ -279,6 +295,10 @@ function App() {
 
     const showReasoningPill = sending && (reasoningText.length > 0 || thinkingStage === "reasoning");
 
+    // P0: the backend owns visibility. Hidden pipeline messages still arrive
+    // via events (for the debug log) but are filtered by the DB flag alone.
+    const visibleMessages = messages.filter((m) => m.visible !== false);
+
     return (
         <main id="app-container">
             {toastObj.show && (
@@ -296,7 +316,7 @@ function App() {
             </Modal>
 
             <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
-                {activeTask && <ChatLogModal messages={messages} taskId={activeTask.id} taskTitle={activeTask.title} />}
+                {activeTask && <ChatLogModal taskId={activeTask.id} taskTitle={activeTask.title} />}
             </Modal>
 
             <Sidebar
@@ -345,7 +365,7 @@ function App() {
                         </div>
 
                         <div ref={messagesContainerRef} id="chat-messages" className="column gap-15">
-                            {messages.filter((m) => !isHiddenPipelineMessage(m)).map((message) => (
+                            {visibleMessages.map((message) => (
                                 <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} />
                             ))}
                             {sending && (

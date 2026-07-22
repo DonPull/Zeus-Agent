@@ -16,13 +16,18 @@ export const formatTime = (isoString) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-// Single source of truth for which messages are internal pipeline messages
-// (hidden from BOTH the chat UI and the chat log). Content sniffing is only a
-// fallback for rows persisted before the kind-based classification existed.
-export const isHiddenPipelineMessage = (m) => {
-    if (!m) return true;
-    if (m.kind === "directive" || m.kind === "directive_result") return true;
-    if (m.role === "assistant" && typeof m.content === "string" && m.content.includes("```zeus-directive")) return true;
-    if (m.role === "user" && typeof m.content === "string" && m.content.startsWith("[DIRECTIVE_")) return true;
-    return false;
+// P0 "Bedrock": the ONE merge function for the messages array.
+// Insert-or-replace by id, then sort by the DB-authoritative `seq` —
+// arrival order of events never matters. Local optimistic entries
+// (no seq) sort last until the reconcile fetch replaces them.
+export const mergeMessages = (prev, incoming) => {
+    const list = Array.isArray(incoming) ? incoming : [incoming];
+    const byId = new Map(prev.map((m) => [m.id, m]));
+    for (const m of list) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) => {
+        const sa = typeof a.seq === "number" && a.seq > 0 ? a.seq : Number.MAX_SAFE_INTEGER;
+        const sb = typeof b.seq === "number" && b.seq > 0 ? b.seq : Number.MAX_SAFE_INTEGER;
+        if (sa !== sb) return sa - sb;
+        return (a.created_at || "").localeCompare(b.created_at || "");
+    });
 };
