@@ -5,18 +5,18 @@ use crate::settings;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
+use tokio_util::sync::CancellationToken;
 
 pub const DEFAULT_TASK_TITLE: &str = "New agent task";
 
-/// Owns one task's process-level orchestration lease.
+/// Owns one task's process-level orchestration lease and cancellation token.
 ///
-/// The mutex is held only while inserting/removing the task ID. The guard
-/// itself survives across network and action awaits without holding a mutex.
-/// Drop releases the lease on every return path, including errors propagated
-/// with `?`.
+/// The registry mutex is held only while inserting/removing the task entry.
+/// Dropping this guard releases the task for its next run.
 struct ActiveRunGuard<'a> {
     task_id: String,
-    active_runs: &'a std::sync::Mutex<std::collections::HashSet<String>>,
+    token: CancellationToken,
+    active_runs: &'a std::sync::Mutex<std::collections::HashMap<String, CancellationToken>>,
 }
 
 impl<'a> ActiveRunGuard<'a> {
@@ -26,14 +26,22 @@ impl<'a> ActiveRunGuard<'a> {
             .lock()
             .map_err(|e| format!("Active-run lock error: {}", e))?;
 
-        if !active_runs.insert(task_id.to_string()) {
+        if active_runs.contains_key(task_id) {
             return Err("TASK_ALREADY_RUNNING".into());
         }
 
+        let token = CancellationToken::new();
+        active_runs.insert(task_id.to_string(), token.clone());
+
         Ok(Self {
             task_id: task_id.to_string(),
+            token,
             active_runs: &state.active_runs,
         })
+    }
+
+    fn token(&self) -> CancellationToken {
+        self.token.clone()
     }
 }
 
@@ -252,6 +260,36 @@ fn finish_durable_run(
         .map_err(|e| format!("Failed to release task run state: {}", e))?;
 
     load_run_state(connection, run_id)
+}
+
+fn finish_cancelled_run(
+    state: &State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    let mut cancellation_message = new_message(
+        task_id,
+        "event",
+        "chat",
+        "Zeus stopped this run at your request.".into(),
+        None,
+        None,
+        true,
+    );
+    persist_and_emit(state, app_handle, task_id, &mut cancellation_message)?;
+
+    let cancelled_run = {
+        let connection = state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock error: {}", e))?;
+
+        finish_durable_run(&connection, run_id, task_id, "cancelled", None)?
+    };
+
+    emit_run_state(app_handle, &cancelled_run);
+    Ok(())
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<TaskDto> {
@@ -527,6 +565,69 @@ pub async fn get_task_run_state(
         .map_err(|e| format!("Failed to load task run state: {}", e))
 }
 
+#[tauri::command]
+pub async fn cancel_task_run(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    task_id: String,
+) -> Result<RunStateDto, String> {
+    let token = {
+        let active_runs = state
+            .active_runs
+            .lock()
+            .map_err(|e| format!("Active-run lock error: {}", e))?;
+
+        active_runs.get(&task_id).cloned()
+    }
+    .ok_or_else(|| "TASK_NOT_RUNNING".to_string())?;
+
+    // Signal first so the executor begins shutting down immediately.
+    token.cancel();
+
+    let run = {
+        let connection = state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock error: {}", e))?;
+
+        let latest_run_id: String = connection
+            .query_row(
+                "SELECT id
+                 FROM runs
+                 WHERE task_id = ?1
+                   AND status IN ('running', 'stopping')
+                 ORDER BY started_at DESC
+                 LIMIT 1",
+                params![task_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "TASK_NOT_RUNNING".to_string())?;
+
+        connection
+            .execute(
+                "UPDATE runs
+                 SET status = 'stopping', updated_at = ?1
+                 WHERE id = ?2 AND status = 'running'",
+                params![now_iso(), latest_run_id],
+            )
+            .map_err(|e| format!("Failed to mark run as stopping: {}", e))?;
+
+        connection
+            .execute(
+                "UPDATE tasks
+                 SET status = 'stopping', updated_at = ?1
+                 WHERE id = ?2",
+                params![now_iso(), task_id],
+            )
+            .map_err(|e| format!("Failed to mark task as stopping: {}", e))?;
+
+        load_run_state(&connection, &latest_run_id)?
+    };
+
+    emit_run_state(&app_handle, &run);
+    Ok(run)
+}
+
 /// Records a model call in the ledger and bumps the task's spend. Returns the
 /// unit cost so the caller can attach it to the assistant message.
 fn record_spend(
@@ -576,7 +677,8 @@ pub async fn send_user_message(
     // The in-memory lease prevents simultaneous execution. The durable
     // request ID prevents the same logical send from being executed again
     // after webview or process lifecycle changes.
-    let _active_run = ActiveRunGuard::acquire(state.inner(), &task_id)?;
+    let active_run = ActiveRunGuard::acquire(state.inner(), &task_id)?;
+    let cancellation_token = active_run.token();
 
     let durable_run = {
         let connection = state
@@ -696,6 +798,11 @@ pub async fn send_user_message(
     // 2) Orchestration loop. Each iteration may add directive-result messages
     //    to `history` (and persist them) before re-calling the master.
     for _iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+        if cancellation_token.is_cancelled() {
+            finish_cancelled_run(&state, &app_handle, &task_id, &run_id)?;
+            return Err("RUN_CANCELLED".into());
+        }
+
         if current_spend >= budget_units as f64 {
             let mut note = new_message(
                 &task_id, "event", "chat",
@@ -707,18 +814,39 @@ pub async fn send_user_message(
             break;
         }
 
-        let stream_handle = app_handle.clone();
-        let stream_task_id = task_id.clone();
-        let stream_result = gateway::stream_model_reply(&master_model, &history, move |event| {
-            let _ = stream_handle.emit(
-                "chat-stream",
-                serde_json::json!({
-                    "task_id": stream_task_id,
-                    "event": event,
-                }),
-            );
-        })
-        .await;
+        // Keep the streaming future in its own scope. It immutably borrows
+        // `history`, so it must be dropped before this iteration appends any
+        // assistant or directive-result messages to the history.
+        let stream_result = {
+            let stream_handle = app_handle.clone();
+            let stream_task_id = task_id.clone();
+
+            let stream_future =
+                gateway::stream_model_reply(&master_model, &history, move |event| {
+                    let _ = stream_handle.emit(
+                        "chat-stream",
+                        serde_json::json!({
+                            "task_id": stream_task_id,
+                            "event": event,
+                        }),
+                    );
+                });
+
+            tokio::pin!(stream_future);
+
+            tokio::select! {
+                result = &mut stream_future => result,
+                _ = cancellation_token.cancelled() => {
+                    finish_cancelled_run(
+                        &state,
+                        &app_handle,
+                        &task_id,
+                        &run_id,
+                    )?;
+                    return Err("RUN_CANCELLED".into());
+                }
+            }
+        };
         let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
             Ok(v) => v,
             Err(e) => {
@@ -933,12 +1061,29 @@ pub async fn send_user_message(
                         success_criteria,
                     } => {
                         let workspace = crate::utils::task_workspace(&task_id)?;
-                        let outcome = crate::python_runner::run_python_action(
+                        let action_future = crate::python_runner::run_python_action(
                             &workspace,
                             &action.code,
                             action.timeout_secs,
-                        )
-                        .await?;
+                        );
+
+                        tokio::pin!(action_future);
+
+                        let outcome = tokio::select! {
+                            result = &mut action_future => result?,
+                            _ = cancellation_token.cancelled() => {
+                                // Returning from this scope drops the action
+                                // future and its child, which has kill_on_drop
+                                // enabled by run_python_action.
+                                finish_cancelled_run(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                )?;
+                                return Err("RUN_CANCELLED".into());
+                            }
+                        };
 
                         let result_json = orchestrator::action_result_json(
                             &outcome.stdout,
@@ -1084,13 +1229,13 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
 mod tests {
     use super::*;
     use rusqlite::Connection;
-    use std::collections::HashSet;
+    use std::collections::HashMap;
     use std::sync::Mutex;
 
     fn test_state() -> AppState {
         AppState {
             db: Mutex::new(Connection::open_in_memory().unwrap()),
-            active_runs: Mutex::new(HashSet::new()),
+            active_runs: Mutex::new(HashMap::new()),
         }
     }
 
@@ -1111,5 +1256,28 @@ mod tests {
         // Releasing the original lease permits a later turn.
         drop(first);
         assert!(ActiveRunGuard::acquire(&state, "task-1").is_ok());
+    }
+
+    #[test]
+    fn active_run_guard_exposes_cancellable_token() {
+        let state = test_state();
+        let guard = ActiveRunGuard::acquire(&state, "task-1").unwrap();
+        let token = guard.token();
+
+        assert!(!token.is_cancelled());
+
+        let registered = state
+            .active_runs
+            .lock()
+            .unwrap()
+            .get("task-1")
+            .cloned()
+            .unwrap();
+
+        registered.cancel();
+
+        assert!(token.is_cancelled());
+        drop(guard);
+        assert!(!state.active_runs.lock().unwrap().contains_key("task-1"));
     }
 }

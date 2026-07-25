@@ -32,6 +32,8 @@ function App() {
     const [spend, setSpend] = useState({ spent_credits: 0, budget_credits: 3000 });
     const [sending, setSending] = useState(false);
     const [sendingTaskId, setSendingTaskId] = useState(null);
+    const [stopping, setStopping] = useState(false);
+    const [showJumpToLatest, setShowJumpToLatest] = useState(false);
     const [thinkingStage, setThinkingStage] = useState(null);
     const [streamText, setStreamText] = useState("");
     const [reasoningText, setReasoningText] = useState("");
@@ -48,6 +50,7 @@ function App() {
     const directiveModeRef = useRef(false);
     const streamFlushedRef = useRef(false);
     const activeTaskIdRef = useRef(null);
+    const scrollPinnedRef = useRef(true);
 
     // React state is not synchronous. This ref closes the small window in which
     // two Enter/click events could both observe sending === false.
@@ -85,12 +88,15 @@ function App() {
     const applyRunState = async (taskId, run) => {
         if (!run || activeTaskIdRef.current !== taskId) return;
 
-        const isRunning = run.status === "running";
-        setSending(isRunning);
-        setSendingTaskId(isRunning ? taskId : null);
-        sendLockRef.current = isRunning;
+        const isActive = run.status === "running" || run.status === "stopping";
 
-        if (!isRunning) {
+        setSending(isActive);
+        setSendingTaskId(isActive ? taskId : null);
+        setStopping(run.status === "stopping");
+        sendLockRef.current = isActive;
+
+        if (!isActive) {
+            setStopping(false);
             setThinkingStage(null);
             setStreamText("");
             setReasoningText("");
@@ -133,6 +139,8 @@ function App() {
         directiveModeRef.current = false;
         streamFlushedRef.current = false;
         setDirectiveMode(false);
+        scrollPinnedRef.current = true;
+        setShowJumpToLatest(false);
         setMessages([]);
         await Promise.all([
             reconcileMessages(task.id),
@@ -146,6 +154,8 @@ function App() {
             setTasks((prev) => [task, ...prev]);
             setActiveTaskId(task.id);
             activeTaskIdRef.current = task.id;
+            scrollPinnedRef.current = true;
+            setShowJumpToLatest(false);
             setMessages([]);
             setSpend({ spent_credits: task.spent_credits, budget_credits: task.budget_credits });
         } catch (err) {
@@ -222,7 +232,15 @@ function App() {
             refreshTasks();
         } catch (err) {
             const errStr = String(err);
-            if (errStr.includes("BUDGET_EXCEEDED")) {
+            if (errStr.includes("RUN_CANCELLED")) {
+                if (activeTaskIdRef.current === taskAtSend) {
+                    await Promise.all([
+                        reconcileMessages(taskAtSend),
+                        reconcileRunState(taskAtSend),
+                    ]);
+                }
+                showToast("Zeus stopped the run.", "info", 3500);
+            } else if (errStr.includes("BUDGET_EXCEEDED")) {
                 // Do not create a local chat event. Chat contents must come from the DB.
                 showToast("This task reached its unit budget.", "warning", 7000);
             } else if (errStr.includes("REQUEST_ALREADY_EXISTS")) {
@@ -257,6 +275,31 @@ function App() {
                 setSending(false);
                 setSendingTaskId(null);
             }
+        }
+    };
+
+    const handleStop = async () => {
+        if (!activeTaskId || !activeTaskIsSending || stopping) return;
+
+        const taskAtStop = activeTaskId;
+        setStopping(true);
+
+        try {
+            const run = await bridge.cancelTaskRun(taskAtStop);
+
+            if (activeTaskIdRef.current === taskAtStop) {
+                await applyRunState(taskAtStop, run);
+            }
+        } catch (err) {
+            const errStr = String(err);
+
+            if (errStr.includes("TASK_NOT_RUNNING")) {
+                await reconcileRunState(taskAtStop);
+                return;
+            }
+
+            setStopping(false);
+            showToast(`Failed to stop Zeus: ${errStr}`, "error", 8000);
         }
     };
 
@@ -345,12 +388,14 @@ function App() {
 
     useEffect(() => {
         const unlistenPromise = bridge.onTaskEvent((payload) => {
-            if (!payload || payload.task_id !== activeTaskIdRef.current) {
-                return;
-            }
+            if (!payload) return;
 
-            applyRunState(payload.task_id, payload.run);
+            // Sidebar status belongs to every task, not just the selected one.
             refreshTasks();
+
+            if (payload.task_id === activeTaskIdRef.current) {
+                applyRunState(payload.task_id, payload.run);
+            }
         });
 
         return () => {
@@ -360,10 +405,43 @@ function App() {
         };
     }, []);
 
+    const handleMessagesScroll = () => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        const distanceFromBottom =
+            container.scrollHeight -
+            container.scrollTop -
+            container.clientHeight;
+
+        const pinned = distanceFromBottom <= 80;
+        scrollPinnedRef.current = pinned;
+        setShowJumpToLatest(!pinned);
+    };
+
+    const jumpToLatest = () => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        scrollPinnedRef.current = true;
+        setShowJumpToLatest(false);
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "smooth",
+        });
+    };
+
     useEffect(() => {
         const container = messagesContainerRef.current;
-        if (container) container.scrollTop = container.scrollHeight;
-    }, [messages, sending, streamText, reasoningText]);
+        if (!container || !scrollPinnedRef.current) return;
+
+        container.scrollTop = container.scrollHeight;
+    }, [
+        messages,
+        activeTaskIsSending,
+        streamText,
+        reasoningText,
+    ]);
 
     const thinkingLabel =
         thinkingStage === "generating" ? "Zeus is generating the reply..." :
@@ -448,7 +526,7 @@ function App() {
                             </div>
                         </div>
 
-                        <div ref={messagesContainerRef} id="chat-messages" className="column gap-15">
+                        <div ref={messagesContainerRef} id="chat-messages" className="column gap-15" onScroll={handleMessagesScroll}>
                             {visibleMessages.map((message) => (
                                 <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} />
                             ))}
@@ -473,6 +551,16 @@ function App() {
                                 </div>
                             )}
                         </div>
+
+                        {showJumpToLatest && (
+                            <button
+                                id="chat-jump-to-latest"
+                                onClick={jumpToLatest}
+                                title="Jump to the newest message"
+                            >
+                                <label>↓&nbsp;&nbsp;Latest</label>
+                            </button>
+                        )}
 
                         <div id="chat-input-bar" className={`align-center gap-15 ${inputExpanded ? "expanded" : ""}`}>
                             <div id="chat-input-wrapper" className="relative">
@@ -499,13 +587,27 @@ function App() {
                             )}
                             <button
                                 id="chat-send-button"
-                                className={activeTaskIsSending ? "is-loading" : ""}
-                                onClick={() => handleSend()}
-                                disabled={sending}
+                                className={
+                                    activeTaskIsSending
+                                        ? `stop-mode ${stopping ? "is-stopping" : ""}`
+                                        : ""
+                                }
+                                onClick={
+                                    activeTaskIsSending
+                                        ? handleStop
+                                        : () => handleSend()
+                                }
+                                disabled={
+                                    activeTaskIsSending
+                                        ? stopping
+                                        : sending
+                                }
                             >
                                 <label>
                                     {activeTaskIsSending
-                                        ? "Working..."
+                                        ? stopping
+                                            ? "Stopping..."
+                                            : "Stop"
                                         : sending
                                             ? "Busy in another task"
                                             : "Send"}

@@ -1,18 +1,18 @@
 use chrono::Utc;
 use rusqlite::Connection;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 pub struct AppState {
     pub db: Mutex<Connection>,
 
-    /// Process-lifetime single-flight registry.
+    /// Process-lifetime run registry.
     ///
-    /// Reloading the webview with F5 does not restart the Rust process, so this
-    /// prevents a repeated IPC invocation from starting another orchestration
-    /// loop for the same task.
-    pub active_runs: Mutex<HashSet<String>>,
+    /// The map provides both single-flight enforcement and the cancellation
+    /// token used to stop the task's model stream or Python action.
+    pub active_runs: Mutex<HashMap<String, CancellationToken>>,
 }
 
 pub fn new_id() -> String {
@@ -165,7 +165,7 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
                  error = COALESCE(error, 'The application exited before this run completed.'),
                  updated_at = ?1,
                  completed_at = ?1
-             WHERE status = 'running'",
+             WHERE status IN ('running', 'stopping')",
             rusqlite::params![recovered_at],
         )
         .map_err(|e| format!("Failed to recover interrupted runs: {}", e))?;
@@ -174,7 +174,7 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         .execute(
             "UPDATE tasks
              SET status = 'active', updated_at = ?1
-             WHERE status = 'running'",
+             WHERE status IN ('running', 'stopping')",
             rusqlite::params![now_iso()],
         )
         .map_err(|e| format!("Failed to recover running tasks: {}", e))?;
@@ -301,10 +301,29 @@ mod tests {
         )
         .unwrap();
 
+        c.execute(
+            "INSERT INTO runs (
+                id, request_id, task_id, status,
+                started_at, updated_at
+             )
+             VALUES (
+                'r2', 'request-2', 't1', 'stopping',
+                ?1, ?1
+             )",
+            rusqlite::params![now_iso()],
+        )
+        .unwrap();
+
         init_schema(&c).unwrap();
 
         let run_status: String = c
             .query_row("SELECT status FROM runs WHERE id = 'r1'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+
+        let stopping_run_status: String = c
+            .query_row("SELECT status FROM runs WHERE id = 'r2'", [], |row| {
                 row.get(0)
             })
             .unwrap();
@@ -316,6 +335,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(run_status, "interrupted");
+        assert_eq!(stopping_run_status, "interrupted");
         assert_eq!(task_status, "active");
     }
 }

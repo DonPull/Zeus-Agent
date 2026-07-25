@@ -25,7 +25,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(db::AppState {
             db: std::sync::Mutex::new(connection),
-            active_runs: std::sync::Mutex::new(std::collections::HashSet::new()),
+            active_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
         .invoke_handler(tauri::generate_handler![
             chat::create_task,
@@ -33,6 +33,7 @@ pub fn run() {
             chat::get_task_messages,
             chat::get_task_spend,
             chat::get_task_run_state,
+            chat::cancel_task_run,
             chat::send_user_message,
             chat::rename_task,
             chat::delete_task,

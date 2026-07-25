@@ -53,11 +53,15 @@ pub async fn run_python_action(
     std::fs::write(&script_path, code)
         .map_err(|e| format!("Failed to write the action script: {}", e))?;
 
-    let mut child = Command::new(&interpreter)
+    let mut command = Command::new(&interpreter);
+    command
         .arg(&script_path)
         .current_dir(workspace)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .kill_on_drop(true);
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to start Python (`{}`): {}", interpreter, e))?;
 
@@ -161,5 +165,36 @@ mod tests {
         assert_eq!(outcome.exit_code, 3);
         assert!(outcome.stderr.contains("boom"));
         let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test]
+    async fn dropping_action_future_cancels_long_running_child() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+
+        let mut future = Box::pin(run_python_action(
+            &workspace,
+            "import time\ntime.sleep(60)\nprint('should not finish')",
+            120,
+        ));
+
+        tokio::select! {
+            result = &mut future => {
+                panic!(
+                    "long-running action unexpectedly completed: {:?}",
+                    result.err()
+                );
+            }
+            _ = tokio::time::sleep(
+                std::time::Duration::from_millis(300)
+            ) => {}
+        }
+
+        // Dropping the owned boxed future drops the Child configured with
+        // kill_on_drop(true), rather than merely dropping a pinned reference.
+        drop(future);
+
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let _ = std::fs::remove_dir_all(&workspace);
     }
 }

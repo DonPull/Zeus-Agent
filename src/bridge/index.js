@@ -13,6 +13,7 @@ export const listTasks   = ()               => invoke("list_tasks");
 export const getTaskMessages = (taskId, includeHidden = false) => invoke("get_task_messages", { taskId, includeHidden });
 export const getTaskSpend = (taskId) => invoke("get_task_spend", { taskId });
 export const getTaskRunState = (taskId) => invoke("get_task_run_state", { taskId });
+export const cancelTaskRun = (taskId) => invoke("cancel_task_run", { taskId });
 export const sendUserMessage = (taskId, content, requestId) => invoke("send_user_message", { taskId, content, requestId });
 export const renameTask  = (taskId, title)  => invoke("rename_task",        { taskId, title });
 export const deleteTask  = (taskId)         => invoke("delete_task",        { taskId });
