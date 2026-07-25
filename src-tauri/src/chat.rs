@@ -3,7 +3,7 @@ use crate::gateway::{self, ChatMessage};
 use crate::orchestrator::{self, Directive};
 use crate::settings;
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 
 pub const DEFAULT_TASK_TITLE: &str = "New agent task";
@@ -86,6 +86,172 @@ pub struct SendResultDto {
 pub struct SpendDto {
     pub spent_credits: f64,
     pub budget_credits: i64,
+}
+
+#[derive(Serialize, Clone)]
+pub struct RunStateDto {
+    pub id: String,
+    pub request_id: String,
+    pub task_id: String,
+    pub status: String,
+    pub error: Option<String>,
+    pub started_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct TaskRunEvent {
+    task_id: String,
+    run: RunStateDto,
+}
+
+#[derive(Deserialize)]
+struct ExistingRun {
+    id: String,
+    status: String,
+}
+
+fn row_to_run_state(row: &rusqlite::Row) -> rusqlite::Result<RunStateDto> {
+    Ok(RunStateDto {
+        id: row.get(0)?,
+        request_id: row.get(1)?,
+        task_id: row.get(2)?,
+        status: row.get(3)?,
+        error: row.get(4)?,
+        started_at: row.get(5)?,
+        updated_at: row.get(6)?,
+        completed_at: row.get(7)?,
+    })
+}
+
+const RUN_STATE_COLUMNS: &str =
+    "id, request_id, task_id, status, error, started_at, updated_at, completed_at";
+
+fn emit_run_state(app_handle: &tauri::AppHandle, run: &RunStateDto) {
+    let _ = app_handle.emit(
+        "task-event",
+        TaskRunEvent {
+            task_id: run.task_id.clone(),
+            run: run.clone(),
+        },
+    );
+}
+
+fn load_run_state(connection: &Connection, run_id: &str) -> Result<RunStateDto, String> {
+    connection
+        .query_row(
+            &format!("SELECT {} FROM runs WHERE id = ?1", RUN_STATE_COLUMNS),
+            params![run_id],
+            row_to_run_state,
+        )
+        .map_err(|e| format!("Failed to load run state: {}", e))
+}
+
+fn begin_durable_run(
+    connection: &Connection,
+    task_id: &str,
+    request_id: &str,
+) -> Result<RunStateDto, String> {
+    if request_id.trim().is_empty() {
+        return Err("A request ID is required.".into());
+    }
+
+    let existing: Option<ExistingRun> = connection
+        .query_row(
+            "SELECT id, status FROM runs WHERE request_id = ?1",
+            params![request_id],
+            |row| {
+                Ok(ExistingRun {
+                    id: row.get(0)?,
+                    status: row.get(1)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| format!("Failed to check request idempotency: {}", e))?;
+
+    if let Some(existing) = existing {
+        return Err(format!(
+            "REQUEST_ALREADY_EXISTS:{}:{}",
+            existing.id, existing.status
+        ));
+    }
+
+    let now = now_iso();
+    let run_id = new_id();
+
+    connection
+        .execute(
+            "INSERT INTO runs (
+                id, request_id, task_id, status,
+                started_at, updated_at
+             )
+             VALUES (?1, ?2, ?3, 'running', ?4, ?4)",
+            params![run_id, request_id, task_id, now],
+        )
+        .map_err(|e| format!("Failed to create durable run: {}", e))?;
+
+    connection
+        .execute(
+            "UPDATE tasks
+             SET status = 'running', updated_at = ?1
+             WHERE id = ?2",
+            params![now_iso(), task_id],
+        )
+        .map_err(|e| format!("Failed to mark task as running: {}", e))?;
+
+    load_run_state(connection, &run_id)
+}
+
+fn attach_user_message_to_run(
+    connection: &Connection,
+    run_id: &str,
+    message_id: &str,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "UPDATE runs
+             SET user_message_id = ?1, updated_at = ?2
+             WHERE id = ?3",
+            params![message_id, now_iso(), run_id],
+        )
+        .map_err(|e| format!("Failed to attach user message to run: {}", e))?;
+
+    Ok(())
+}
+
+fn finish_durable_run(
+    connection: &Connection,
+    run_id: &str,
+    task_id: &str,
+    status: &str,
+    error: Option<&str>,
+) -> Result<RunStateDto, String> {
+    let now = now_iso();
+
+    connection
+        .execute(
+            "UPDATE runs
+             SET status = ?1,
+                 error = ?2,
+                 updated_at = ?3,
+                 completed_at = ?3
+             WHERE id = ?4",
+            params![status, error, now, run_id],
+        )
+        .map_err(|e| format!("Failed to finish durable run: {}", e))?;
+
+    connection
+        .execute(
+            "UPDATE tasks
+             SET status = 'active', updated_at = ?1
+             WHERE id = ?2",
+            params![now_iso(), task_id],
+        )
+        .map_err(|e| format!("Failed to release task run state: {}", e))?;
+
+    load_run_state(connection, run_id)
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<TaskDto> {
@@ -335,6 +501,32 @@ pub async fn get_task_spend(
     })
 }
 
+#[tauri::command]
+pub async fn get_task_run_state(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Option<RunStateDto>, String> {
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+
+    connection
+        .query_row(
+            &format!(
+                "SELECT {} FROM runs
+                 WHERE task_id = ?1
+                 ORDER BY started_at DESC
+                 LIMIT 1",
+                RUN_STATE_COLUMNS
+            ),
+            params![task_id],
+            row_to_run_state,
+        )
+        .optional()
+        .map_err(|e| format!("Failed to load task run state: {}", e))
+}
+
 /// Records a model call in the ledger and bumps the task's spend. Returns the
 /// unit cost so the caller can attach it to the assistant message.
 fn record_spend(
@@ -374,17 +566,30 @@ pub async fn send_user_message(
     app_handle: tauri::AppHandle,
     task_id: String,
     content: String,
+    request_id: String,
 ) -> Result<SendResultDto, String> {
     let content = content.trim().to_string();
     if content.is_empty() {
         return Err("Cannot send an empty message.".into());
     }
 
-    // This must happen before the user message is persisted. A repeated invoke
-    // therefore cannot create another user row, model call, action, or answer.
+    // The in-memory lease prevents simultaneous execution. The durable
+    // request ID prevents the same logical send from being executed again
+    // after webview or process lifecycle changes.
     let _active_run = ActiveRunGuard::acquire(state.inner(), &task_id)?;
 
-    // 1) Lock the db only for local reads/writes, never across network calls.
+    let durable_run = {
+        let connection = state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock error: {}", e))?;
+
+        begin_durable_run(&connection, &task_id, &request_id)?
+    };
+    emit_run_state(&app_handle, &durable_run);
+    let run_id = durable_run.id.clone();
+
+    // 1) Lock the DB only for local reads/writes, never across network calls.
     let (history, user_message, task, master_model, mut current_spend, updated_approval) = {
         let connection = state
             .db
@@ -401,6 +606,8 @@ pub async fn send_user_message(
         let mut user_message =
             new_message(&task_id, "user", "chat", content.clone(), None, None, true);
         insert_message(&connection, &mut user_message)?;
+
+        attach_user_message_to_run(&connection, &run_id, &user_message.id)?;
 
         // If this message carries an approval decision, stamp the latest pending
         // approval card so it deactivates and the decision survives reloads.
@@ -523,6 +730,17 @@ pub async fn send_user_message(
                     None, None, true,
                 );
                 persist_and_emit(&state, &app_handle, &task_id, &mut error_message)?;
+
+                let failed_run = {
+                    let connection = state
+                        .db
+                        .lock()
+                        .map_err(|lock_error| format!("Database lock error: {}", lock_error))?;
+
+                    finish_durable_run(&connection, &run_id, &task_id, "failed", Some(&e))?
+                };
+                emit_run_state(&app_handle, &failed_run);
+
                 return Err(e);
             }
         };
@@ -794,6 +1012,16 @@ pub async fn send_user_message(
         persist_and_emit(&state, &app_handle, &task_id, &mut fallback)?;
     }
 
+    let completed_run = {
+        let connection = state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock error: {}", e))?;
+
+        finish_durable_run(&connection, &run_id, &task_id, "completed", None)?
+    };
+    emit_run_state(&app_handle, &completed_run);
+
     Ok(SendResultDto {
         spent_credits: current_spend,
         budget_credits: budget_units,
@@ -829,6 +1057,9 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
         .db
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
+    connection
+        .execute("DELETE FROM runs WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task runs: {}", e))?;
     connection
         .execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])
         .map_err(|e| format!("Failed to delete the task messages: {}", e))?;

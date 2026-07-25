@@ -56,6 +56,21 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id);
 
+CREATE TABLE IF NOT EXISTS runs (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    task_id TEXT NOT NULL REFERENCES tasks(id),
+    status TEXT NOT NULL,
+    user_message_id TEXT,
+    error TEXT,
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_runs_task_started
+    ON runs(task_id, started_at DESC);
+
 CREATE TABLE IF NOT EXISTS credit_events (
     id TEXT PRIMARY KEY,
     task_id TEXT,
@@ -138,6 +153,31 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Failed to backfill message visibility: {}", e))?;
+
+    // A process restart destroys all in-memory orchestration futures. Any run
+    // still marked running therefore cannot still be executing and must not
+    // leave the task permanently locked in a running state.
+    let recovered_at = now_iso();
+    connection
+        .execute(
+            "UPDATE runs
+             SET status = 'interrupted',
+                 error = COALESCE(error, 'The application exited before this run completed.'),
+                 updated_at = ?1,
+                 completed_at = ?1
+             WHERE status = 'running'",
+            rusqlite::params![recovered_at],
+        )
+        .map_err(|e| format!("Failed to recover interrupted runs: {}", e))?;
+
+    connection
+        .execute(
+            "UPDATE tasks
+             SET status = 'active', updated_at = ?1
+             WHERE status = 'running'",
+            rusqlite::params![now_iso()],
+        )
+        .map_err(|e| format!("Failed to recover running tasks: {}", e))?;
 
     Ok(())
 }
@@ -238,5 +278,44 @@ mod tests {
             .map(Result::unwrap)
             .collect();
         assert!(seqs.windows(2).all(|w| w[1] > w[0]));
+    }
+
+    #[test]
+    fn schema_recovery_interrupts_abandoned_runs() {
+        let c = test_db();
+        let now = now_iso();
+
+        c.execute("UPDATE tasks SET status = 'running' WHERE id = 't1'", [])
+            .unwrap();
+
+        c.execute(
+            "INSERT INTO runs (
+                id, request_id, task_id, status,
+                started_at, updated_at
+             )
+             VALUES (
+                'r1', 'request-1', 't1', 'running',
+                ?1, ?1
+             )",
+            rusqlite::params![now],
+        )
+        .unwrap();
+
+        init_schema(&c).unwrap();
+
+        let run_status: String = c
+            .query_row("SELECT status FROM runs WHERE id = 'r1'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+
+        let task_status: String = c
+            .query_row("SELECT status FROM tasks WHERE id = 't1'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+
+        assert_eq!(run_status, "interrupted");
+        assert_eq!(task_status, "active");
     }
 }

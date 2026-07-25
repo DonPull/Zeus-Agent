@@ -32,6 +32,7 @@ pub fn run() {
             chat::list_tasks,
             chat::get_task_messages,
             chat::get_task_spend,
+            chat::get_task_run_state,
             chat::send_user_message,
             chat::rename_task,
             chat::delete_task,

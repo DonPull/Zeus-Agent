@@ -17,6 +17,14 @@ import { formatCredits, mergeMessages } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
 
+const createRequestId = () => {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+
+    return `request-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 function App() {
     const [tasks, setTasks] = useState([]);
     const [activeTaskId, setActiveTaskId] = useState(null);
@@ -74,6 +82,46 @@ function App() {
         }
     };
 
+    const applyRunState = async (taskId, run) => {
+        if (!run || activeTaskIdRef.current !== taskId) return;
+
+        const isRunning = run.status === "running";
+        setSending(isRunning);
+        setSendingTaskId(isRunning ? taskId : null);
+        sendLockRef.current = isRunning;
+
+        if (!isRunning) {
+            setThinkingStage(null);
+            setStreamText("");
+            setReasoningText("");
+            streamTextRef.current = "";
+            reasoningTextRef.current = "";
+            directiveModeRef.current = false;
+            streamFlushedRef.current = false;
+            setDirectiveMode(false);
+
+            await reconcileMessages(taskId);
+
+            try {
+                const freshSpend = await bridge.getTaskSpend(taskId);
+                if (activeTaskIdRef.current === taskId) {
+                    setSpend(freshSpend);
+                }
+            } catch (err) {
+                showToast(`Failed to refresh task spend: ${err}`);
+            }
+        }
+    };
+
+    const reconcileRunState = async (taskId) => {
+        try {
+            const run = await bridge.getTaskRunState(taskId);
+            await applyRunState(taskId, run);
+        } catch (err) {
+            showToast(`Failed to load task run state: ${err}`);
+        }
+    };
+
     const handleSelectTask = async (task) => {
         setActiveTaskId(task.id);
         activeTaskIdRef.current = task.id; // set synchronously so the reconcile guard passes
@@ -86,7 +134,10 @@ function App() {
         streamFlushedRef.current = false;
         setDirectiveMode(false);
         setMessages([]);
-        await reconcileMessages(task.id);
+        await Promise.all([
+            reconcileMessages(task.id),
+            reconcileRunState(task.id),
+        ]);
     };
 
     const handleNewTask = async () => {
@@ -156,7 +207,12 @@ function App() {
         setDirectiveMode(false);
 
         try {
-            const result = await bridge.sendUserMessage(taskAtSend, content);
+            const requestId = createRequestId();
+            const result = await bridge.sendUserMessage(
+                taskAtSend,
+                content,
+                requestId,
+            );
             if (activeTaskIdRef.current === taskAtSend) {
                 setSpend({ spent_credits: result.spent_credits, budget_credits: result.budget_credits });
                 // Reconcile drops the optimistic echo and guarantees the list
@@ -169,6 +225,18 @@ function App() {
             if (errStr.includes("BUDGET_EXCEEDED")) {
                 // Do not create a local chat event. Chat contents must come from the DB.
                 showToast("This task reached its unit budget.", "warning", 7000);
+            } else if (errStr.includes("REQUEST_ALREADY_EXISTS")) {
+                if (activeTaskIdRef.current === taskAtSend) {
+                    await Promise.all([
+                        reconcileMessages(taskAtSend),
+                        reconcileRunState(taskAtSend),
+                    ]);
+                }
+                showToast(
+                    "This request was already recorded; Zeus did not run it twice.",
+                    "info",
+                    5000,
+                );
             } else if (errStr.includes("TASK_ALREADY_RUNNING")) {
                 // This can occur when the webview reloads while Rust is still processing
                 // the original invocation. The existing run remains authoritative.
@@ -182,17 +250,13 @@ function App() {
                 if (activeTaskIdRef.current === taskAtSend) await reconcileMessages(taskAtSend);
             }
         } finally {
-            sendLockRef.current = false;
-            setSending(false);
-            setSendingTaskId(null);
-            setThinkingStage(null);
-            setStreamText("");
-            setReasoningText("");
-            streamTextRef.current = "";
-            reasoningTextRef.current = "";
-            directiveModeRef.current = false;
-            streamFlushedRef.current = false;
-            setDirectiveMode(false);
+            if (activeTaskIdRef.current === taskAtSend) {
+                await reconcileRunState(taskAtSend);
+            } else {
+                sendLockRef.current = false;
+                setSending(false);
+                setSendingTaskId(null);
+            }
         }
     };
 
@@ -276,6 +340,23 @@ function App() {
         });
         return () => {
             unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+        };
+    }, []);
+
+    useEffect(() => {
+        const unlistenPromise = bridge.onTaskEvent((payload) => {
+            if (!payload || payload.task_id !== activeTaskIdRef.current) {
+                return;
+            }
+
+            applyRunState(payload.task_id, payload.run);
+            refreshTasks();
+        });
+
+        return () => {
+            unlistenPromise
+                .then((unlisten) => unlisten())
+                .catch(() => {});
         };
     }, []);
 
