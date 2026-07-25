@@ -21,7 +21,11 @@ pub fn ensure_workspace_dirs() -> Result<(), String> {
 
 /// Per-task workspace: %APPDATA%\zeus-agent\tasks\<task_id>\workspace
 pub fn task_workspace(task_id: &str) -> Result<PathBuf, String> {
-    let path = workspace_root()?.join("tasks").join(task_id).join("workspace");
-    std::fs::create_dir_all(&path).map_err(|e| format!("Failed to create the task workspace: {}", e))?;
+    let path = workspace_root()?
+        .join("tasks")
+        .join(task_id)
+        .join("workspace");
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
     Ok(path)
 }

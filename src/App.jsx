@@ -23,6 +23,7 @@ function App() {
     const [messages, setMessages] = useState([]);
     const [spend, setSpend] = useState({ spent_credits: 0, budget_credits: 3000 });
     const [sending, setSending] = useState(false);
+    const [sendingTaskId, setSendingTaskId] = useState(null);
     const [thinkingStage, setThinkingStage] = useState(null);
     const [streamText, setStreamText] = useState("");
     const [reasoningText, setReasoningText] = useState("");
@@ -40,7 +41,12 @@ function App() {
     const streamFlushedRef = useRef(false);
     const activeTaskIdRef = useRef(null);
 
+    // React state is not synchronous. This ref closes the small window in which
+    // two Enter/click events could both observe sending === false.
+    const sendLockRef = useRef(false);
+
     const activeTask = tasks.find((t) => t.id === activeTaskId) || null;
+    const activeTaskIsSending = sending && sendingTaskId === activeTaskId;
     const spendRatio = spend.budget_credits > 0 ? spend.spent_credits / spend.budget_credits : 0;
 
     const showToast = (message, type = "error", duration = 5000) => {
@@ -128,15 +134,18 @@ function App() {
 
     const handleSend = async (overrideContent) => {
         const content = (typeof overrideContent === "string" ? overrideContent : inputValue).trim();
-        if (!content || sending || !activeTaskId) return;
+        if (!content || sendLockRef.current || !activeTaskId) return;
 
-        // P0: capture the task this send belongs to. Every state update below
-        // is guarded against it, so switching tasks mid-run can never stitch
-        // results into the wrong conversation.
+        // Lock synchronously before React commits the state update.
+        sendLockRef.current = true;
+
+        // Capture the task this invocation belongs to. Streaming and persistent
+        // events are already guarded using the task ID.
         const taskAtSend = activeTaskId;
 
         if (typeof overrideContent !== "string") setInputValue("");
         setSending(true);
+        setSendingTaskId(taskAtSend);
         setThinkingStage("connecting");
         setStreamText("");
         setReasoningText("");
@@ -145,18 +154,6 @@ function App() {
         directiveModeRef.current = false;
         streamFlushedRef.current = false;
         setDirectiveMode(false);
-
-        // Optimistic echo. No seq → sorts last; the backend's user-message
-        // event (same content, real seq) plus the reconcile fetch replace it.
-        const optimisticId = `local-${Date.now()}`;
-        setMessages((prev) => mergeMessages(prev, {
-            id: optimisticId,
-            task_id: taskAtSend,
-            role: "user",
-            kind: "chat",
-            content,
-            created_at: new Date().toISOString(),
-        }));
 
         try {
             const result = await bridge.sendUserMessage(taskAtSend, content);
@@ -170,24 +167,24 @@ function App() {
         } catch (err) {
             const errStr = String(err);
             if (errStr.includes("BUDGET_EXCEEDED")) {
-                if (activeTaskIdRef.current === taskAtSend) {
-                    setMessages((prev) => mergeMessages(prev, {
-                        id: `error-${Date.now()}`,
-                        task_id: taskAtSend,
-                        role: "event",
-                        kind: "error",
-                        content: "This task reached its unit budget. Per-task budget editing lands in M1b — start a new task for now.",
-                        created_at: new Date().toISOString(),
-                    }));
-                }
+                // Do not create a local chat event. Chat contents must come from the DB.
                 showToast("This task reached its unit budget.", "warning", 7000);
+            } else if (errStr.includes("TASK_ALREADY_RUNNING")) {
+                // This can occur when the webview reloads while Rust is still processing
+                // the original invocation. The existing run remains authoritative.
+                if (activeTaskIdRef.current === taskAtSend) {
+                    await reconcileMessages(taskAtSend);
+                }
+                showToast("This task is already running.", "info", 4000);
             } else {
                 showToast(errStr, "error", 8000);
                 // The backend persists errors as events; reconcile picks them up.
                 if (activeTaskIdRef.current === taskAtSend) await reconcileMessages(taskAtSend);
             }
         } finally {
+            sendLockRef.current = false;
             setSending(false);
+            setSendingTaskId(null);
             setThinkingStage(null);
             setStreamText("");
             setReasoningText("");
@@ -293,7 +290,7 @@ function App() {
         thinkingStage === "connected"  ? "Connected — waiting for the first tokens..." :
                                          "Contacting the model...";
 
-    const showReasoningPill = sending && (reasoningText.length > 0 || thinkingStage === "reasoning");
+    const showReasoningPill = activeTaskIsSending && (reasoningText.length > 0 || thinkingStage === "reasoning");
 
     // P0: the backend owns visibility. Hidden pipeline messages still arrive
     // via events (for the debug log) but are filtered by the DB flag alone.
@@ -316,7 +313,13 @@ function App() {
             </Modal>
 
             <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
-                {activeTask && <ChatLogModal taskId={activeTask.id} taskTitle={activeTask.title} />}
+                {activeTask && (
+                    <ChatLogModal
+                        taskId={activeTask.id}
+                        taskTitle={activeTask.title}
+                        messages={visibleMessages}
+                    />
+                )}
             </Modal>
 
             <Sidebar
@@ -368,7 +371,7 @@ function App() {
                             {visibleMessages.map((message) => (
                                 <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} />
                             ))}
-                            {sending && (
+                            {activeTaskIsSending && (
                                 <div className="chat-message assistant">
                                     <div className="chat-bubble column">
                                         <label className="chat-bubble-author">Zeus</label>
@@ -413,8 +416,19 @@ function App() {
                                     {inputValue.length} chars
                                 </div>
                             )}
-                            <button id="chat-send-button" className={sending ? "is-loading" : ""} onClick={() => handleSend()} disabled={sending}>
-                                <label>{sending ? "Working..." : "Send"}</label>
+                            <button
+                                id="chat-send-button"
+                                className={activeTaskIsSending ? "is-loading" : ""}
+                                onClick={() => handleSend()}
+                                disabled={sending}
+                            >
+                                <label>
+                                    {activeTaskIsSending
+                                        ? "Working..."
+                                        : sending
+                                            ? "Busy in another task"
+                                            : "Send"}
+                                </label>
                             </button>
                         </div>
                     </>

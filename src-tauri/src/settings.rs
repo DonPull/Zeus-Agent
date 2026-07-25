@@ -1,8 +1,8 @@
 use crate::db::AppState;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::State;
 use std::fs;
+use tauri::State;
 
 const KEYRING_SERVICE: &str = "zeus-agent";
 const KEYRING_USER: &str = "routellm-api-key";
@@ -30,7 +30,11 @@ impl Default for AppSettings {
 
 fn get_setting(connection: &Connection, key: &str) -> Result<Option<String>, String> {
     connection
-        .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |row| row.get(0))
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|e| format!("Failed to read the '{}' setting: {}", key, e))
 }
@@ -51,7 +55,8 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
     Ok(AppSettings {
         master_model: get_setting(connection, "master_model")?.unwrap_or(defaults.master_model),
         worker_model: get_setting(connection, "worker_model")?.unwrap_or(defaults.worker_model),
-        verifier_model: get_setting(connection, "verifier_model")?.unwrap_or(defaults.verifier_model),
+        verifier_model: get_setting(connection, "verifier_model")?
+            .unwrap_or(defaults.verifier_model),
         default_budget_credits: get_setting(connection, "default_budget_credits")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(defaults.default_budget_credits),
@@ -60,17 +65,27 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Result<AppSettings, String> {
-    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
     read_settings(&connection)
 }
 
 #[tauri::command]
 pub fn save_settings(state: State<AppState>, settings: AppSettings) -> Result<(), String> {
-    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
     set_setting(&connection, "master_model", &settings.master_model)?;
     set_setting(&connection, "worker_model", &settings.worker_model)?;
     set_setting(&connection, "verifier_model", &settings.verifier_model)?;
-    set_setting(&connection, "default_budget_credits", &settings.default_budget_credits.to_string())?;
+    set_setting(
+        &connection,
+        "default_budget_credits",
+        &settings.default_budget_credits.to_string(),
+    )?;
     Ok(())
 }
 

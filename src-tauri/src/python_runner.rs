@@ -106,7 +106,11 @@ pub async fn run_python_action(
     if timed_out {
         return Ok(ActionOutcome {
             stdout,
-            stderr: if stderr.is_empty() { format!("Action timed out after {}s and was killed.", timeout_secs) } else { stderr },
+            stderr: if stderr.is_empty() {
+                format!("Action timed out after {}s and was killed.", timeout_secs)
+            } else {
+                stderr
+            },
             exit_code: -1,
             timed_out,
             interpreter,
@@ -131,17 +135,29 @@ mod tests {
     #[tokio::test]
     async fn large_stdout_is_not_dropped() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
-        let outcome = run_python_action(&workspace, "print('x' * 200000)", 30).await.expect("runner failed");
+        let outcome = run_python_action(&workspace, "print('x' * 200000)", 30)
+            .await
+            .expect("runner failed");
         assert_eq!(outcome.exit_code, 0);
         assert!(!outcome.timed_out);
-        assert!(outcome.stdout.trim().len() >= 200000, "stdout was dropped: got {} bytes", outcome.stdout.len());
+        assert!(
+            outcome.stdout.trim().len() >= 200000,
+            "stdout was dropped: got {} bytes",
+            outcome.stdout.len()
+        );
         let _ = std::fs::remove_dir_all(workspace);
     }
 
     #[tokio::test]
     async fn nonzero_exit_and_stderr_are_captured() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
-        let outcome = run_python_action(&workspace, "import sys\nsys.stderr.write('boom')\nsys.exit(3)", 30).await.expect("runner failed");
+        let outcome = run_python_action(
+            &workspace,
+            "import sys\nsys.stderr.write('boom')\nsys.exit(3)",
+            30,
+        )
+        .await
+        .expect("runner failed");
         assert_eq!(outcome.exit_code, 3);
         assert!(outcome.stderr.contains("boom"));
         let _ = std::fs::remove_dir_all(workspace);

@@ -19,7 +19,12 @@ pub fn log(task_id: &str, source: &str, message: &str) {
         if entries.len() >= MAX_ENTRIES_PER_TASK {
             entries.remove(0);
         }
-        entries.push(format!("[{}] [{}] {}", crate::db::now_iso(), source, message));
+        entries.push(format!(
+            "[{}] [{}] {}",
+            crate::db::now_iso(),
+            source,
+            message
+        ));
     }
 }
 

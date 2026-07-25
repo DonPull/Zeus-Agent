@@ -37,7 +37,13 @@ fn valid_utf8(bytes: &[u8]) -> bool {
     std::str::from_utf8(bytes).is_ok()
 }
 
-pub fn compute_units(input_tokens: i64, output_tokens: i64, reasoning_tokens: i64, tool_calls: i64, images: i64) -> f64 {
+pub fn compute_units(
+    input_tokens: i64,
+    output_tokens: i64,
+    reasoning_tokens: i64,
+    tool_calls: i64,
+    images: i64,
+) -> f64 {
     (input_tokens + output_tokens + reasoning_tokens + images) as f64 * UNIT_PER_TOKEN
         + tool_calls as f64 * UNIT_PER_TOOL_CALL
 }
@@ -60,7 +66,13 @@ pub struct UsageInfo {
 
 impl UsageInfo {
     pub fn units(&self) -> f64 {
-        compute_units(self.input_tokens, self.output_tokens, self.reasoning_tokens, self.tool_calls, self.images)
+        compute_units(
+            self.input_tokens,
+            self.output_tokens,
+            self.reasoning_tokens,
+            self.tool_calls,
+            self.images,
+        )
     }
 }
 
@@ -70,8 +82,16 @@ fn parse_usage_value(usage: &serde_json::Value, fallback_content: &str) -> (Usag
     let input_tokens = get_i64(&["input_tokens", "prompt_tokens"]);
     let output_tokens = get_i64(&["output_tokens", "completion_tokens"]);
     let reasoning_tokens = get_i64(&["reasoning_tokens"])
-        .max(usage["output_tokens_details"]["reasoning_tokens"].as_i64().unwrap_or(0))
-        .max(usage["completion_tokens_details"]["reasoning_tokens"].as_i64().unwrap_or(0));
+        .max(
+            usage["output_tokens_details"]["reasoning_tokens"]
+                .as_i64()
+                .unwrap_or(0),
+        )
+        .max(
+            usage["completion_tokens_details"]["reasoning_tokens"]
+                .as_i64()
+                .unwrap_or(0),
+        );
     let total_tokens = get_i64(&["total_tokens"]).max(input_tokens + output_tokens);
 
     let tool_calls = usage["tool_calls"]
@@ -86,7 +106,17 @@ fn parse_usage_value(usage: &serde_json::Value, fallback_content: &str) -> (Usag
         serde_json::to_string_pretty(usage).unwrap_or_default()
     };
 
-    (UsageInfo { input_tokens, output_tokens, reasoning_tokens, total_tokens, tool_calls, images }, usage_json)
+    (
+        UsageInfo {
+            input_tokens,
+            output_tokens,
+            reasoning_tokens,
+            total_tokens,
+            tool_calls,
+            images,
+        },
+        usage_json,
+    )
 }
 
 /// Emitted to the frontend as "chat-stream" events while the model generates.
@@ -121,7 +151,10 @@ pub fn api_kind_for_model(model: &str) -> ApiKind {
 }
 
 /// Non-streaming call, kept for simple internal uses later (M1b verifier).
-pub async fn chat_completion(model: &str, messages: &[ChatMessage]) -> Result<(String, UsageInfo, String, Option<String>), String> {
+pub async fn chat_completion(
+    model: &str,
+    messages: &[ChatMessage],
+) -> Result<(String, UsageInfo, String, Option<String>), String> {
     let api_key = crate::settings::load_api_key()?;
     let body = json!({ "model": model, "messages": messages });
 
@@ -135,15 +168,21 @@ pub async fn chat_completion(model: &str, messages: &[ChatMessage]) -> Result<(S
         .map_err(|e| format!("RouteLLM request failed: {}", e))?;
 
     let status = response.status();
-    let text = response.text().await.map_err(|e| format!("Failed to read the RouteLLM response: {}", e))?;
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read the RouteLLM response: {}", e))?;
     if !status.is_success() {
         return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
     }
 
-    let json: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("Failed to parse the RouteLLM response: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse the RouteLLM response: {}", e))?;
 
-    let content = json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string();
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     if content.is_empty() {
         return Err(format!("RouteLLM returned no message content: {}", text));
     }
@@ -180,7 +219,9 @@ where
         return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
     }
 
-    on_event(StreamEventPayload::Status { stage: "connected".into() });
+    on_event(StreamEventPayload::Status {
+        stage: "connected".into(),
+    });
 
     let mut full_text = String::new();
     let mut usage = UsageInfo::default();
@@ -230,19 +271,27 @@ where
             if !reasoning_piece.is_empty() {
                 if !saw_reasoning && !saw_first_delta {
                     saw_reasoning = true;
-                    on_event(StreamEventPayload::Status { stage: "reasoning".into() });
+                    on_event(StreamEventPayload::Status {
+                        stage: "reasoning".into(),
+                    });
                 }
-                on_event(StreamEventPayload::ReasoningDelta { text: reasoning_piece.to_string() });
+                on_event(StreamEventPayload::ReasoningDelta {
+                    text: reasoning_piece.to_string(),
+                });
             }
 
             if let Some(delta) = json["choices"][0]["delta"]["content"].as_str() {
                 if !delta.is_empty() {
                     if !saw_first_delta {
                         saw_first_delta = true;
-                        on_event(StreamEventPayload::Status { stage: "generating".into() });
+                        on_event(StreamEventPayload::Status {
+                            stage: "generating".into(),
+                        });
                     }
                     full_text.push_str(delta);
-                    on_event(StreamEventPayload::Delta { text: delta.to_string() });
+                    on_event(StreamEventPayload::Delta {
+                        text: delta.to_string(),
+                    });
                 }
             }
         }
@@ -311,7 +360,9 @@ where
         return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
     }
 
-    on_event(StreamEventPayload::Status { stage: "connected".into() });
+    on_event(StreamEventPayload::Status {
+        stage: "connected".into(),
+    });
 
     let mut full_text = String::new();
     let mut reasoning_summary = String::new();
@@ -370,10 +421,14 @@ where
                     if !delta.is_empty() {
                         if !saw_reasoning && !saw_first_delta {
                             saw_reasoning = true;
-                            on_event(StreamEventPayload::Status { stage: "reasoning".into() });
+                            on_event(StreamEventPayload::Status {
+                                stage: "reasoning".into(),
+                            });
                         }
                         reasoning_summary.push_str(delta);
-                        on_event(StreamEventPayload::ReasoningDelta { text: delta.to_string() });
+                        on_event(StreamEventPayload::ReasoningDelta {
+                            text: delta.to_string(),
+                        });
                     }
                 }
                 "response.output_text.delta" => {
@@ -381,10 +436,14 @@ where
                     if !delta.is_empty() {
                         if !saw_first_delta {
                             saw_first_delta = true;
-                            on_event(StreamEventPayload::Status { stage: "generating".into() });
+                            on_event(StreamEventPayload::Status {
+                                stage: "generating".into(),
+                            });
                         }
                         full_text.push_str(delta);
-                        on_event(StreamEventPayload::Delta { text: delta.to_string() });
+                        on_event(StreamEventPayload::Delta {
+                            text: delta.to_string(),
+                        });
                     }
                 }
                 "response.completed" => {
@@ -473,7 +532,8 @@ where
             let on_event_ref = &mut on_event;
             responses_stream(model, messages, move |event| {
                 match &event {
-                    StreamEventPayload::Delta { .. } | StreamEventPayload::ReasoningDelta { .. } => {
+                    StreamEventPayload::Delta { .. }
+                    | StreamEventPayload::ReasoningDelta { .. } => {
                         emitted_flag.store(true, Ordering::Relaxed);
                     }
                     _ => {}
@@ -487,7 +547,10 @@ where
             Ok(v) => return Ok(v),
             Err(e) => {
                 if emitted_any.load(Ordering::Relaxed) {
-                    return Err(format!("{} (stream failed mid-way; not retried to avoid duplicate output)", e));
+                    return Err(format!(
+                        "{} (stream failed mid-way; not retried to avoid duplicate output)",
+                        e
+                    ));
                 }
                 eprintln!(
                     "[zeus] Responses API rejected {} ({}). Using chat/completions for the rest of this session.",
@@ -500,7 +563,8 @@ where
         }
     }
 
-    let (text, usage, usage_json, model_used) = chat_completion_stream(model, messages, &mut on_event).await?;
+    let (text, usage, usage_json, model_used) =
+        chat_completion_stream(model, messages, &mut on_event).await?;
     Ok((text, String::new(), usage, usage_json, model_used))
 }
 
@@ -516,17 +580,24 @@ pub async fn fetch_available_models() -> Result<Vec<String>, String> {
         .map_err(|e| format!("Failed to fetch the RouteLLM model list: {}", e))?;
 
     let status = response.status();
-    let text = response.text().await.map_err(|e| format!("Failed to read the model list response: {}", e))?;
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read the model list response: {}", e))?;
     if !status.is_success() {
         return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
     }
 
-    let json: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("Failed to parse the model list: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse the model list: {}", e))?;
 
     let mut models: Vec<String> = json["data"]
         .as_array()
-        .map(|arr| arr.iter().filter_map(|m| m["id"].as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
     models.sort();
     Ok(models)

@@ -107,7 +107,9 @@ fn parse_directive_json(json_str: &str) -> Result<Directive, String> {
                 .or_else(|| v["answer"].as_str())
                 .ok_or("final_answer directive is missing a summary")?;
             Ok(Directive::FinalAnswer {
-                final_answer: FinalAnswerSpec { summary: summary.to_string() },
+                final_answer: FinalAnswerSpec {
+                    summary: summary.to_string(),
+                },
             })
         }
         Some(t) => Err(format!("malformed '{}' directive (schema mismatch)", t)),
@@ -152,7 +154,7 @@ pub fn parse_master_reply(text: &str) -> MasterReply {
 
     let trimmed = text.trim();
 
-    // Fallback: Model forgot the specific fence, might have used ```json, 
+    // Fallback: Model forgot the specific fence, might have used ```json,
     // or just output bare JSON (optionally with preamble text around it).
     // Locate the outermost curly braces to capture the core payload.
     if let Some(start_brace) = trimmed.find('{') {
@@ -179,7 +181,13 @@ pub fn directive_result_message(result_json: &serde_json::Value) -> String {
 }
 
 /// Builds the JSON result for a completed (or failed) Python action.
-pub fn action_result_json(stdout: &str, stderr: &str, exit_code: i32, timed_out: bool, interpreter: &str) -> serde_json::Value {
+pub fn action_result_json(
+    stdout: &str,
+    stderr: &str,
+    exit_code: i32,
+    timed_out: bool,
+    interpreter: &str,
+) -> serde_json::Value {
     json!({
         "kind": "run_action",
         "exit_code": exit_code,
@@ -249,7 +257,7 @@ mod tests {
             _ => panic!("expected RunAction with preamble"),
         }
     }
-    
+
     #[test]
     fn final_answer_with_inner_code_block_parses() {
         // Fix the raw unescaped newlines inside the JSON string literal using double slashes
@@ -265,7 +273,8 @@ mod tests {
 
     #[test]
     fn final_answer_as_plain_string_is_accepted_leniently() {
-        let reply = "```zeus-directive\n{\"type\":\"final_answer\",\"final_answer\":\"All done!\"}\n```";
+        let reply =
+            "```zeus-directive\n{\"type\":\"final_answer\",\"final_answer\":\"All done!\"}\n```";
         match parse_master_reply(reply) {
             MasterReply::Directive(Directive::FinalAnswer { final_answer }, _) => {
                 assert_eq!(final_answer.summary, "All done!");
@@ -310,7 +319,8 @@ mod tests {
     fn trailing_extra_brace_is_tolerated() {
         // Kimi regularly emits one stray `}` after the object (seen in debug
         // logs). This must parse instead of costing a self-heal round-trip.
-        let reply = "```zeus-directive\n{\"type\":\"run_action\",\"action\":{\"code\":\"print(3)\"}}}\n```";
+        let reply =
+            "```zeus-directive\n{\"type\":\"run_action\",\"action\":{\"code\":\"print(3)\"}}}\n```";
         match parse_master_reply(reply) {
             MasterReply::Directive(Directive::RunAction { action, .. }, _) => {
                 assert_eq!(action.code, "print(3)");

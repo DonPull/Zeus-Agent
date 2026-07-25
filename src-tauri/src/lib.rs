@@ -19,10 +19,14 @@ pub fn run() {
     utils::ensure_workspace_dirs().expect("Failed to create workspace directories");
 
     // Open (or create) the SQLite database
-    let connection = db::init(&app_data_dir.join("zeus.db")).expect("Failed to initialize database");
+    let connection =
+        db::init(&app_data_dir.join("zeus.db")).expect("Failed to initialize database");
 
     tauri::Builder::default()
-        .manage(db::AppState { db: std::sync::Mutex::new(connection) })
+        .manage(db::AppState {
+            db: std::sync::Mutex::new(connection),
+            active_runs: std::sync::Mutex::new(std::collections::HashSet::new()),
+        })
         .invoke_handler(tauri::generate_handler![
             chat::create_task,
             chat::list_tasks,

@@ -1,10 +1,18 @@
 use chrono::Utc;
 use rusqlite::Connection;
+use std::collections::HashSet;
 use std::sync::Mutex;
 use uuid::Uuid;
 
 pub struct AppState {
     pub db: Mutex<Connection>,
+
+    /// Process-lifetime single-flight registry.
+    ///
+    /// Reloading the webview with F5 does not restart the Rust process, so this
+    /// prevents a repeated IPC invocation from starting another orchestration
+    /// loop for the same task.
+    pub active_runs: Mutex<HashSet<String>>,
 }
 
 pub fn new_id() -> String {
@@ -71,8 +79,13 @@ CREATE TABLE IF NOT EXISTS settings (
 ";
 
 pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
-    let connection = Connection::open(db_path)
-        .map_err(|e| format!("Failed to open the database at {}: {}", db_path.display(), e))?;
+    let connection = Connection::open(db_path).map_err(|e| {
+        format!(
+            "Failed to open the database at {}: {}",
+            db_path.display(),
+            e
+        )
+    })?;
     init_schema(&connection)?;
     Ok(connection)
 }
@@ -83,12 +96,17 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
     // shape (prompt_tokens/completion_tokens/credits). The rename keeps the old
     // rows for reference without colliding with the new CREATE TABLE above.
     let has_old_credit_events: bool = connection
-        .prepare("SELECT 1 FROM pragma_table_info('credit_events') WHERE name = 'prompt_tokens' LIMIT 1")
+        .prepare(
+            "SELECT 1 FROM pragma_table_info('credit_events') WHERE name = 'prompt_tokens' LIMIT 1",
+        )
         .and_then(|mut s| s.exists([]))
         .unwrap_or(false);
     if has_old_credit_events {
         connection
-            .execute("ALTER TABLE credit_events RENAME TO credit_events_legacy", [])
+            .execute(
+                "ALTER TABLE credit_events RENAME TO credit_events_legacy",
+                [],
+            )
             .map_err(|e| format!("Failed to migrate the legacy credit_events table: {}", e))?;
     }
 
@@ -105,7 +123,10 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         .unwrap_or(false);
     if !has_visible {
         connection
-            .execute("ALTER TABLE messages ADD COLUMN visible INTEGER NOT NULL DEFAULT 1", [])
+            .execute(
+                "ALTER TABLE messages ADD COLUMN visible INTEGER NOT NULL DEFAULT 1",
+                [],
+            )
             .map_err(|e| format!("Failed to add the messages.visible column: {}", e))?;
     }
     connection
@@ -128,6 +149,18 @@ mod tests {
     fn test_db() -> Connection {
         let connection = Connection::open_in_memory().unwrap();
         init_schema(&connection).unwrap();
+
+        // Message rows reference tasks(id). Every test uses task_id = "t1", so the
+        // shared fixture must create that parent row before inserting messages.
+        let now = now_iso();
+        connection
+            .execute(
+                "INSERT INTO tasks (id, title, created_at, updated_at)
+                VALUES ('t1', 'Test task', ?1, ?1)",
+                rusqlite::params![now],
+            )
+            .unwrap();
+
         connection
     }
 
@@ -145,11 +178,20 @@ mod tests {
         let c = test_db();
         insert_msg(&c, "m1", "user", "chat", "hello", true);
         insert_msg(&c, "m2", "assistant", "directive", "{...}", false);
-        insert_msg(&c, "m3", "user", "directive_result", "[DIRECTIVE_RESULT] {}", false);
+        insert_msg(
+            &c,
+            "m3",
+            "user",
+            "directive_result",
+            "[DIRECTIVE_RESULT] {}",
+            false,
+        );
         insert_msg(&c, "m4", "assistant", "chat", "done", true);
 
         let kinds: Vec<String> = c
-            .prepare("SELECT kind FROM messages WHERE task_id = 't1' AND visible = 1 ORDER BY rowid ASC")
+            .prepare(
+                "SELECT kind FROM messages WHERE task_id = 't1' AND visible = 1 ORDER BY rowid ASC",
+            )
             .unwrap()
             .query_map([], |r| r.get(0))
             .unwrap()
@@ -164,11 +206,20 @@ mod tests {
         // is pipeline-internal by kind or content shape.
         let c = test_db();
         insert_msg(&c, "m1", "assistant", "directive", "raw", true);
-        insert_msg(&c, "m2", "user", "chat", "[DIRECTIVE_ERROR] bad block", true);
+        insert_msg(
+            &c,
+            "m2",
+            "user",
+            "chat",
+            "[DIRECTIVE_ERROR] bad block",
+            true,
+        );
         init_schema(&c).unwrap(); // re-running migrations is idempotent
 
         let hidden: i64 = c
-            .query_row("SELECT COUNT(*) FROM messages WHERE visible = 0", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM messages WHERE visible = 0", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(hidden, 2);
     }
