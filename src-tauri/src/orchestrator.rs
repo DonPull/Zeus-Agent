@@ -29,6 +29,9 @@ pub enum Directive {
     FinalAnswer {
         final_answer: FinalAnswerSpec,
     },
+    DelegateTask {
+        delegate: DelegateSpec,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,6 +66,19 @@ pub struct TaskUpdateSpec {
 #[derive(Debug, Clone, Deserialize)]
 pub struct FinalAnswerSpec {
     pub summary: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DelegateSpec {
+    pub name: String,
+    pub objective: String,
+    pub success_criteria: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VerificationResult {
+    pub passed: bool,
+    pub feedback: String,
 }
 
 /// What the orchestrator decided the master's reply was.
@@ -307,6 +323,21 @@ mod tests {
     }
 
     #[test]
+    fn delegate_task_parses() {
+        let reply = r#"```zeus-directive
+{"type":"delegate_task","delegate":{"name":"Worker Name","objective":"Do something","success_criteria":"Check something"}}
+```"#;
+        match parse_master_reply(reply) {
+            MasterReply::Directive(Directive::DelegateTask { delegate }, _) => {
+                assert_eq!(delegate.name, "Worker Name");
+                assert_eq!(delegate.objective, "Do something");
+                assert_eq!(delegate.success_criteria, "Check something");
+            }
+            _ => panic!("expected DelegateTask"),
+        }
+    }
+
+    #[test]
     fn unclosed_fence_is_malformed() {
         let reply = "```zeus-directive\n{\"type\":\"run_action\"";
         match parse_master_reply(reply) {
@@ -336,6 +367,28 @@ mod tests {
         match parse_master_reply(reply) {
             MasterReply::Directive(Directive::TaskUpdate { .. }, _) => {}
             _ => panic!("expected TaskUpdate despite trailing brace"),
+        }
+    }
+
+    #[test]
+    fn delegate_task_is_parsed_correctly() {
+        let reply = r#"```zeus-directive
+{
+  "type": "delegate_task",
+  "delegate": {
+    "name": "researcher",
+    "objective": "find things",
+    "success_criteria": "found things"
+  }
+}
+```"#;
+        match parse_master_reply(reply) {
+            MasterReply::Directive(Directive::DelegateTask { delegate }, _) => {
+                assert_eq!(delegate.name, "researcher");
+                assert_eq!(delegate.objective, "find things");
+                assert_eq!(delegate.success_criteria, "found things");
+            }
+            _ => panic!("expected DelegateTask directive"),
         }
     }
 }

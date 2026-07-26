@@ -3,11 +3,12 @@
 mod chat;
 mod db;
 mod gateway;
-mod logger;
-mod orchestrator;
-mod python_runner;
-mod settings;
-mod utils;
+pub mod logger;
+pub mod orchestrator;
+pub mod python_runner;
+pub mod settings;
+pub mod utils;
+pub mod worker;
 
 use std::fs;
 use tauri::generate_context;

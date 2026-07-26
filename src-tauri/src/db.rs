@@ -91,6 +91,22 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS workers (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES tasks(id),
+    name TEXT NOT NULL,
+    objective TEXT NOT NULL,
+    success_criteria TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    result_text TEXT,
+    verification_feedback TEXT,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 3,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
 ";
 
 pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
@@ -178,6 +194,18 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
             rusqlite::params![now_iso()],
         )
         .map_err(|e| format!("Failed to recover running tasks: {}", e))?;
+
+    connection
+        .execute(
+            "UPDATE workers
+             SET status = 'interrupted',
+                 verification_feedback = COALESCE(verification_feedback, 'The application exited before this worker completed.'),
+                 updated_at = ?1,
+                 completed_at = ?1
+             WHERE status IN ('running', 'verifying', 'retrying')",
+            rusqlite::params![recovered_at],
+        )
+        .map_err(|e| format!("Failed to recover interrupted workers: {}", e))?;
 
     Ok(())
 }
@@ -281,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_recovery_interrupts_abandoned_runs() {
+    fn schema_recovery_interrupts_abandoned_runs_and_workers() {
         let c = test_db();
         let now = now_iso();
 
@@ -302,40 +330,34 @@ mod tests {
         .unwrap();
 
         c.execute(
-            "INSERT INTO runs (
-                id, request_id, task_id, status,
-                started_at, updated_at
+            "INSERT INTO workers (
+                id, task_id, name, objective, success_criteria, status,
+                retry_count, max_retries, created_at, updated_at
              )
              VALUES (
-                'r2', 'request-2', 't1', 'stopping',
-                ?1, ?1
+                'w1', 't1', 'test_worker', 'objective', 'criteria', 'running',
+                0, 3, ?1, ?1
              )",
-            rusqlite::params![now_iso()],
+            rusqlite::params![now],
         )
         .unwrap();
 
         init_schema(&c).unwrap();
 
         let run_status: String = c
-            .query_row("SELECT status FROM runs WHERE id = 'r1'", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-
-        let stopping_run_status: String = c
-            .query_row("SELECT status FROM runs WHERE id = 'r2'", [], |row| {
-                row.get(0)
-            })
+            .query_row("SELECT status FROM runs WHERE id = 'r1'", [], |row| row.get(0))
             .unwrap();
 
         let task_status: String = c
-            .query_row("SELECT status FROM tasks WHERE id = 't1'", [], |row| {
-                row.get(0)
-            })
+            .query_row("SELECT status FROM tasks WHERE id = 't1'", [], |row| row.get(0))
+            .unwrap();
+
+        let worker_status: String = c
+            .query_row("SELECT status FROM workers WHERE id = 'w1'", [], |row| row.get(0))
             .unwrap();
 
         assert_eq!(run_status, "interrupted");
-        assert_eq!(stopping_run_status, "interrupted");
         assert_eq!(task_status, "active");
+        assert_eq!(worker_status, "interrupted");
     }
 }

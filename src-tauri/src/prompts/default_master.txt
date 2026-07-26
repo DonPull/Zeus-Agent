@@ -26,7 +26,13 @@ You will be called again with the user's decision.
 {"type":"task_update","update":{"title":"new title"}}
 ```
 
-4. Finish the task with a final answer shown to the user:
+4. Delegate a complex sub-task to an autonomous worker agent:
+```zeus-directive
+{"type":"delegate_task","delegate":{"name":"Worker Name","objective":"What the worker needs to accomplish","success_criteria":"How to verify the worker succeeded"}}
+```
+Use this when you have a lengthy, multi-step sub-task (like extensive research, complex scripting, or data gathering) that is better offloaded to a background worker. The worker will autonomously plan, execute code, and self-correct until the success criteria are met. Wait for the worker to return its final verified answer.
+
+5. Finish the task with a final answer shown to the user:
 ```zeus-directive
 {"type":"final_answer","final_answer":{"summary":"the complete answer in markdown"}}
 ```

@@ -40,7 +40,7 @@ impl<'a> ActiveRunGuard<'a> {
         })
     }
 
-    fn token(&self) -> CancellationToken {
+    pub(crate) fn token(&self) -> CancellationToken {
         self.token.clone()
     }
 }
@@ -136,7 +136,7 @@ fn row_to_run_state(row: &rusqlite::Row) -> rusqlite::Result<RunStateDto> {
 const RUN_STATE_COLUMNS: &str =
     "id, request_id, task_id, status, error, started_at, updated_at, completed_at";
 
-fn emit_run_state(app_handle: &tauri::AppHandle, run: &RunStateDto) {
+pub(crate) fn emit_run_state(app_handle: &tauri::AppHandle, run: &RunStateDto) {
     let _ = app_handle.emit(
         "task-event",
         TaskRunEvent {
@@ -229,7 +229,7 @@ fn attach_user_message_to_run(
     Ok(())
 }
 
-fn finish_durable_run(
+pub(crate) fn finish_durable_run(
     connection: &Connection,
     run_id: &str,
     task_id: &str,
@@ -262,7 +262,7 @@ fn finish_durable_run(
     load_run_state(connection, run_id)
 }
 
-fn finish_cancelled_run(
+pub(crate) fn finish_cancelled_run(
     state: &State<'_, AppState>,
     app_handle: &tauri::AppHandle,
     task_id: &str,
@@ -334,8 +334,30 @@ fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> 
 }
 
 /// Builds an unsaved MessageDto. `seq` stays 0 until insert_message stamps it.
-fn new_message(
+pub(crate) fn new_message(
     task_id: &str,
+    role: &str,
+    kind: &str,
+    content: String,
+    credits_used: Option<f64>,
+    model: Option<String>,
+    visible: bool,
+) -> MessageDto {
+    new_message_for_conversation(
+        task_id,
+        "master",
+        role,
+        kind,
+        content,
+        credits_used,
+        model,
+        visible,
+    )
+}
+
+pub(crate) fn new_message_for_conversation(
+    task_id: &str,
+    conversation: &str,
     role: &str,
     kind: &str,
     content: String,
@@ -346,7 +368,7 @@ fn new_message(
     MessageDto {
         id: new_id(),
         task_id: task_id.to_string(),
-        conversation: "master".into(),
+        conversation: conversation.to_string(),
         role: role.into(),
         kind: kind.into(),
         content,
@@ -385,7 +407,7 @@ fn emit_message(app_handle: &tauri::AppHandle, task_id: &str, message: &MessageD
 }
 
 /// The one write path for messages: persist (stamping seq), then emit.
-fn persist_and_emit(
+pub(crate) fn persist_and_emit(
     state: &State<'_, AppState>,
     app_handle: &tauri::AppHandle,
     task_id: &str,
@@ -630,7 +652,7 @@ pub async fn cancel_task_run(
 
 /// Records a model call in the ledger and bumps the task's spend. Returns the
 /// unit cost so the caller can attach it to the assistant message.
-fn record_spend(
+pub(crate) fn record_spend(
     connection: &Connection,
     task_id: &str,
     model: &str,
@@ -1162,6 +1184,58 @@ pub async fn send_user_message(
                         });
                         // Loop: call the master again with the action result.
                     }
+                    Directive::DelegateTask { delegate } => {
+                        let worker_future = crate::worker::run_worker(
+                            &state,
+                            &app_handle,
+                            &task_id,
+                            &run_id,
+                            &cancellation_token,
+                            &delegate,
+                            current_spend,
+                        );
+
+                        tokio::pin!(worker_future);
+
+                        let outcome = tokio::select! {
+                            result = &mut worker_future => result,
+                            _ = cancellation_token.cancelled() => {
+                                finish_cancelled_run(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                )?;
+                                return Err("RUN_CANCELLED".into());
+                            }
+                        };
+
+                        let result_text = match outcome {
+                            Ok(text) => text,
+                            Err(e) => format!("Worker failed: {}", e),
+                        };
+
+                        let result_json = serde_json::json!({
+                            "worker_result": result_text
+                        });
+                        let msg = orchestrator::directive_result_message(&result_json);
+                        
+                        let mut hidden_result = new_message(
+                            &task_id,
+                            "user",
+                            "directive_result",
+                            msg.clone(),
+                            None,
+                            None,
+                            false,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage {
+                            role: "user".into(),
+                            content: msg,
+                        });
+                        // Loop: call the master again with the worker result.
+                    }
                 }
             }
         }
@@ -1235,9 +1309,11 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
         )
         .map_err(|e| format!("Failed to delete the task credit events: {}", e))?;
     let _ = connection.execute("DELETE FROM approvals WHERE task_id = ?1", params![task_id]);
+    let _ = connection.execute("DELETE FROM workers WHERE task_id = ?1", params![task_id]);
+
     connection
         .execute("DELETE FROM tasks WHERE id = ?1", params![task_id])
-        .map_err(|e| format!("Failed to delete the task: {}", e))?;
+        .map_err(|e| format!("Database error: {}", e))?;
     drop(connection);
     if let Ok(workspace) = crate::utils::task_workspace(&task_id) {
         let _ = std::fs::remove_dir_all(workspace);

@@ -91,6 +91,32 @@ function ApprovalCard({ message, onDecision }) {
     );
 }
 
+function WorkerCard({ message }) {
+    const data = useMemo(() => parseEventContent(message), [message]);
+    if (!data) return null;
+
+    return (
+        <div className="chat-message event">
+            <div className={`chat-bubble worker-card column gap-10 ${data.status}`}>
+                <div className="worker-card-header align-center justify-space-between no-user-select">
+                    <span className="worker-card-title">Worker: {data.name}</span>
+                    <span className={`worker-card-status ${data.status}`}>{data.status}</span>
+                </div>
+                {data.objective && (
+                    <div className="worker-card-body">
+                        <strong>Objective:</strong> {data.objective}
+                    </div>
+                )}
+                {data.success_criteria && (
+                    <div className="worker-card-body">
+                        <strong>Criteria:</strong> {data.success_criteria}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function ReasoningPill({ reasoning, streaming }) {
     const [open, setOpen] = useState(true);
     if (!reasoning) return null;
@@ -122,6 +148,7 @@ function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDec
     if (message.role === "event") {
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
+        if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
         return (
             <div className="chat-message event">
                 <div className="chat-bubble event"><div className="chat-bubble-content">{message.content}</div></div>

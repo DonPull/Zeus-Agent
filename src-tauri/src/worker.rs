@@ -1,0 +1,455 @@
+use crate::chat::{
+    finish_cancelled_run, new_message_for_conversation, persist_and_emit, record_spend, MessageDto,
+};
+use crate::db::{new_id, now_iso, AppState};
+use crate::gateway::{self, ChatMessage};
+use crate::orchestrator::{self, DelegateSpec, Directive};
+use crate::settings;
+use rusqlite::params;
+use serde_json::json;
+use tauri::{AppHandle, State};
+use tokio_util::sync::CancellationToken;
+
+const WORKER_SYSTEM_PROMPT: &str = r#"You are a Zeus worker agent named {name}.
+Your objective is:
+{objective}
+
+Your success criteria are:
+{success_criteria}
+
+You have the tools to run code autonomously to achieve the objective. Every reply you give MUST be exactly ONE directive: a fenced code block whose language tag is zeus-directive, containing a single JSON object. When you emit a directive, it must be the ONLY content of your reply — no text before or after it, because the app executes it and calls you again with the result.
+
+1. Run a script to perform an action (Python, Bash, PowerShell, etc) in the workspace:
+```zeus-directive
+{"type":"run_action","action":{"language":"python","code":"<python source>","timeout_secs":60},"success_criteria":"what a good result looks like"}
+```
+The code runs with the task workspace as the working directory. Print results to stdout. Use print() for anything you want to see in the result.
+
+2. Finish the task with a final answer:
+```zeus-directive
+{"type":"final_answer","final_answer":{"summary":"the complete answer in markdown"}}
+```
+
+Once you have completely satisfied the success criteria, use the final_answer directive to return your result. Provide any evidence or artifacts required by the success criteria in your summary. If you cannot achieve the objective, explain why in your final_answer."#;
+
+const VERIFIER_PROMPT: &str = r#"You are the Zeus Verifier.
+A worker agent was given this objective:
+{objective}
+
+The worker had to meet these success criteria:
+{success_criteria}
+
+The worker provided this final result:
+{result}
+
+You must evaluate if the worker's result completely satisfies the success criteria.
+Be strict and critical. Do not accept generic, unsubstantiated answers, or answers that lack requested evidence/URLs.
+
+Respond ONLY with a JSON object matching this schema (no markdown fences, no preamble):
+{
+  "passed": boolean,
+  "feedback": "string explaining why it passed or failed (be specific)"
+}"#;
+
+pub async fn run_worker(
+    state: &State<'_, AppState>,
+    app_handle: &AppHandle,
+    task_id: &str,
+    run_id: &str,
+    cancellation_token: &CancellationToken,
+    delegate: &DelegateSpec,
+    mut current_spend: f64,
+) -> Result<String, String> {
+    let worker_id = new_id();
+    let conversation = format!("worker:{}", worker_id);
+    let now = now_iso();
+
+    // 1. Create the worker in the DB
+    {
+        let connection = state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock error: {}", e))?;
+        connection
+            .execute(
+                "INSERT INTO workers (id, task_id, name, objective, success_criteria, status, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 'running', ?6, ?6)",
+                params![worker_id, task_id, delegate.name, delegate.objective, delegate.success_criteria, now],
+            )
+            .map_err(|e| format!("Failed to create worker: {}", e))?;
+    }
+
+    // Emit a visible event message to the master chat so the user knows a worker started
+    let mut started_msg = new_message_for_conversation(
+        task_id,
+        "master",
+        "event",
+        "worker_started",
+        json!({
+            "worker_id": worker_id,
+            "name": delegate.name,
+            "objective": delegate.objective,
+            "success_criteria": delegate.success_criteria,
+            "status": "running"
+        })
+        .to_string(),
+        None,
+        None,
+        true, // visible to UI
+    );
+    persist_and_emit(state, app_handle, task_id, &mut started_msg)?;
+    let started_msg_id = started_msg.id.clone();
+
+    // 2. Setup the worker's chat history
+    let system_content = WORKER_SYSTEM_PROMPT
+        .replace("{name}", &delegate.name)
+        .replace("{objective}", &delegate.objective)
+        .replace("{success_criteria}", &delegate.success_criteria);
+
+    let mut history = vec![
+        ChatMessage {
+            role: "system".into(),
+            content: system_content.clone(),
+        },
+        ChatMessage {
+            role: "user".into(),
+            content: "Begin executing your assigned objective. Remember to use the RunAction directive to perform work in the workspace.".into(),
+        }
+    ];
+
+    // We also persist this hidden system message in the worker's conversation
+    let mut sys_msg = new_message_for_conversation(
+        task_id,
+        &conversation,
+        "system",
+        "chat",
+        system_content,
+        None,
+        None,
+        false,
+    );
+    persist_and_emit(state, app_handle, task_id, &mut sys_msg)?;
+
+    let mut initial_user_msg = new_message_for_conversation(
+        task_id,
+        &conversation,
+        "user",
+        "chat",
+        "Begin executing your assigned objective. Remember to use the RunAction directive to perform work in the workspace.".into(),
+        None,
+        None,
+        false,
+    );
+    persist_and_emit(state, app_handle, task_id, &mut initial_user_msg)?;
+
+    let (worker_model, verifier_model) = {
+        let conn = state.db.lock().unwrap();
+        let s = settings::read_settings(&conn)?;
+        (s.worker_model, s.verifier_model)
+    };
+
+    let max_retries = 3;
+    let mut retry_count = 0;
+
+    loop {
+        // Run the worker orchestration loop
+        let mut loop_iterations = 0;
+        let worker_result = loop {
+            loop_iterations += 1;
+            if loop_iterations > orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+                break Err("Worker hit iteration cap without a final answer.".to_string());
+            }
+
+            // Stream response
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            let model_clone = worker_model.clone();
+            let history_clone = history.clone();
+
+            let stream_future = gateway::chat_completion_stream(&model_clone, &history_clone, move |payload| {
+                let _ = tx.send(payload);
+            });
+            tokio::pin!(stream_future);
+
+            let mut reply_text = String::new();
+            let mut usage = gateway::UsageInfo::default();
+            let mut usage_json = String::new();
+            let mut model_used = None;
+
+            let stream_result = tokio::select! {
+                res = &mut stream_future => res,
+                _ = cancellation_token.cancelled() => {
+                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
+                    return Err("RUN_CANCELLED".into());
+                }
+            };
+
+            match stream_result {
+                Ok((t, u, uj, m)) => {
+                    reply_text = t;
+                    usage = u;
+                    usage_json = uj;
+                    model_used = m;
+                }
+                Err(e) => {
+                    break Err(format!("Worker model error: {}", e));
+                }
+            }
+
+            let actual_model = model_used.unwrap_or_else(|| worker_model.clone());
+            let units = {
+                let conn = state.db.lock().unwrap();
+                record_spend(&conn, task_id, &actual_model, &usage, &usage_json).unwrap_or(0.0)
+            };
+            current_spend += units;
+
+            match orchestrator::parse_master_reply(&reply_text) {
+                orchestrator::MasterReply::Text(text) => {
+                    let mut assistant_message = new_message_for_conversation(
+                        task_id, &conversation, "assistant", "chat", text.clone(), Some(units), Some(actual_model), false
+                    );
+                    persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
+                    history.push(ChatMessage { role: "assistant".into(), content: text.clone() });
+                    break Ok(text); // Worker just replied with text, we consider it their final answer.
+                }
+                orchestrator::MasterReply::MalformedDirective(error, raw) => {
+                    let feedback = format!("[DIRECTIVE_ERROR] {}", error);
+                    let mut hidden_directive = new_message_for_conversation(
+                        task_id, &conversation, "assistant", "directive", raw.clone(), Some(units), Some(actual_model), false
+                    );
+                    persist_and_emit(state, app_handle, task_id, &mut hidden_directive)?;
+                    
+                    let mut hidden_result = new_message_for_conversation(
+                        task_id, &conversation, "user", "directive_result", feedback.clone(), None, None, false
+                    );
+                    persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+                    
+                    history.push(ChatMessage { role: "assistant".into(), content: raw });
+                    history.push(ChatMessage { role: "user".into(), content: feedback });
+                }
+                orchestrator::MasterReply::Directive(directive, raw) => {
+                    let mut hidden_directive = new_message_for_conversation(
+                        task_id, &conversation, "assistant", "directive", raw.clone(), Some(units), Some(actual_model.clone()), false
+                    );
+                    persist_and_emit(state, app_handle, task_id, &mut hidden_directive)?;
+                    history.push(ChatMessage { role: "assistant".into(), content: raw });
+
+                    match directive {
+                        Directive::FinalAnswer { final_answer } => {
+                            let mut assistant_message = new_message_for_conversation(
+                                task_id, &conversation, "assistant", "chat", final_answer.summary.clone(), Some(units), Some(actual_model), false
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
+                            history.push(ChatMessage { role: "assistant".into(), content: final_answer.summary.clone() });
+                            break Ok(final_answer.summary);
+                        }
+                        Directive::RunAction { action, success_criteria } => {
+                            let workspace = crate::utils::task_workspace(task_id)?;
+                            let action_future = crate::python_runner::run_python_action(
+                                &workspace, &action.code, action.timeout_secs
+                            );
+                            tokio::pin!(action_future);
+
+                            let outcome = tokio::select! {
+                                result = &mut action_future => result.map_err(|e| e.to_string())?,
+                                _ = cancellation_token.cancelled() => {
+                                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
+                                    return Err("RUN_CANCELLED".into());
+                                }
+                            };
+
+                            let result_json = orchestrator::action_result_json(
+                                &outcome.stdout, &outcome.stderr, outcome.exit_code, outcome.timed_out, &outcome.interpreter
+                            );
+
+                            let msg = orchestrator::directive_result_message(&result_json);
+                            let mut hidden_result = new_message_for_conversation(
+                                task_id, &conversation, "user", "directive_result", msg.clone(), None, None, false
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+                            history.push(ChatMessage { role: "user".into(), content: msg });
+                        }
+                        _ => {
+                            // Workers cannot delegate or request approval for now
+                            let feedback = "[DIRECTIVE_ERROR] This directive is not allowed for worker agents.".to_string();
+                            let mut hidden_result = new_message_for_conversation(
+                                task_id, &conversation, "user", "directive_result", feedback.clone(), None, None, false
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+                            history.push(ChatMessage { role: "user".into(), content: feedback });
+                        }
+                    }
+                }
+            }
+        };
+
+        // Verification phase
+        let final_result_text = match worker_result {
+            Ok(res) => res,
+            Err(e) => {
+                set_worker_status(state, &worker_id, "failed", Some(&e), None)?;
+                update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "failed")?;
+                return Err(format!("Verifier error: {}", e));
+            }
+        };
+
+        set_worker_status(state, &worker_id, "verifying", None, Some(&final_result_text))?;
+        update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "verifying")?;
+
+        let verifier_prompt = VERIFIER_PROMPT
+            .replace("{objective}", &delegate.objective)
+            .replace("{success_criteria}", &delegate.success_criteria)
+            .replace("{result}", &final_result_text);
+
+        let verifier_messages = vec![ChatMessage {
+            role: "user".into(),
+            content: verifier_prompt,
+        }];
+
+        let verification_response = tokio::select! {
+            res = gateway::chat_completion(&verifier_model, &verifier_messages) => res,
+            _ = cancellation_token.cancelled() => {
+                finish_cancelled_run(state, app_handle, task_id, run_id)?;
+                return Err("RUN_CANCELLED".into());
+            }
+        };
+
+        let verifier_output = match verification_response {
+            Ok((text, u, uj, m)) => {
+                let actual_model = m.unwrap_or_else(|| verifier_model.clone());
+                let units = {
+                    let conn = state.db.lock().unwrap();
+                    record_spend(&conn, task_id, &actual_model, &u, &uj).unwrap_or(0.0)
+                };
+                current_spend += units;
+                text
+            }
+            Err(e) => {
+                let msg = format!("Malformed verifier output: {}", e);
+                set_worker_status(state, &worker_id, "failed", Some(&msg), None)?;
+                update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "failed")?;
+                return Err(msg);
+            }
+        };
+
+        let v_res: Result<orchestrator::VerificationResult, _> = serde_json::from_str(verifier_output.trim());
+        match v_res {
+            Ok(vr) => {
+                if vr.passed {
+                    set_worker_status(state, &worker_id, "completed", None, None)?;
+                    update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "completed")?;
+                    return Ok(final_result_text);
+                } else {
+                    if retry_count >= max_retries {
+                        set_worker_status(state, &worker_id, "failed", Some("Max retries exceeded"), None)?;
+                        update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "failed")?;
+                        return Err("Worker failed to meet success criteria after max retries.".to_string());
+                    } else {
+                        update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "retrying")?;
+                        set_worker_status(state, &worker_id, "retrying", None, None)?;
+                        let retry_msg = format!("Your result was rejected by the verifier:\n{}\n\nPlease address the feedback and try again.", vr.feedback);
+                        let mut hidden_retry = new_message_for_conversation(
+                            task_id, &conversation, "user", "chat", retry_msg.clone(), None, None, false
+                        );
+                        persist_and_emit(state, app_handle, task_id, &mut hidden_retry)?;
+                        history.push(ChatMessage { role: "user".into(), content: retry_msg });
+                        
+                        retry_count += 1;
+                    }
+                }
+            }
+            Err(e) => {
+                let err = format!("Verifier provided invalid JSON: {}", e);
+                set_worker_status(state, &worker_id, "failed", Some(&err), Some(&final_result_text))?;
+                update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "failed")?;
+                return Err(err);
+            }
+        }
+    }
+}
+
+fn set_worker_status(
+    state: &State<'_, AppState>,
+    worker_id: &str,
+    status: &str,
+    feedback: Option<&str>,
+    result: Option<&str>,
+) -> Result<(), String> {
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+    
+    let now = now_iso();
+    let completed_at = if status == "completed" || status == "failed" { Some(&now) } else { None };
+
+    if status == "retrying" {
+        connection.execute(
+            "UPDATE workers SET status = 'running', retry_count = retry_count + 1, verification_feedback = ?1, result_text = ?2, updated_at = ?3 WHERE id = ?4",
+            params![feedback, result, now, worker_id],
+        ).map_err(|e| format!("Failed to update worker: {}", e))?;
+    } else {
+        connection.execute(
+            "UPDATE workers SET status = ?1, verification_feedback = ?2, result_text = ?3, updated_at = ?4, completed_at = ?5 WHERE id = ?6",
+            params![status, feedback, result, now, completed_at, worker_id],
+        ).map_err(|e| format!("Failed to update worker: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+fn update_worker_event_and_emit(
+    state: &State<'_, AppState>,
+    app_handle: &AppHandle,
+    msg_id: &str,
+    task_id: &str,
+    worker_id: &str,
+    delegate: &DelegateSpec,
+    status: &str,
+) -> Result<(), String> {
+    let content = json!({
+        "worker_id": worker_id,
+        "name": delegate.name,
+        "objective": delegate.objective,
+        "success_criteria": delegate.success_criteria,
+        "status": status
+    })
+    .to_string();
+
+    let (seq, created_at) = {
+        let conn = state.db.lock().unwrap();
+        conn.execute(
+            "UPDATE messages SET content = ?1 WHERE id = ?2",
+            params![content, msg_id],
+        )
+        .map_err(|e| format!("DB Error: {}", e))?;
+
+        let mut stmt = conn
+            .prepare("SELECT rowid, created_at FROM messages WHERE id = ?1")
+            .unwrap();
+        stmt.query_row(params![msg_id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| format!("DB Error: {}", e))?
+    };
+
+    let msg = MessageDto {
+        id: msg_id.to_string(),
+        task_id: task_id.to_string(),
+        conversation: "master".to_string(),
+        role: "event".to_string(),
+        kind: "worker_started".to_string(),
+        content,
+        credits_used: None,
+        model: None,
+        created_at,
+        seq,
+        visible: true,
+    };
+
+    use tauri::Emitter;
+    app_handle
+        .emit("task-message", json!({ "task_id": task_id, "message": msg }))
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+
+    Ok(())
+}

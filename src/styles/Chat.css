@@ -852,3 +852,51 @@
 }
 
 #chat-input-counter.over-limit { color: #ff8a8a; font-family: 'Lato-Bold'; }
+
+/* ---- worker cards ---- */
+.worker-card {
+    border: 1px solid var(--zeus-border);
+    max-width: 95%;
+}
+.worker-card.running, .worker-card.verifying, .worker-card.retrying {
+    border-color: #ffcf3f66;
+}
+.worker-card.completed {
+    border-color: #7ee0a355;
+}
+.worker-card.failed {
+    border-color: #ff5c5c55;
+}
+
+.worker-card-header {
+    border-bottom: 1px solid var(--zeus-border);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+}
+.worker-card-title {
+    color: var(--zeus-text);
+    font-family: 'Lato-Bold';
+    font-size: 15px;
+}
+.worker-card-status {
+    font-size: 12px;
+    color: var(--zeus-text-dim);
+    border: 1px solid var(--zeus-border);
+    border-radius: 8px;
+    padding: 2px 8px;
+    text-transform: capitalize;
+}
+.worker-card-status.running, .worker-card-status.verifying, .worker-card-status.retrying {
+    color: var(--zeus-accent); border-color: #ffcf3f55;
+}
+.worker-card-status.completed { color: #7ee0a3; border-color: #7ee0a355;}
+.worker-card-status.failed { color: #ff8a8a; border-color: #ff5c5c55;}
+
+.worker-card-body {
+    color: var(--zeus-text-dim);
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+.worker-card-body strong {
+    color: var(--zeus-text);
+}
