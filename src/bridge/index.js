@@ -23,6 +23,8 @@ export const getSettings        = ()              => invoke("get_settings");
 export const saveSettings       = (settings)      => invoke("save_settings",        { settings });
 export const setApiKey          = (apiKey)        => invoke("set_api_key",          { apiKey });
 export const hasApiKey          = ()              => invoke("has_api_key");
+export const setGeminiApiKey    = (apiKey)        => invoke("set_gemini_api_key",   { apiKey });
+export const hasGeminiApiKey    = ()              => invoke("has_gemini_api_key");
 export const fetchAvailableModels = ()            => invoke("fetch_available_models");
 export const getDebugLog       = (taskId)         => invoke("get_debug_log", { taskId });
 

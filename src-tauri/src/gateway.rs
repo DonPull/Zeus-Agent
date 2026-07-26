@@ -5,6 +5,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub const ROUTELLM_BASE_URL: &str = "https://routellm.abacus.ai/v1";
+pub const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+
+fn get_api_config(model: &str) -> Result<(String, String), String> {
+    if model.starts_with("gemini") {
+        Ok((GEMINI_BASE_URL.to_string(), crate::settings::load_gemini_api_key()?))
+    } else {
+        Ok((ROUTELLM_BASE_URL.to_string(), crate::settings::load_api_key()?))
+    }
+}
 
 /// Weights used to convert usage into "units": 1 unit = 1 token or 1 tool
 /// call. Images will get their own weight when image models arrive. Units are
@@ -155,36 +164,36 @@ pub async fn chat_completion(
     model: &str,
     messages: &[ChatMessage],
 ) -> Result<(String, UsageInfo, String, Option<String>), String> {
-    let api_key = crate::settings::load_api_key()?;
+    let (base_url, api_key) = get_api_config(model)?;
     let body = json!({ "model": model, "messages": messages });
 
     let client = http_client();
     let response = client
-        .post(format!("{}/chat/completions", ROUTELLM_BASE_URL))
+        .post(format!("{}/chat/completions", base_url))
         .bearer_auth(api_key)
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("RouteLLM request failed: {}", e))?;
+        .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     let text = response
         .text()
         .await
-        .map_err(|e| format!("Failed to read the RouteLLM response: {}", e))?;
+        .map_err(|e| format!("Failed to read the API response: {}", e))?;
     if !status.is_success() {
-        return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
+        return Err(format!("API error ({}): {}", status.as_u16(), text));
     }
 
     let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse the RouteLLM response: {}", e))?;
+        .map_err(|e| format!("Failed to parse the API response: {}", e))?;
 
     let content = json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
         .to_string();
     if content.is_empty() {
-        return Err(format!("RouteLLM returned no message content: {}", text));
+        return Err(format!("API returned no message content: {}", text));
     }
 
     let (usage, usage_json) = parse_usage_value(&json["usage"], &content);
@@ -201,17 +210,17 @@ pub async fn chat_completion_stream<F>(
 where
     F: FnMut(StreamEventPayload) + Send,
 {
-    let api_key = crate::settings::load_api_key()?;
+    let (base_url, api_key) = get_api_config(model)?;
     let body = json!({ "model": model, "messages": messages, "stream": true });
 
     let client = http_client();
     let response = client
-        .post(format!("{}/chat/completions", ROUTELLM_BASE_URL))
+        .post(format!("{}/chat/completions", base_url))
         .bearer_auth(api_key)
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("RouteLLM request failed: {}", e))?;
+        .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -235,7 +244,7 @@ where
     let mut buffer = String::new();
 
     while let Some(chunk) = byte_stream.next().await {
-        let chunk = chunk.map_err(|e| format!("RouteLLM stream read failed: {}", e))?;
+        let chunk = chunk.map_err(|e| format!("API stream read failed: {}", e))?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
 
         while let Some(newline_pos) = buffer.find('\n') {
@@ -316,7 +325,7 @@ pub async fn responses_stream<F>(
 where
     F: FnMut(StreamEventPayload) + Send,
 {
-    let api_key = crate::settings::load_api_key()?;
+    let (base_url, api_key) = get_api_config(model)?;
 
     // Convert chat messages -> Responses input items. The system prompt becomes
     // `instructions`; the rest become input items with content parts.
@@ -347,17 +356,17 @@ where
 
     let client = http_client();
     let response = client
-        .post(format!("{}/responses", ROUTELLM_BASE_URL))
+        .post(format!("{}/responses", base_url))
         .bearer_auth(api_key)
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("RouteLLM request failed: {}", e))?;
+        .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
+        return Err(format!("API error ({}): {}", status.as_u16(), text));
     }
 
     on_event(StreamEventPayload::Status {
@@ -378,7 +387,7 @@ where
     let mut current_event_type = String::new();
 
     while let Some(chunk) = byte_stream.next().await {
-        let chunk = chunk.map_err(|e| format!("RouteLLM stream read failed: {}", e))?;
+        let chunk = chunk.map_err(|e| format!("API stream read failed: {}", e))?;
         if !valid_utf8(&chunk) {
             continue;
         }

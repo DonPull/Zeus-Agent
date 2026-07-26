@@ -5,6 +5,8 @@ function SettingsModal({ onToast, onClose }) {
     const [settings, setSettings] = useState(null);
     const [apiKeyInput, setApiKeyInput] = useState("");
     const [keyIsSet, setKeyIsSet] = useState(false);
+    const [geminiApiKeyInput, setGeminiApiKeyInput] = useState("");
+    const [geminiKeyIsSet, setGeminiKeyIsSet] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -14,6 +16,7 @@ function SettingsModal({ onToast, onClose }) {
             try {
                 setSettings(await bridge.getSettings());
                 setKeyIsSet(await bridge.hasApiKey());
+                setGeminiKeyIsSet(await bridge.hasGeminiApiKey());
             } catch (err) {
                 onToast(`Failed to load settings: ${err}`);
             }
@@ -26,6 +29,17 @@ function SettingsModal({ onToast, onClose }) {
             setApiKeyInput("");
             setKeyIsSet(true);
             onToast("API key saved to the Windows Credential Manager.", "success", 3000);
+        } catch (err) {
+            onToast(String(err));
+        }
+    };
+
+    const handleSaveGeminiApiKey = async () => {
+        try {
+            await bridge.setGeminiApiKey(geminiApiKeyInput);
+            setGeminiApiKeyInput("");
+            setGeminiKeyIsSet(true);
+            onToast("Gemini API key saved to the Windows Credential Manager.", "success", 3000);
         } catch (err) {
             onToast(String(err));
         }
@@ -94,6 +108,24 @@ function SettingsModal({ onToast, onClose }) {
             </div>
 
             <div className="settings-section column gap-10">
+                <label className="settings-section-label">Google Gemini API key</label>
+                <div className="align-center gap-10">
+                    <input
+                        type="password"
+                        className="settings-input width-fill-available"
+                        placeholder="Paste your Google Gemini API key"
+                        value={geminiApiKeyInput}
+                        onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+                    />
+                    <button className="settings-button" onClick={handleSaveGeminiApiKey} disabled={!geminiApiKeyInput.trim()}>
+                        <label>Save key</label>
+                    </button>
+                    <span className={`key-status-pill ${geminiKeyIsSet ? "set" : "missing"}`}>{geminiKeyIsSet ? "Key set" : "No key"}</span>
+                </div>
+                <label className="settings-hint">Used automatically when the model name starts with "gemini".</label>
+            </div>
+
+            <div className="settings-section column gap-10">
                 <div className="align-center justify-space-between">
                     <label className="settings-section-label">Models</label>
                     <button className={`settings-button ${loadingModels ? "is-loading" : ""}`} onClick={handleLoadModels} disabled={loadingModels}>
@@ -102,6 +134,9 @@ function SettingsModal({ onToast, onClose }) {
                 </div>
                 <datalist id="routellm-models">
                     {availableModels.map((model) => <option key={model} value={model} />)}
+                    <option value="gemini-1.5-pro" />
+                    <option value="gemini-1.5-flash" />
+                    <option value="gemini-2.0-flash-exp" />
                 </datalist>
                 <div className="settings-model-row align-center gap-10">
                     <label>Master</label>

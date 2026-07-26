@@ -41,6 +41,8 @@ pub fn run() {
             settings::save_settings,
             settings::set_api_key,
             settings::has_api_key,
+            settings::set_gemini_api_key,
+            settings::has_gemini_api_key,
             gateway::fetch_available_models,
             logger::get_debug_log,
         ])

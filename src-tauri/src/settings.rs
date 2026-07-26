@@ -6,6 +6,7 @@ use tauri::State;
 
 const KEYRING_SERVICE: &str = "zeus-agent";
 const KEYRING_USER: &str = "routellm-api-key";
+const KEYRING_GEMINI_USER: &str = "gemini-api-key";
 
 /// Default model IDs. VERIFY these against RouteLLM's GET /v1/models
 /// (Settings modal -> "Load available models") and adjust if they differ.
@@ -115,6 +116,32 @@ pub fn load_api_key() -> Result<String, String> {
     entry
         .get_password()
         .map_err(|_| "No RouteLLM API key is set. Open Settings and add one.".to_string())
+}
+
+#[tauri::command]
+pub fn set_gemini_api_key(api_key: String) -> Result<(), String> {
+    let api_key = api_key.trim();
+    if api_key.is_empty() {
+        return Err("The Gemini API key cannot be empty.".into());
+    }
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_GEMINI_USER)
+        .map_err(|e| format!("Failed to access the credential vault: {}", e))?;
+    entry
+        .set_password(api_key)
+        .map_err(|e| format!("Failed to store the Gemini API key: {}", e))
+}
+
+#[tauri::command]
+pub fn has_gemini_api_key() -> bool {
+    load_gemini_api_key().is_ok()
+}
+
+pub fn load_gemini_api_key() -> Result<String, String> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_GEMINI_USER)
+        .map_err(|e| format!("Failed to access the credential vault: {}", e))?;
+    entry
+        .get_password()
+        .map_err(|_| "No Gemini API key is set. Open Settings and add one.".to_string())
 }
 
 /// M1a ships the prompt as an editable file (fast iteration). When shipping,

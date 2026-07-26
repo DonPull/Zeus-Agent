@@ -414,7 +414,7 @@ fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<Cha
     let mut statement = connection
         .prepare(
             "SELECT role, content FROM messages
-             WHERE task_id = ?1 AND conversation = 'master' AND kind IN ('chat','directive','directive_result')
+             WHERE task_id = ?1 AND conversation = 'master' AND kind IN ('chat','directive','directive_result') AND role IN ('user', 'assistant', 'system', 'tool')
              ORDER BY rowid ASC",
         )
         .map_err(|e| format!("Failed to prepare the history query: {}", e))?;
@@ -820,9 +820,16 @@ pub async fn send_user_message(
         let stream_result = {
             let stream_handle = app_handle.clone();
             let stream_task_id = task_id.clone();
+            let partial_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+            let partial_text_clone = partial_text.clone();
 
             let stream_future =
                 gateway::stream_model_reply(&master_model, &history, move |event| {
+                    if let gateway::StreamEventPayload::Delta { text } = &event {
+                        if let Ok(mut lock) = partial_text_clone.lock() {
+                            lock.push_str(text);
+                        }
+                    }
                     let _ = stream_handle.emit(
                         "chat-stream",
                         serde_json::json!({
@@ -837,6 +844,19 @@ pub async fn send_user_message(
             tokio::select! {
                 result = &mut stream_future => result,
                 _ = cancellation_token.cancelled() => {
+                    let text = partial_text.lock().unwrap().clone();
+                    if !text.is_empty() {
+                        let mut partial_msg = new_message(
+                            &task_id,
+                            "assistant",
+                            "chat",
+                            text,
+                            None,
+                            None,
+                            true,
+                        );
+                        let _ = persist_and_emit(&state, &app_handle, &task_id, &mut partial_msg);
+                    }
                     finish_cancelled_run(
                         &state,
                         &app_handle,
