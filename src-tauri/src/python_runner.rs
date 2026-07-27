@@ -50,7 +50,41 @@ pub async fn run_python_action(
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
 
     let script_path: PathBuf = workspace.join(format!("__zeus_action_{}.py", crate::db::new_id()));
-    std::fs::write(&script_path, code)
+    
+    let sandbox_preamble = r#"
+import sys
+import os
+
+_zeus_workspace = os.path.abspath(os.getcwd())
+_zeus_sys_prefix = os.path.abspath(sys.prefix)
+_zeus_sys_base = os.path.abspath(sys.base_prefix)
+
+def _zeus_audit_hook(event, args):
+    if event == 'socket.connect' or event == 'socket.getaddrinfo':
+        raise PermissionError('Native network access is disabled in this sandbox. You MUST use the Zeus API tools (e.g. HttpRequest, BrowserNavigate) instead of Python network libraries.')
+    
+    if event == 'open':
+        path = args[0]
+        if isinstance(path, str):
+            abs_path = os.path.abspath(path)
+            # Allow internal python libraries
+            if abs_path.startswith(_zeus_sys_prefix) or abs_path.startswith(_zeus_sys_base):
+                return
+            # Allow workspace files
+            if abs_path.startswith(_zeus_workspace):
+                return
+            # Otherwise, block reads and writes outside the workspace
+            mode = args[1] if len(args) > 1 else 'r'
+            if 'w' in mode or 'a' in mode or '+' in mode:
+                raise PermissionError(f'Native file writes outside the workspace are disabled. Use the Zeus WriteFile tool. Blocked: {abs_path}')
+            else:
+                raise PermissionError(f'Native file reads outside the workspace are disabled. Use the Zeus ReadFile tool. Blocked: {abs_path}')
+
+sys.addaudithook(_zeus_audit_hook)
+"#;
+
+    let final_code = format!("{}\n{}", sandbox_preamble, code);
+    std::fs::write(&script_path, final_code)
         .map_err(|e| format!("Failed to write the action script: {}", e))?;
 
     let mut command = Command::new(&interpreter);
@@ -196,5 +230,54 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         let _ = std::fs::remove_dir_all(&workspace);
+    }
+
+    #[tokio::test]
+    async fn sandbox_blocks_network_socket() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+        let outcome = run_python_action(
+            &workspace,
+            "import socket\nsocket.create_connection(('8.8.8.8', 53))",
+            30,
+        )
+        .await
+        .expect("runner failed");
+        
+        assert_eq!(outcome.exit_code, 1);
+        assert!(outcome.stderr.contains("Native network access is disabled in this sandbox"));
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test]
+    async fn sandbox_blocks_file_write_outside_workspace() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+        // Try to write to a file explicitly outside the workspace (e.g. up one directory)
+        let code = r#"
+import os
+parent_dir = os.path.dirname(os.getcwd())
+test_file = os.path.join(parent_dir, 'zeus_hack_test.txt')
+with open(test_file, 'w') as f:
+    f.write('hacked')
+"#;
+        let outcome = run_python_action(&workspace, code, 30).await.expect("runner failed");
+        
+        assert_eq!(outcome.exit_code, 1);
+        assert!(outcome.stderr.contains("Native file writes outside the workspace are disabled"));
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test]
+    async fn sandbox_allows_file_write_inside_workspace() {
+        let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
+        let code = r#"
+with open('local_test.txt', 'w') as f:
+    f.write('allowed')
+"#;
+        let outcome = run_python_action(&workspace, code, 30).await.expect("runner failed");
+        
+        assert_eq!(outcome.exit_code, 0, "stderr was: {}", outcome.stderr);
+        let content = std::fs::read_to_string(workspace.join("local_test.txt")).unwrap();
+        assert_eq!(content, "allowed");
+        let _ = std::fs::remove_dir_all(workspace);
     }
 }

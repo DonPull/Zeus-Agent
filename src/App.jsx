@@ -11,6 +11,7 @@ import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import SettingsModal from "./components/SettingsModal";
 import ChatLogModal from "./components/ChatLogModal";
+import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
 import { formatCredits, mergeMessages } from "./utils";
@@ -37,8 +38,10 @@ function App() {
     const [thinkingStage, setThinkingStage] = useState(null);
     const [streamText, setStreamText] = useState("");
     const [reasoningText, setReasoningText] = useState("");
-    const [directiveMode, setDirectiveMode] = useState(false);
+
+    // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isTaskPermsOpen, setIsTaskPermsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
     const [inputValue, setInputValue] = useState("");
@@ -187,7 +190,19 @@ function App() {
         }
     };
 
-    const handleApprovalDecision = (approved, note) => {
+    const handleApprovalDecision = async (approved, note, permData) => {
+        if (approved && permData && permData.mode && permData.mode.startsWith("task_") && permData.command) {
+            try {
+                const scope = activeTaskIdRef.current;
+                const isApp = permData.mode === "task_app";
+                const cmd = isApp ? permData.command.split(" ")[0] : permData.command;
+                await bridge.addFilePermission(scope, cmd, "allow", "command");
+                showToast(`Permission saved for: ${cmd}`, "success", 2000);
+            } catch (err) {
+                showToast(`Failed to save command permission: ${err}`);
+            }
+        }
+        
         const verb = approved ? "APPROVED" : "DENIED";
         const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
         handleSend(`[APPROVAL DECISION] ${verb}.${extra}`);
@@ -471,6 +486,17 @@ function App() {
                 <SettingsModal onClose={() => setIsSettingsOpen(false)} onToast={showToast} />
             </Modal>
 
+            <Modal isOpen={isTaskPermsOpen} onClose={() => setIsTaskPermsOpen(false)} closeOnHover={false}>
+                {activeTask && (
+                    <TaskPermissionsModal
+                        taskId={activeTask.id}
+                        taskTitle={activeTask.title}
+                        onClose={() => setIsTaskPermsOpen(false)}
+                        onToast={showToast}
+                    />
+                )}
+            </Modal>
+
             <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
                 {activeTask && (
                     <ChatLogModal
@@ -522,6 +548,9 @@ function App() {
                                 </div>
                                 <button id="chat-log-button" title="View the full chat log and copy it" onClick={() => setIsChatLogOpen(true)}>
                                     <label>Chat log</label>
+                                </button>
+                                <button className="settings-button" title="Chat-scoped File Permissions" onClick={() => setIsTaskPermsOpen(true)}>
+                                    <label>Permissions</label>
                                 </button>
                             </div>
                         </div>

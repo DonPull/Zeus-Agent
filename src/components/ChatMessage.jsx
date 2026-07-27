@@ -67,25 +67,36 @@ function ApprovalCard({ message, onDecision }) {
                 </div>
                 {data.detail && <div className="approval-card-detail">{data.detail}</div>}
                 {pending ? (
-                    <>
-                        <input
-                            className="approval-card-note"
-                            placeholder="Optional note to Zeus (e.g. constraints, changes)..."
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                        />
-                        <div className="align-center gap-10">
-                            <button className="confirm-dialog-button danger" onClick={() => onDecision(false, note)}>
-                                <label>Deny</label>
-                            </button>
-                            <button className="confirm-dialog-button" onClick={() => onDecision(true, note)}>
+                    <div className="align-center gap-10">
+                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null)}>
+                            <label>Deny</label>
+                        </button>
+                        {data.summary && data.summary.toLowerCase().includes("command") ? (
+                            <div className="relative">
+                                <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", command: null })}>
+                                    <label>Approve once</label>
+                                </button>
+                                <button className="settings-button" style={{ marginLeft: "5px", padding: "4px 8px" }} onClick={() => {
+                                    const cmdMatch = data.detail?.match(/`([^`]+)`/) || data.summary?.match(/`([^`]+)`/);
+                                    if (cmdMatch) {
+                                        const cmd = cmdMatch[1];
+                                        const app = cmd.split(" ")[0];
+                                        const scope = window.confirm(`Always allow exactly \`${cmd}\`? (Cancel for just \`${app} *\`)`) ? "exact" : "app";
+                                        onDecision(true, null, { mode: `task_${scope}`, command: cmd });
+                                    } else {
+                                        onDecision(true, null);
+                                    }
+                                }} title="More options">
+                                    <label>▾</label>
+                                </button>
+                            </div>
+                        ) : (
+                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null)}>
                                 <label>Approve</label>
                             </button>
-                        </div>
-                    </>
-                ) : (
-                    data.note ? <div className="approval-card-note-readonly">Note: {data.note}</div> : null
-                )}
+                        )}
+                    </div>
+                ) : null}
             </div>
         </div>
     );

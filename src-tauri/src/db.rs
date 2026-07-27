@@ -107,6 +107,32 @@ CREATE TABLE IF NOT EXISTS workers (
     updated_at TEXT NOT NULL,
     completed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    path TEXT NOT NULL,
+    action TEXT NOT NULL,
+    permission_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watcher_policies (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    url_pattern TEXT NOT NULL,
+    rules_summary TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_memory (
+    task_id TEXT PRIMARY KEY REFERENCES tasks(id),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 ";
 
 pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {

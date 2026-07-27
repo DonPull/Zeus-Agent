@@ -1236,6 +1236,104 @@ pub async fn send_user_message(
                         });
                         // Loop: call the master again with the worker result.
                     }
+                    Directive::HttpRequest { url, method, body } => {
+                        let verdict = match crate::gatekeeper::evaluate_network_action(&state, &task_id, &url, &method, body.as_deref()).await {
+                            Ok(v) => v,
+                            Err(e) => {
+                                crate::logger::log(&task_id, "orchestrator", &format!("Gatekeeper error: {}", e));
+                                crate::gatekeeper::PermissionVerdict::Ask
+                            }
+                        };
+                        
+                        match verdict {
+                            crate::gatekeeper::PermissionVerdict::Allow => {
+                                let client = reqwest::Client::new();
+                                let mut req = client.request(
+                                    method.parse().unwrap_or(reqwest::Method::GET),
+                                    &url
+                                );
+                                if let Some(b) = body {
+                                    req = req.body(b);
+                                }
+                                let res = match req.send().await {
+                                    Ok(response) => {
+                                        let status = response.status();
+                                        let text = response.text().await.unwrap_or_default();
+                                        format!("Status: {}\nBody: {}", status, text)
+                                    },
+                                    Err(e) => format!("Request failed: {}", e)
+                                };
+                                
+                                let result_json = serde_json::json!({ "http_result": res });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(
+                                    &task_id, "user", "directive_result", msg.clone(), None, None, false,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Deny => {
+                                let msg = "Gatekeeper DENIED this action based on current policies.".to_string();
+                                let result_json = serde_json::json!({ "error": msg });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(
+                                    &task_id, "user", "directive_result", msg.clone(), None, None, false,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Ask => {
+                                let summary = format!("Run Network Request: {} {}", method, url);
+                                let mut approval_message = new_message(
+                                    &task_id,
+                                    "event",
+                                    "approval",
+                                    serde_json::json!({
+                                        "summary": summary,
+                                        "detail": body.unwrap_or_default(),
+                                        "status": "pending",
+                                    }).to_string(),
+                                    None,
+                                    None,
+                                    true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
+                                
+                                let mut assistant_message = new_message(
+                                    &task_id,
+                                    "assistant",
+                                    "chat",
+                                    "I need your approval before continuing — see the card above.".into(),
+                                    Some(units),
+                                    Some(model_name.clone()),
+                                    true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                                produced_final = true;
+                                break;
+                            }
+                        }
+                    }
+                    _ => {
+                        let msg = "Unsupported typed directive. Gatekeeper execution is not yet implemented.".to_string();
+                        let result_json = serde_json::json!({ "error": msg });
+                        let msg = orchestrator::directive_result_message(&result_json);
+                        
+                        let mut hidden_result = new_message(
+                            &task_id,
+                            "user",
+                            "directive_result",
+                            msg.clone(),
+                            None,
+                            None,
+                            false,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage {
+                            role: "user".into(),
+                            content: msg,
+                        });
+                    }
                 }
             }
         }

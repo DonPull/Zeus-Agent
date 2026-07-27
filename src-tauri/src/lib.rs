@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod chat;
-mod db;
-mod gateway;
+pub mod db;
+pub mod gatekeeper;
+pub mod gateway;
 pub mod logger;
 pub mod orchestrator;
 pub mod python_runner;
@@ -46,6 +47,13 @@ pub fn run() {
             settings::has_gemini_api_key,
             gateway::fetch_available_models,
             logger::get_debug_log,
+            gatekeeper::get_file_permissions,
+            gatekeeper::add_file_permission,
+            gatekeeper::delete_file_permission,
+            gatekeeper::get_watcher_policies,
+            gatekeeper::add_watcher_policy,
+            gatekeeper::delete_watcher_policy,
+            gatekeeper::negotiate_watcher_policy,
         ])
         .run(generate_context!())
         .expect("error while running tauri application");

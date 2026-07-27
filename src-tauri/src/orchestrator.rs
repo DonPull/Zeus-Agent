@@ -32,6 +32,24 @@ pub enum Directive {
     DelegateTask {
         delegate: DelegateSpec,
     },
+    ReadFile {
+        path: String,
+    },
+    WriteFile {
+        path: String,
+        content: String,
+    },
+    DeleteFile {
+        path: String,
+    },
+    RunCommand {
+        command: String,
+    },
+    HttpRequest {
+        url: String,
+        method: String,
+        body: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize)]

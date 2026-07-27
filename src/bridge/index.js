@@ -28,6 +28,16 @@ export const hasGeminiApiKey    = ()              => invoke("has_gemini_api_key"
 export const fetchAvailableModels = ()            => invoke("fetch_available_models");
 export const getDebugLog       = (taskId)         => invoke("get_debug_log", { taskId });
 
+// ---- Gatekeeper ------------------------------------------------------------
+export const getFilePermissions    = (scope)      => invoke("get_file_permissions", { scope });
+export const addFilePermission     = (scope, path, action, permissionType) => invoke("add_file_permission", { scope, path, action, permission_type: permissionType });
+export const deleteFilePermission  = (id)         => invoke("delete_file_permission", { id });
+
+export const getWatcherPolicies       = (scope)                                 => invoke("get_watcher_policies", { scope });
+export const addWatcherPolicy         = (scope, urlPattern, rulesSummary)       => invoke("add_watcher_policy", { scope, url_pattern: urlPattern, rules_summary: rulesSummary });
+export const deleteWatcherPolicy      = (id)                                    => invoke("delete_watcher_policy", { id });
+export const negotiateWatcherPolicy   = (scope, prompt)                         => invoke("negotiate_watcher_policy", { scope, prompt });
+
 // ---- Events (used from M1 onward; the core emits task progress here) --------
 export const onTaskEvent   = (callback) => listen("task-event",   (event) => callback(event.payload));
 export const onChatStream  = (callback) => listen("chat-stream",  (event) => callback(event.payload));
