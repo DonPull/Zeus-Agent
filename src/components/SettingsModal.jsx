@@ -20,7 +20,6 @@ function SettingsModal({ onToast, onClose }) {
     const [negotiatePrompt, setNegotiatePrompt] = useState("");
     const [negotiating, setNegotiating] = useState(false);
     const [generatedRules, setGeneratedRules] = useState("");
-    const [policyUrlPattern, setPolicyUrlPattern] = useState("*");
 
     useEffect(() => {
         (async () => {
@@ -120,10 +119,10 @@ function SettingsModal({ onToast, onClose }) {
     };
 
     const handleSavePolicy = async () => {
-        if (!policyUrlPattern.trim() || !generatedRules.trim()) return;
+        if (!generatedRules.trim()) return;
         try {
-            const added = await bridge.addWatcherPolicy("global", policyUrlPattern.trim(), generatedRules.trim());
-            setWatcherPolicies([added, ...watcherPolicies]);
+            const added = await bridge.addWatcherPolicy("global", generatedRules.trim());
+            setWatcherPolicies([added]);
             setGeneratedRules("");
             setNegotiatePrompt("");
             onToast("Policy saved.", "success", 2000);
@@ -222,6 +221,10 @@ function SettingsModal({ onToast, onClose }) {
                     <label>Verifier</label>
                     <input className="settings-input width-fill-available" list="routellm-models" value={settings.verifier_model} onChange={(e) => updateSetting("verifier_model", e.target.value)} />
                 </div>
+                <div className="settings-model-row align-center gap-10">
+                    <label>Watcher</label>
+                    <input className="settings-input width-fill-available" list="routellm-models" value={settings.watcher_model || "grok-4.5"} onChange={(e) => updateSetting("watcher_model", e.target.value)} />
+                </div>
                 <label className="settings-hint">IDs must match RouteLLM's GET /v1/models exactly. Use "Load available models" to see the real list.</label>
             </div>
 
@@ -281,49 +284,49 @@ function SettingsModal({ onToast, onClose }) {
 
             <div className="settings-section column gap-10">
                 <label className="settings-section-label">Global Network/Browser Policies (Watcher AI)</label>
-                <div className="column gap-10">
+                
+                {watcherPolicies.length > 0 && watcherPolicies[0].rules_summary ? (
+                    <div className="column gap-10" style={{ border: "1px solid var(--border-color)", borderRadius: "6px", padding: "10px" }}>
+                        <div className="align-center justify-space-between">
+                            <label style={{ fontSize: "0.9rem", fontWeight: 600 }}>Currently Enforced Rules:</label>
+                            <button className="settings-button" style={{ padding: "4px 8px" }} onClick={() => handleDeletePolicy(watcherPolicies[0].id)}>
+                                <label>Clear Rules</label>
+                            </button>
+                        </div>
+                        <pre style={{ margin: 0, fontSize: "0.85rem", whiteSpace: "pre-wrap", color: "var(--text-color)", opacity: 0.8 }}>
+                            {watcherPolicies[0].rules_summary}
+                        </pre>
+                    </div>
+                ) : (
+                    <div style={{ fontSize: "0.9rem", opacity: 0.7 }}>No global Watcher rules enforced. The agent has full access.</div>
+                )}
+
+                <div className="column gap-10 mt-10">
                     <textarea 
                         className="settings-input width-fill-available" 
                         rows={2} 
-                        placeholder="E.g. 'I want to allow scraping any public Github repo but block modifying anything'"
+                        placeholder={watcherPolicies.length > 0 ? "Chat with Watcher AI to modify these rules..." : "Chat with Watcher AI to generate rules... (e.g. 'Allow github.com')"}
                         value={negotiatePrompt}
                         onChange={(e) => setNegotiatePrompt(e.target.value)}
                     />
                     <button className={`settings-button ${negotiating ? "is-loading" : ""}`} onClick={handleNegotiatePolicy} disabled={negotiating || !negotiatePrompt.trim()}>
-                        <label>{negotiating ? "Negotiating with Watcher..." : "Generate Rules"}</label>
+                        <label>{negotiating ? "Negotiating with Watcher..." : "Chat with Watcher"}</label>
                     </button>
                 </div>
                 
                 {generatedRules && (
-                    <div className="column gap-10" style={{ border: "1px solid var(--zeus-accent)", padding: "10px", borderRadius: "6px", background: "var(--bg-secondary)" }}>
-                        <label className="settings-section-label" style={{ fontSize: "0.9rem" }}>Generated Rules Summary:</label>
+                    <div className="column gap-10 mt-10" style={{ border: "1px solid var(--zeus-accent)", padding: "10px", borderRadius: "6px", background: "var(--bg-secondary)" }}>
+                        <label className="settings-section-label" style={{ fontSize: "0.9rem", color: "var(--zeus-accent)" }}>Proposed Rule Block (Editable):</label>
                         <textarea className="settings-input width-fill-available" rows={5} value={generatedRules} onChange={(e) => setGeneratedRules(e.target.value)} />
                         
-                        <div className="align-center gap-10">
-                            <label>Apply to URLs matching:</label>
-                            <input className="settings-input" style={{ flex: 1 }} value={policyUrlPattern} onChange={(e) => setPolicyUrlPattern(e.target.value)} placeholder="e.g. *.github.com or *" />
-                            <button className="settings-button" onClick={handleSavePolicy}>
+                        <div className="align-center justify-end gap-10 mt-5">
+                            <button className="settings-button" onClick={() => setGeneratedRules("")}>
+                                <label>Cancel</label>
+                            </button>
+                            <button className="settings-button primary" onClick={handleSavePolicy}>
                                 <label>Save Policy</label>
                             </button>
                         </div>
-                    </div>
-                )}
-
-                {watcherPolicies.length > 0 && (
-                    <div className="column gap-10" style={{ marginTop: "10px", maxHeight: "200px", overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "10px" }}>
-                        {watcherPolicies.map(p => (
-                            <div key={p.id} className="column gap-5" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "10px" }}>
-                                <div className="align-center justify-space-between">
-                                    <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-color)" }}>Pattern: {p.url_pattern}</span>
-                                    <button className="settings-button" style={{ padding: "4px 8px" }} onClick={() => handleDeletePolicy(p.id)}>
-                                        <label>Delete</label>
-                                    </button>
-                                </div>
-                                <pre style={{ margin: 0, fontSize: "0.85rem", whiteSpace: "pre-wrap", color: "var(--text-color)", opacity: 0.8 }}>
-                                    {p.rules_summary}
-                                </pre>
-                            </div>
-                        ))}
                     </div>
                 )}
             </div>

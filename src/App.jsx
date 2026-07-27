@@ -38,6 +38,7 @@ function App() {
     const [thinkingStage, setThinkingStage] = useState(null);
     const [streamText, setStreamText] = useState("");
     const [reasoningText, setReasoningText] = useState("");
+    const [directiveMode, setDirectiveMode] = useState(false);
 
     // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);

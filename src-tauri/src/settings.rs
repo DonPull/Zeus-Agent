@@ -15,6 +15,7 @@ pub struct AppSettings {
     pub master_model: String,
     pub worker_model: String,
     pub verifier_model: String,
+    pub watcher_model: String,
     pub default_budget_credits: i64,
 }
 
@@ -24,6 +25,7 @@ impl Default for AppSettings {
             master_model: "moonshotai/Kimi-K3".into(),
             worker_model: "deepseek-ai/DeepSeek-V4-Pro".into(),
             verifier_model: "grok-4.5".into(),
+            watcher_model: "grok-4.5".into(),
             default_budget_credits: 40000,
         }
     }
@@ -54,10 +56,10 @@ fn set_setting(connection: &Connection, key: &str, value: &str) -> Result<(), St
 pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
     let defaults = AppSettings::default();
     Ok(AppSettings {
-        master_model: get_setting(connection, "master_model")?.unwrap_or(defaults.master_model),
-        worker_model: get_setting(connection, "worker_model")?.unwrap_or(defaults.worker_model),
-        verifier_model: get_setting(connection, "verifier_model")?
-            .unwrap_or(defaults.verifier_model),
+        master_model: get_setting(connection, "master_model")?.unwrap_or_else(|| defaults.master_model),
+        worker_model: get_setting(connection, "worker_model")?.unwrap_or_else(|| defaults.worker_model),
+        verifier_model: get_setting(connection, "verifier_model")?.unwrap_or_else(|| defaults.verifier_model),
+        watcher_model: get_setting(connection, "watcher_model")?.unwrap_or_else(|| defaults.watcher_model),
         default_budget_credits: get_setting(connection, "default_budget_credits")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(defaults.default_budget_credits),

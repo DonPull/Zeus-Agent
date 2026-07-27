@@ -165,6 +165,9 @@ pub async fn run_worker(
             let model_clone = worker_model.clone();
             let history_clone = history.clone();
 
+            let payload_size = serde_json::to_string(&history_clone).map(|s| s.len()).unwrap_or(0);
+            crate::logger::log(task_id, "worker", &format!("Sending payload to model ({} messages, ~{} bytes)", history_clone.len(), payload_size));
+
             let stream_future = gateway::chat_completion_stream(&model_clone, &history_clone, move |payload| {
                 let _ = tx.send(payload);
             });
@@ -178,6 +181,7 @@ pub async fn run_worker(
             let stream_result = tokio::select! {
                 res = &mut stream_future => res,
                 _ = cancellation_token.cancelled() => {
+                    crate::logger::log(task_id, "worker", "Cancellation token triggered. Aborting model stream.");
                     finish_cancelled_run(state, app_handle, task_id, run_id)?;
                     return Err("RUN_CANCELLED".into());
                 }

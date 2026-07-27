@@ -63,6 +63,14 @@ def _zeus_audit_hook(event, args):
     if event == 'socket.connect' or event == 'socket.getaddrinfo':
         raise PermissionError('Native network access is disabled in this sandbox. You MUST use the Zeus API tools (e.g. HttpRequest, BrowserNavigate) instead of Python network libraries.')
     
+    # Block native OS execution which can bypass file and network rules
+    if event in ('subprocess.Popen', 'os.system', 'os.exec', 'os.spawn', 'os.posix_spawn'):
+        raise PermissionError('Native OS command execution (e.g. subprocess, os.system) is disabled in this sandbox. You MUST use the Zeus API tools (e.g. RunCommand) instead.')
+
+    # Block loading arbitrary native dynamic libraries (which can bypass audit hooks entirely)
+    if event in ('ctypes.dlopen', '_ctypes.dlopen'):
+        raise PermissionError('Loading native dynamic libraries is disabled in this sandbox for security reasons.')
+
     if event == 'open':
         path = args[0]
         if isinstance(path, str):

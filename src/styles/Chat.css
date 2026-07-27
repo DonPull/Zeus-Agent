@@ -831,6 +831,40 @@
     font-style: italic;
 }
 
+.approval-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    background-color: var(--zeus-panel-2);
+    border: 1px solid var(--zeus-border);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 250px;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.approval-dropdown-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--zeus-text);
+    cursor: pointer;
+    transition: 120ms;
+}
+
+.approval-dropdown-item:hover {
+    background-color: #ffffff11;
+}
+
+.approval-dropdown-item.danger {
+    color: #ff8a8a;
+}
+.approval-dropdown-item.danger:hover {
+    background-color: #ff5c5c22;
+}
+
 /* ---- chat top bar buttons ---- */
 #chat-log-button {
     border-radius: 10px;

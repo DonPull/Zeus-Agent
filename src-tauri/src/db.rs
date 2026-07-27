@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS permissions (
     path TEXT NOT NULL,
     action TEXT NOT NULL,
     permission_type TEXT NOT NULL,
+    match_type TEXT NOT NULL DEFAULT 'prefix',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -133,6 +134,15 @@ CREATE TABLE IF NOT EXISTS chat_memory (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS watcher_cache (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    method TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 ";
 
 pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
@@ -149,6 +159,12 @@ pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
 
 /// Split out so tests can run the exact same schema + migrations in-memory.
 pub fn init_schema(connection: &Connection) -> Result<(), String> {
+    // Migration: add match_type to permissions if it doesn't exist
+    let _ = connection.execute(
+        "ALTER TABLE permissions ADD COLUMN match_type TEXT NOT NULL DEFAULT 'prefix'",
+        [],
+    );
+
     // One-off migration: the first build's credit_events table had a different
     // shape (prompt_tokens/completion_tokens/credits). The rename keeps the old
     // rows for reference without colliding with the new CREATE TABLE above.
@@ -233,6 +249,24 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|e| format!("Failed to recover interrupted workers: {}", e))?;
 
+    Ok(())
+}
+
+pub fn get_chat_memory(conn: &Connection, task_id: &str) -> rusqlite::Result<Option<String>> {
+    use rusqlite::OptionalExtension;
+    let mut stmt = conn.prepare("SELECT content FROM chat_memory WHERE task_id = ?1")?;
+    let memory = stmt.query_row(rusqlite::params![task_id], |row| row.get(0)).optional()?;
+    Ok(memory)
+}
+
+pub fn update_chat_memory(conn: &Connection, task_id: &str, content: &str) -> rusqlite::Result<()> {
+    let now = now_iso();
+    conn.execute(
+        "INSERT INTO chat_memory (task_id, content, created_at, updated_at) 
+         VALUES (?1, ?2, ?3, ?3)
+         ON CONFLICT(task_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
+        rusqlite::params![task_id, content, now],
+    )?;
     Ok(())
 }
 

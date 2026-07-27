@@ -4,6 +4,9 @@ pub const APP_FOLDER_NAME: &str = "zeus-agent";
 
 /// Workspace root: %APPDATA%\zeus-agent (Roaming). All app state lives under here.
 pub fn workspace_root() -> Result<PathBuf, String> {
+    if let Ok(test_root) = std::env::var("ZEUS_TEST_WORKSPACE_ROOT") {
+        return Ok(PathBuf::from(test_root));
+    }
     let base = dirs::data_dir().ok_or("Failed to resolve the APPDATA directory")?;
     Ok(base.join(APP_FOLDER_NAME))
 }

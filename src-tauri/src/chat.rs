@@ -427,7 +427,11 @@ pub(crate) fn persist_and_emit(
 }
 
 fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<ChatMessage>, String> {
-    let system_prompt = settings::load_master_prompt()?;
+    let mut system_prompt = settings::load_master_prompt()?;
+    if let Ok(Some(memory)) = crate::db::get_chat_memory(connection, task_id) {
+        system_prompt.push_str("\n\n[TASK MEMORY - PRESERVE THIS CONTEXT]\n");
+        system_prompt.push_str(&memory);
+    }
     let mut history = vec![ChatMessage {
         role: "system".into(),
         content: system_prompt,
@@ -845,6 +849,9 @@ pub async fn send_user_message(
             let partial_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
             let partial_text_clone = partial_text.clone();
 
+            let payload_size = serde_json::to_string(&history).map(|s| s.len()).unwrap_or(0);
+            crate::logger::log(&task_id, "orchestrator", &format!("Sending payload to master model ({} messages, ~{} bytes)", history.len(), payload_size));
+
             let stream_future =
                 gateway::stream_model_reply(&master_model, &history, move |event| {
                     if let gateway::StreamEventPayload::Delta { text } = &event {
@@ -866,6 +873,7 @@ pub async fn send_user_message(
             tokio::select! {
                 result = &mut stream_future => result,
                 _ = cancellation_token.cancelled() => {
+                    crate::logger::log(&task_id, "orchestrator", "Cancellation token triggered. Aborting model stream.");
                     let text = partial_text.lock().unwrap().clone();
                     if !text.is_empty() {
                         let mut partial_msg = new_message(
@@ -1050,6 +1058,29 @@ pub async fn send_user_message(
                             detail = "no changes requested".into();
                         }
                         let result_json = orchestrator::task_update_result_json(true, &detail);
+                        let msg = orchestrator::directive_result_message(&result_json);
+                        let mut hidden_result = new_message(
+                            &task_id,
+                            "user",
+                            "directive_result",
+                            msg.clone(),
+                            None,
+                            None,
+                            false,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage {
+                            role: "user".into(),
+                            content: msg,
+                        });
+                        // Loop: call the master again with the result.
+                    }
+                    Directive::UpdateMemory { memory } => {
+                        let conn = state.db.lock().map_err(|e| e.to_string())?;
+                        crate::db::update_chat_memory(&conn, &task_id, &memory).map_err(|e| e.to_string())?;
+                        drop(conn);
+
+                        let result_json = serde_json::json!({ "status": "success", "detail": "Memory updated" });
                         let msg = orchestrator::directive_result_message(&result_json);
                         let mut hidden_result = new_message(
                             &task_id,
@@ -1314,25 +1345,197 @@ pub async fn send_user_message(
                             }
                         }
                     }
-                    _ => {
-                        let msg = "Unsupported typed directive. Gatekeeper execution is not yet implemented.".to_string();
-                        let result_json = serde_json::json!({ "error": msg });
-                        let msg = orchestrator::directive_result_message(&result_json);
-                        
-                        let mut hidden_result = new_message(
-                            &task_id,
-                            "user",
-                            "directive_result",
-                            msg.clone(),
-                            None,
-                            None,
-                            false,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
-                        history.push(ChatMessage {
-                            role: "user".into(),
-                            content: msg,
-                        });
+                    Directive::RunCommand { command } => {
+                        let verdict = {
+                            let conn = state.db.lock().map_err(|e| e.to_string())?;
+                            match crate::gatekeeper::evaluate_command_action(&conn, &task_id, &command) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    crate::logger::log(&task_id, "orchestrator", &format!("Gatekeeper error: {}", e));
+                                    crate::gatekeeper::PermissionVerdict::Ask
+                                }
+                            }
+                        };
+                        match verdict {
+                            crate::gatekeeper::PermissionVerdict::Allow => {
+                                let workspace = crate::utils::task_workspace(&task_id)?;
+                                let output = tokio::process::Command::new("cmd")
+                                    .args(&["/c", &command])
+                                    .current_dir(workspace)
+                                    .output()
+                                    .await;
+                                let res = match output {
+                                    Ok(out) => {
+                                        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                                        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                                        format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
+                                    }
+                                    Err(e) => format!("Failed to execute command: {}", e),
+                                };
+                                let result_json = serde_json::json!({ "command_result": res });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Deny => {
+                                let msg = "Gatekeeper DENIED this command based on current policies.".to_string();
+                                let result_json = serde_json::json!({ "error": msg });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Ask => {
+                                let summary = format!("Run Command: `{}`", command);
+                                let mut approval_message = new_message(
+                                    &task_id, "event", "approval",
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    None, None, true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
+                                let mut assistant_message = new_message(
+                                    &task_id, "assistant", "chat",
+                                    "I need your approval before continuing — see the card above.".into(),
+                                    Some(units), Some(model_name.clone()), true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                                produced_final = true;
+                                break;
+                            }
+                        }
+                    }
+                    Directive::ReadFile { path } => {
+                        let verdict = {
+                            let conn = state.db.lock().map_err(|e| e.to_string())?;
+                            crate::gatekeeper::evaluate_file_permission(&conn, &task_id, &path, "read").unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+                        };
+                        match verdict {
+                            crate::gatekeeper::PermissionVerdict::Allow => {
+                                let res = match tokio::fs::read_to_string(&path).await {
+                                    Ok(content) => content,
+                                    Err(e) => format!("Failed to read file: {}", e),
+                                };
+                                let result_json = serde_json::json!({ "read_result": res });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Deny => {
+                                let msg = "Gatekeeper DENIED read access based on current policies.".to_string();
+                                let result_json = serde_json::json!({ "error": msg });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Ask => {
+                                let summary = format!("Read File: `{}`", path);
+                                let mut approval_message = new_message(
+                                    &task_id, "event", "approval",
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    None, None, true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
+                                let mut assistant_message = new_message(
+                                    &task_id, "assistant", "chat",
+                                    "I need your approval before continuing — see the card above.".into(),
+                                    Some(units), Some(model_name.clone()), true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                                produced_final = true;
+                                break;
+                            }
+                        }
+                    }
+                    Directive::WriteFile { path, content } => {
+                        let verdict = {
+                            let conn = state.db.lock().map_err(|e| e.to_string())?;
+                            crate::gatekeeper::evaluate_file_permission(&conn, &task_id, &path, "write").unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+                        };
+                        match verdict {
+                            crate::gatekeeper::PermissionVerdict::Allow => {
+                                let res = match tokio::fs::write(&path, content).await {
+                                    Ok(_) => "Successfully wrote file.".to_string(),
+                                    Err(e) => format!("Failed to write file: {}", e),
+                                };
+                                let result_json = serde_json::json!({ "write_result": res });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Deny => {
+                                let msg = "Gatekeeper DENIED write access based on current policies.".to_string();
+                                let result_json = serde_json::json!({ "error": msg });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Ask => {
+                                let summary = format!("Write File: `{}`", path);
+                                let mut approval_message = new_message(
+                                    &task_id, "event", "approval",
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    None, None, true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
+                                let mut assistant_message = new_message(
+                                    &task_id, "assistant", "chat",
+                                    "I need your approval before continuing — see the card above.".into(),
+                                    Some(units), Some(model_name.clone()), true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                                produced_final = true;
+                                break;
+                            }
+                        }
+                    }
+                    Directive::DeleteFile { path } => {
+                        let verdict = {
+                            let conn = state.db.lock().map_err(|e| e.to_string())?;
+                            crate::gatekeeper::evaluate_file_permission(&conn, &task_id, &path, "delete").unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+                        };
+                        match verdict {
+                            crate::gatekeeper::PermissionVerdict::Allow => {
+                                let res = match tokio::fs::remove_file(&path).await {
+                                    Ok(_) => "Successfully deleted file.".to_string(),
+                                    Err(e) => format!("Failed to delete file: {}", e),
+                                };
+                                let result_json = serde_json::json!({ "delete_result": res });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Deny => {
+                                let msg = "Gatekeeper DENIED delete access based on current policies.".to_string();
+                                let result_json = serde_json::json!({ "error": msg });
+                                let msg = orchestrator::directive_result_message(&result_json);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                                history.push(ChatMessage { role: "user".into(), content: msg });
+                            }
+                            crate::gatekeeper::PermissionVerdict::Ask => {
+                                let summary = format!("Delete File: `{}`", path);
+                                let mut approval_message = new_message(
+                                    &task_id, "event", "approval",
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    None, None, true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
+                                let mut assistant_message = new_message(
+                                    &task_id, "assistant", "chat",
+                                    "I need your approval before continuing — see the card above.".into(),
+                                    Some(units), Some(model_name.clone()), true,
+                                );
+                                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                                produced_final = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -1408,6 +1611,7 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
         .map_err(|e| format!("Failed to delete the task credit events: {}", e))?;
     let _ = connection.execute("DELETE FROM approvals WHERE task_id = ?1", params![task_id]);
     let _ = connection.execute("DELETE FROM workers WHERE task_id = ?1", params![task_id]);
+    let _ = connection.execute("DELETE FROM chat_memory WHERE task_id = ?1", params![task_id]);
 
     connection
         .execute("DELETE FROM tasks WHERE id = ?1", params![task_id])

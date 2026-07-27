@@ -23,6 +23,9 @@ pub enum Directive {
     RequestApproval {
         approval: ApprovalSpec,
     },
+    UpdateMemory {
+        memory: String,
+    },
     TaskUpdate {
         update: TaskUpdateSpec,
     },

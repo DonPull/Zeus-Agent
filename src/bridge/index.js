@@ -30,11 +30,11 @@ export const getDebugLog       = (taskId)         => invoke("get_debug_log", { t
 
 // ---- Gatekeeper ------------------------------------------------------------
 export const getFilePermissions    = (scope)      => invoke("get_file_permissions", { scope });
-export const addFilePermission     = (scope, path, action, permissionType) => invoke("add_file_permission", { scope, path, action, permission_type: permissionType });
+export const addFilePermission     = (scope, path, action, permissionType) => invoke("add_file_permission", { scope, path, action, permissionType });
 export const deleteFilePermission  = (id)         => invoke("delete_file_permission", { id });
 
 export const getWatcherPolicies       = (scope)                                 => invoke("get_watcher_policies", { scope });
-export const addWatcherPolicy         = (scope, urlPattern, rulesSummary)       => invoke("add_watcher_policy", { scope, url_pattern: urlPattern, rules_summary: rulesSummary });
+export const addWatcherPolicy         = (scope, rulesSummary)                   => invoke("add_watcher_policy", { scope, rulesSummary });
 export const deleteWatcherPolicy      = (id)                                    => invoke("delete_watcher_policy", { id });
 export const negotiateWatcherPolicy   = (scope, prompt)                         => invoke("negotiate_watcher_policy", { scope, prompt });
 

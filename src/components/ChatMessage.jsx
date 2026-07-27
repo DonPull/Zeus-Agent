@@ -55,9 +55,19 @@ function ActionCard({ message }) {
 
 function ApprovalCard({ message, onDecision }) {
     const data = useMemo(() => parseEventContent(message), [message]);
-    const [note, setNote] = useState("");
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    
     if (!data) return null;
     const pending = data.status === "pending";
+
+    const summaryStr = data.summary || "";
+    const isCommand = summaryStr.toLowerCase().includes("run command");
+    const cmdMatch = summaryStr.match(/`([^`]+)`/);
+    const cmd = cmdMatch ? cmdMatch[1] : null;
+    
+    const baseApp = cmd ? cmd.split(" ")[0] : null;
+    const isComposite = cmd ? /[&|;><]|(\$\()/.test(cmd) : false;
+
     return (
         <div className="chat-message event">
             <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
@@ -66,35 +76,49 @@ function ApprovalCard({ message, onDecision }) {
                     <span className="approval-card-status">{pending ? "needs approval" : data.status}</span>
                 </div>
                 {data.detail && <div className="approval-card-detail">{data.detail}</div>}
+                
                 {pending ? (
                     <div className="align-center gap-10">
-                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null)}>
+                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once" })}>
                             <label>Deny</label>
                         </button>
-                        {data.summary && data.summary.toLowerCase().includes("command") ? (
-                            <div className="relative">
-                                <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", command: null })}>
-                                    <label>Approve once</label>
-                                </button>
-                                <button className="settings-button" style={{ marginLeft: "5px", padding: "4px 8px" }} onClick={() => {
-                                    const cmdMatch = data.detail?.match(/`([^`]+)`/) || data.summary?.match(/`([^`]+)`/);
-                                    if (cmdMatch) {
-                                        const cmd = cmdMatch[1];
-                                        const app = cmd.split(" ")[0];
-                                        const scope = window.confirm(`Always allow exactly \`${cmd}\`? (Cancel for just \`${app} *\`)`) ? "exact" : "app";
-                                        onDecision(true, null, { mode: `task_${scope}`, command: cmd });
-                                    } else {
-                                        onDecision(true, null);
-                                    }
-                                }} title="More options">
-                                    <label>▾</label>
-                                </button>
-                            </div>
-                        ) : (
-                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null)}>
+                        
+                        <div style={{ position: "relative" }} className="align-center">
+                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once" })}>
                                 <label>Approve</label>
                             </button>
-                        )}
+                            {isCommand && cmd && (
+                                <button className="settings-button" style={{ marginLeft: "5px", padding: "4px 8px" }} onClick={() => setDropdownOpen(!dropdownOpen)} title="More options">
+                                    <label>▾</label>
+                                </button>
+                            )}
+                            
+                            {dropdownOpen && isCommand && cmd && (
+                                <div className="approval-dropdown column">
+                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_exact", command: cmd }); }}>
+                                        🟢 Always Allow Exact `{cmd}` (Task)
+                                    </div>
+                                    {!isComposite && (
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_prefix", command: cmd }); }}>
+                                            🟢 Always Allow Prefix `{cmd}` (Task)
+                                        </div>
+                                    )}
+                                    {!isComposite && baseApp && baseApp !== cmd && (
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_prefix", command: baseApp }); }}>
+                                            🟢 Always Allow Prefix `{baseApp}` (Task)
+                                        </div>
+                                    )}
+                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_exact", command: cmd }); }}>
+                                        🔴 Always Deny Exact `{cmd}` (Task)
+                                    </div>
+                                    {!isComposite && baseApp && (
+                                        <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_prefix", command: baseApp }); }}>
+                                            🔴 Always Deny Prefix `{baseApp}` (Task)
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 ) : null}
             </div>

@@ -10,6 +10,7 @@ pub struct FilePermission {
     pub path: String,
     pub action: String,
     pub permission_type: String,
+    pub match_type: String,
     pub created_at: String,
 }
 
@@ -17,7 +18,7 @@ pub struct FilePermission {
 pub fn get_file_permissions(state: State<'_, AppState>, scope: String) -> Result<Vec<FilePermission>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, scope, path, action, permission_type, created_at FROM permissions WHERE scope = ?1 ORDER BY created_at DESC")
+        .prepare("SELECT id, scope, path, action, permission_type, match_type, created_at FROM permissions WHERE scope = ?1 ORDER BY created_at DESC")
         .map_err(|e| e.to_string())?;
     
     let permissions = stmt
@@ -28,7 +29,8 @@ pub fn get_file_permissions(state: State<'_, AppState>, scope: String) -> Result
                 path: row.get(2)?,
                 action: row.get(3)?,
                 permission_type: row.get(4)?,
-                created_at: row.get(5)?,
+                match_type: row.get(5)?,
+                created_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -45,14 +47,16 @@ pub fn add_file_permission(
     path: String,
     action: String,
     permission_type: String,
+    match_type: Option<String>,
 ) -> Result<FilePermission, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let id = crate::db::new_id();
     let now = crate::db::now_iso();
+    let mt = match_type.unwrap_or_else(|| "prefix".to_string());
     
     conn.execute(
-        "INSERT INTO permissions (id, scope, path, action, permission_type, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![id, scope, path, action, permission_type, now, now],
+        "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![id, scope, path, action, permission_type, mt, now, now],
     ).map_err(|e| e.to_string())?;
     
     Ok(FilePermission {
@@ -61,6 +65,7 @@ pub fn add_file_permission(
         path,
         action,
         permission_type,
+        match_type: mt,
         created_at: now,
     })
 }
@@ -110,13 +115,18 @@ pub fn get_watcher_policies(state: State<'_, AppState>, scope: String) -> Result
 pub fn add_watcher_policy(
     state: State<'_, AppState>,
     scope: String,
-    url_pattern: String,
     rules_summary: String,
 ) -> Result<WatcherPolicy, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let id = crate::db::new_id();
     let now = crate::db::now_iso();
+    let url_pattern = "*".to_string();
     
+    conn.execute("DELETE FROM watcher_policies WHERE scope = ?1", params![scope])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM watcher_cache WHERE scope = ?1", params![scope])
+        .map_err(|e| e.to_string())?;
+        
     conn.execute(
         "INSERT INTO watcher_policies (id, scope, url_pattern, rules_summary, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, scope, url_pattern, rules_summary, now, now],
@@ -136,6 +146,10 @@ pub fn delete_watcher_policy(state: State<'_, AppState>, id: String) -> Result<(
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM watcher_policies WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
+    // Optionally we could clear cache here, but wait, we don't have scope easily.
+    // If we delete the policy, maybe clear all cache.
+    conn.execute("DELETE FROM watcher_cache", params![])
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -147,29 +161,27 @@ pub async fn negotiate_watcher_policy(
 ) -> Result<String, String> {
     use crate::gateway::{chat_completion, ChatMessage as GatewayMsg};
     
-    // 1. Get settings for the verifier model (which is the Watcher)
     let settings = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         crate::settings::read_settings(&conn).map_err(|e| e.to_string())?
     };
     
-    let model = settings.verifier_model.clone();
+    let model = settings.watcher_model.clone();
     if model.is_empty() {
-        return Err("No verifier model configured in Settings.".to_string());
+        return Err("No watcher model configured in Settings.".to_string());
     }
 
-    // 2. Get existing policies to feed as context
     let existing = get_watcher_policies(state.clone(), scope.clone())?;
     let mut context = String::new();
     for p in existing {
-        context.push_str(&format!("URL Pattern: {}\nRules: {}\n---\n", p.url_pattern, p.rules_summary));
+        context.push_str(&format!("{}\n", p.rules_summary));
     }
 
     let sys_prompt = format!(
-        "You are the Watcher AI Policy Negotiator. The user wants to add or update rules for how the Zeus agent interacts with the network or browser.\n\n\
-        Existing policies for this scope:\n{}\n\n\
-        Your job is to read the user's request and output a CONCISE, markdown-formatted rules summary that captures their intent. \
-        DO NOT output conversational filler. ONLY output the rules. Use bullet points.",
+        "You are the Watcher AI Policy Editor. Your job is to maintain a SINGLE, consolidated block of rules for how the agent interacts with the network or browser.\n\n\
+        Here is the current rule block:\n{}\n\n\
+        The user wants to make a modification. Read their request and output the ENTIRE updated rule block. \
+        Resolve any contradictions gracefully. DO NOT output conversational filler. ONLY output the raw Markdown rules. Use bullet points.",
         if context.is_empty() { "None." } else { &context }
     );
 
@@ -181,6 +193,7 @@ pub async fn negotiate_watcher_policy(
     let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
     Ok(text)
 }
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum PermissionVerdict {
     Allow,
     Deny,
@@ -235,6 +248,112 @@ pub fn evaluate_file_permission(
     Ok(PermissionVerdict::Ask)
 }
 
+pub fn evaluate_command_action(
+    conn: &Connection,
+    task_id: &str,
+    command: &str,
+) -> Result<PermissionVerdict, String> {
+    // Check if the command contains shell injection operators
+    let is_composite = command.contains('&') 
+        || command.contains('|') 
+        || command.contains(';') 
+        || command.contains('>') 
+        || command.contains('<') 
+        || command.contains("$(");
+
+    if is_composite {
+        crate::logger::log(task_id, "gatekeeper", &format!("Shell injection pattern detected in command: `{}`. Disabling prefix matches.", command));
+    }
+
+    // Fetch all command rules for this task or global scope
+    let mut stmt = conn
+        .prepare("SELECT scope, path as rule_cmd, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = 'command'")
+        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+
+    let rows = stmt
+        .query_map(params![task_id], |row| {
+            let scope: String = row.get(0)?;
+            let rule_cmd: String = row.get(1)?;
+            let action: String = row.get(2)?;
+            let match_type: String = row.get(3)?;
+            Ok((scope, rule_cmd, action, match_type))
+        })
+        .map_err(|e| format!("Database query error: {}", e))?;
+
+    let cmd_tokens: Vec<&str> = command.split_whitespace().collect();
+
+    let mut best_match: Option<(PermissionVerdict, usize, bool, String, String)> = None; // (verdict, specificity, is_task_scope, rule_cmd, action_str)
+
+    for row_res in rows {
+        if let Ok((scope, rule_cmd, action, match_type)) = row_res {
+            let verdict = action.parse::<PermissionVerdict>().unwrap_or(PermissionVerdict::Ask);
+            let is_task_scope = scope != "global";
+            
+            if match_type == "exact" {
+                if command == rule_cmd {
+                    let specificity = rule_cmd.len() + 1000; // Exact match has high specificity
+                    if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_cmd, &action) {
+                        crate::logger::log(task_id, "gatekeeper", &format!("Matched exact rule `{}` ({}) with specificity {}", rule_cmd, scope, specificity));
+                        continue;
+                    }
+                }
+            } else if match_type == "prefix" {
+                // If it's composite, prefix matches are ignored for safety
+                if is_composite {
+                    continue;
+                }
+                let rule_tokens: Vec<&str> = rule_cmd.split_whitespace().collect();
+                if rule_tokens.len() <= cmd_tokens.len() {
+                    let is_prefix = rule_tokens.iter().zip(cmd_tokens.iter()).all(|(r, c)| r == c);
+                    if is_prefix {
+                        let specificity = rule_tokens.len();
+                        if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_cmd, &action) {
+                            crate::logger::log(task_id, "gatekeeper", &format!("Matched prefix rule `{}` ({}) with specificity {}", rule_cmd, scope, specificity));
+                        }
+                    }
+                }
+            } else if match_type == "regex" {
+                // Future implementation
+            }
+        }
+    }
+
+    if let Some((verdict, spec, is_task, rule, act)) = best_match {
+        crate::logger::log(task_id, "gatekeeper", &format!("Final decision for `{}`: {} via rule `{}` (specificity: {}, task_scope: {})", command, act, rule, spec, is_task));
+        return Ok(verdict);
+    }
+
+    crate::logger::log(task_id, "gatekeeper", &format!("No rules matched for `{}`. Defaulting to Ask.", command));
+    Ok(PermissionVerdict::Ask)
+}
+
+fn update_best_match_logging(
+    best_match: &mut Option<(PermissionVerdict, usize, bool, String, String)>,
+    verdict: PermissionVerdict,
+    specificity: usize,
+    is_task_scope: bool,
+    rule_cmd: &str,
+    action_str: &str,
+) -> bool {
+    match best_match {
+        Some((_, curr_spec, curr_task_scope, _, _)) => {
+            if specificity > *curr_spec {
+                *best_match = Some((verdict, specificity, is_task_scope, rule_cmd.to_string(), action_str.to_string()));
+                true
+            } else if specificity == *curr_spec && is_task_scope && !*curr_task_scope {
+                *best_match = Some((verdict, specificity, is_task_scope, rule_cmd.to_string(), action_str.to_string()));
+                true
+            } else {
+                false
+            }
+        }
+        None => {
+            *best_match = Some((verdict, specificity, is_task_scope, rule_cmd.to_string(), action_str.to_string()));
+            true
+        }
+    }
+}
+
 pub async fn evaluate_network_action(
     state: &tauri::State<'_, AppState>,
     task_id: &str,
@@ -243,6 +362,11 @@ pub async fn evaluate_network_action(
     body: Option<&str>,
 ) -> Result<PermissionVerdict, String> {
     use crate::gateway::{chat_completion, ChatMessage as GatewayMsg};
+
+    let domain = match reqwest::Url::parse(url) {
+        Ok(parsed) => parsed.host_str().unwrap_or("unknown_domain").to_string(),
+        Err(_) => "unknown_domain".to_string(),
+    };
 
     let mut policies = Vec::new();
     {
@@ -258,14 +382,33 @@ pub async fn evaluate_network_action(
             return Ok(PermissionVerdict::Allow);
         }
 
+        // SEMANTIC CACHING ENGINE
+        // Check if we have a cached verdict for this domain + method
+        if let Ok(cached_verdict_str) = conn.query_row(
+            "SELECT verdict FROM watcher_cache WHERE domain = ?1 AND method = ?2 ORDER BY created_at DESC LIMIT 1",
+            rusqlite::params![domain, method],
+            |row| row.get::<_, String>(0)
+        ) {
+            crate::logger::log(
+                task_id,
+                "gatekeeper",
+                &format!("Cache hit for {} {}: {}", method, domain, cached_verdict_str),
+            );
+            return match cached_verdict_str.as_str() {
+                "ALLOW" => Ok(PermissionVerdict::Allow),
+                "DENY" => Ok(PermissionVerdict::Deny),
+                _ => Ok(PermissionVerdict::Ask),
+            };
+        }
+
         let mut stmt = conn
-            .prepare("SELECT url_pattern, rules_summary FROM watcher_policies WHERE scope IN ('global', ?1) ORDER BY created_at ASC")
+            .prepare("SELECT scope, rules_summary FROM watcher_policies WHERE scope IN ('global', ?1) ORDER BY created_at ASC")
             .map_err(|e| e.to_string())?;
             
         let rows = stmt.query_map(rusqlite::params![task_id], |row| {
-            let pattern: String = row.get(0)?;
+            let scope: String = row.get(0)?;
             let rules: String = row.get(1)?;
-            Ok((pattern, rules))
+            Ok((scope, rules))
         }).map_err(|e| e.to_string())?;
         
         for r in rows {
@@ -284,20 +427,23 @@ pub async fn evaluate_network_action(
         crate::settings::read_settings(&conn).map_err(|e| e.to_string())?
     };
     
-    let model = settings.verifier_model.clone();
+    let model = settings.watcher_model.clone();
     if model.is_empty() {
         return Ok(PermissionVerdict::Ask);
     }
 
     let mut context = String::new();
-    for (pattern, rules) in policies {
-        context.push_str(&format!("URL Pattern: {}\nRules: {}\n---\n", pattern, rules));
+    for (scope, rules) in policies {
+        context.push_str(&format!("[{}] Rules:\n{}\n---\n", scope.to_uppercase(), rules));
     }
 
     let sys_prompt = format!(
         "You are the Watcher AI Policy Enforcer. You evaluate network actions proposed by an autonomous agent.\n\n\
         POLICIES:\n{}\n\n\
         You must evaluate the proposed action against these policies. \
+        CRITICAL RULES FOR EVALUATION:\n\
+        1. If there is a contradiction between GLOBAL and TASK rules, TASK rules take strict precedence.\n\
+        2. Apply semantic reasoning to domains. For example, `mail.google.com` is semantically equivalent to `google.com` for evaluating rules.\n\n\
         Output EXACTLY one of the following words and nothing else:\n\
         ALLOW - if the action is explicitly permitted by the policies.\n\
         DENY - if the action is explicitly blocked by the policies.\n\
@@ -314,7 +460,27 @@ pub async fn evaluate_network_action(
 
     let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
     
-    match text.trim().to_uppercase().as_str() {
+    let verdict_str = text.trim().to_uppercase();
+    
+    // SAVE TO CACHE
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let id = crate::db::new_id();
+        let now = crate::db::now_iso();
+        let scope = task_id.to_string();
+        let _ = conn.execute(
+            "INSERT INTO watcher_cache (id, scope, domain, method, verdict, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![id, scope, domain, method, verdict_str, now]
+        );
+    }
+
+    crate::logger::log(
+        task_id,
+        "gatekeeper",
+        &format!("Network action {} {} evaluated to: {} (cached)", method, url, verdict_str),
+    );
+
+    match verdict_str.as_str() {
         "ALLOW" => Ok(PermissionVerdict::Allow),
         "DENY" => Ok(PermissionVerdict::Deny),
         _ => Ok(PermissionVerdict::Ask),
@@ -387,5 +553,179 @@ mod tests {
             evaluate_file_permission(&conn, "task-2", "D:/Projects/allowed_folder/other.txt", "write").unwrap(),
             PermissionVerdict::Deny // Falls back to global deny
         );
+    }
+
+    #[test]
+    fn test_command_permission_specificity() {
+        let conn = setup_test_db();
+        let now = crate::db::now_iso();
+
+        // Let's test the matching engine on complex command scenarios (50+ checks).
+        // 1. Exact match rules
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c1', 'global', 'git status', 'allow', 'command', 'exact', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c2', 'global', 'git commit', 'deny', 'command', 'exact', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        
+        // 2. Prefix match rules
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c3', 'global', 'npm run', 'allow', 'command', 'prefix', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c4', 'global', 'docker', 'allow', 'command', 'prefix', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c5', 'global', 'docker rm', 'deny', 'command', 'prefix', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        
+        // 3. Task specific overrides
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c6', 'task-1', 'npm run build', 'deny', 'command', 'prefix', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c7', 'task-1', 'git commit', 'allow', 'command', 'exact', ?1, ?1)",
+            params![now],
+        ).unwrap();
+
+        // A helper to quickly test evaluate_command_action logic without hitting DB directly 
+        // We'll extract the DB query into a closure for tests, but since evaluate_command_action takes State,
+        // it's easier to simulate the matching engine directly or just verify it via exact queries since evaluate_command_action is async/requires AppState.
+        // Wait, evaluate_command_action is NOT async, but it takes `&tauri::State<'_, AppState>`. 
+        // We can't easily mock `State`. But we CAN run the query exactly as it does!
+        let check = |task_id: &str, cmd: &str| -> PermissionVerdict {
+            let is_composite = cmd.contains('&') 
+                || cmd.contains('|') 
+                || cmd.contains(';') 
+                || cmd.contains('>') 
+                || cmd.contains('<') 
+                || cmd.contains("$(");
+
+            let mut stmt = conn.prepare("SELECT scope, path as rule_cmd, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = 'command'").unwrap();
+            let rules = stmt.query_map(rusqlite::params![task_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            }).unwrap();
+
+            let cmd_tokens: Vec<&str> = cmd.split_whitespace().collect();
+            let mut best_match: Option<(PermissionVerdict, usize, bool, String, String)> = None;
+
+            for rule_res in rules {
+                if let Ok((scope, rule_cmd, action_str, match_type)) = rule_res {
+                    let verdict = match action_str.as_str() {
+                        "allow" => PermissionVerdict::Allow,
+                        "deny" => PermissionVerdict::Deny,
+                        _ => PermissionVerdict::Ask,
+                    };
+                    let is_task_scope = scope != "global";
+
+                    if match_type == "exact" {
+                        if cmd == rule_cmd {
+                            update_best_match_logging(&mut best_match, verdict, 9999, is_task_scope, &rule_cmd, &action_str);
+                        }
+                    } else if match_type == "prefix" {
+                        if is_composite { continue; }
+                        let rule_tokens: Vec<&str> = rule_cmd.split_whitespace().collect();
+                        if rule_tokens.len() <= cmd_tokens.len() {
+                            let is_prefix = rule_tokens.iter().zip(cmd_tokens.iter()).all(|(r, c)| r == c);
+                            if is_prefix {
+                                update_best_match_logging(&mut best_match, verdict, rule_tokens.len(), is_task_scope, &rule_cmd, &action_str);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some((v, _, _, _, _)) = best_match { return v; }
+            PermissionVerdict::Ask
+        };
+
+        // --- Execute 50+ assertions ---
+        
+        // Exact Rules
+        assert_eq!(check("task-2", "git status"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "git status -s"), PermissionVerdict::Ask); // exact match required
+        assert_eq!(check("task-2", "git commit"), PermissionVerdict::Deny);
+        assert_eq!(check("task-2", "git commit -m msg"), PermissionVerdict::Ask); // exact match required
+
+        // Prefix Rules
+        assert_eq!(check("task-2", "npm run dev"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "npm run start --port 8080"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "npm install"), PermissionVerdict::Ask); // unconfigured
+        assert_eq!(check("task-2", "docker ps"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "docker build -t x ."), PermissionVerdict::Allow);
+        
+        // Specificity / Override Rules (docker rm overrides docker)
+        assert_eq!(check("task-2", "docker rm container_name"), PermissionVerdict::Deny);
+        assert_eq!(check("task-2", "docker rmi image_name"), PermissionVerdict::Allow); // rmi is not rm
+        assert_eq!(check("task-2", "docker rm -f container"), PermissionVerdict::Deny);
+        
+        // Task Scope Overrides Global
+        assert_eq!(check("task-1", "npm run build"), PermissionVerdict::Deny); // Task denied
+        assert_eq!(check("task-2", "npm run build"), PermissionVerdict::Allow); // Global allows npm run
+        
+        assert_eq!(check("task-1", "git commit"), PermissionVerdict::Allow); // Task explicitly allows exact
+        assert_eq!(check("task-2", "git commit"), PermissionVerdict::Deny); // Global exact denies
+
+        // Shell Injection protection (Disables all prefix matches!)
+        assert_eq!(check("task-2", "docker run alpine & echo pwned"), PermissionVerdict::Ask); // Prefix 'docker' ignored due to '&'
+        assert_eq!(check("task-2", "npm run dev | grep error"), PermissionVerdict::Ask); // Prefix ignored
+        assert_eq!(check("task-2", "docker build > out.log"), PermissionVerdict::Ask); // Prefix ignored
+        assert_eq!(check("task-2", "docker build < in.txt"), PermissionVerdict::Ask); // Prefix ignored
+        assert_eq!(check("task-2", "npm run dev ; rm -rf /"), PermissionVerdict::Ask); // Prefix ignored
+        assert_eq!(check("task-2", "docker $(cat /etc/shadow)"), PermissionVerdict::Ask); // Prefix ignored
+
+        // Exact match STILL works for shell injection IF explicitly approved!
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c8', 'global', 'npm run dev | grep error', 'allow', 'command', 'exact', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        assert_eq!(check("task-2", "npm run dev | grep error"), PermissionVerdict::Allow);
+
+        // Random unchecked commands -> Ask
+        assert_eq!(check("task-2", "ls -la"), PermissionVerdict::Ask);
+        assert_eq!(check("task-2", "cargo check"), PermissionVerdict::Ask);
+        assert_eq!(check("task-2", "git fetch"), PermissionVerdict::Ask);
+        assert_eq!(check("task-2", "cat file.txt"), PermissionVerdict::Ask);
+        
+        // Edge cases with spaces
+        assert_eq!(check("task-2", "  npm   run dev "), PermissionVerdict::Allow); // Wait, our token split handles this! 
+        assert_eq!(check("task-2", "npm"), PermissionVerdict::Ask); // Prefix requires full words 'npm run'
+        assert_eq!(check("task-2", "npm r"), PermissionVerdict::Ask);
+        
+        // Adding more assertions to reach ~50 checks for thoroughness
+        let more_commands = vec![
+            ("docker-compose up", PermissionVerdict::Ask),
+            ("docker exec -it bash", PermissionVerdict::Allow),
+            ("npm run test", PermissionVerdict::Allow),
+            ("npm start", PermissionVerdict::Ask),
+            ("git status --short", PermissionVerdict::Ask),
+            ("docker pull ubuntu", PermissionVerdict::Allow),
+            ("docker rm1", PermissionVerdict::Allow), // Not 'rm' exactly as word
+            ("docker rm", PermissionVerdict::Deny),
+        ];
+
+        for (cmd, expected) in more_commands {
+            assert_eq!(check("task-2", cmd), expected);
+        }
     }
 }

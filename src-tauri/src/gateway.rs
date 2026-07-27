@@ -8,6 +8,10 @@ pub const ROUTELLM_BASE_URL: &str = "https://routellm.abacus.ai/v1";
 pub const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 fn get_api_config(model: &str) -> Result<(String, String), String> {
+    if let Ok(mock_url) = std::env::var("ZEUS_API_BASE_URL") {
+        return Ok((mock_url, "test_key".to_string()));
+    }
+
     if model.starts_with("gemini") {
         Ok((GEMINI_BASE_URL.to_string(), crate::settings::load_gemini_api_key()?))
     } else {
