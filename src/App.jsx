@@ -14,6 +14,7 @@ import ChatLogModal from "./components/ChatLogModal";
 import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
+import ActionPlanPanel from "./components/ActionPlanPanel";
 import { formatCredits, mergeMessages } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
@@ -206,7 +207,8 @@ function App() {
         
         const verb = approved ? "APPROVED" : "DENIED";
         const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
-        handleSend(`[APPROVAL DECISION] ${verb}.${extra}`);
+        const retryInstruction = approved ? " Please retry your last directive now that permission is granted." : " Please find an alternative approach or report failure.";
+        handleSend(`[APPROVAL DECISION] ${verb}.${extra}${retryInstruction}`);
     };
 
     const handleSend = async (overrideContent) => {
@@ -469,7 +471,10 @@ function App() {
 
     // P0: the backend owns visibility. Hidden pipeline messages still arrive
     // via events (for the debug log) but are filtered by the DB flag alone.
-    const visibleMessages = messages.filter((m) => m.visible !== false);
+    const visibleMessages = messages.filter((m) => m.visible !== false && m.kind !== "action_plan");
+
+    const actionPlanMessage = messages.filter((m) => m.kind === "action_plan").pop();
+    const actionPlanMarkdown = actionPlanMessage ? actionPlanMessage.content : "";
 
     return (
         <main id="app-container">
@@ -647,6 +652,8 @@ function App() {
                     </>
                 )}
             </div>
+
+            <ActionPlanPanel actionPlanMarkdown={actionPlanMarkdown} />
         </main>
     );
 }

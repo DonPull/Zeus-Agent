@@ -1,0 +1,58 @@
+#action-plan-sidebar {
+    width: 360px;
+    min-width: 360px;
+    height: 100%;
+    background-color: var(--zeus-panel);
+    border-left: 2px solid var(--zeus-border);
+    padding: 16px 20px;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#action-plan-header {
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--zeus-border);
+}
+
+#action-plan-header label {
+    font-family: 'Lato-Bold';
+    font-size: 18px;
+    color: var(--zeus-accent);
+}
+
+#action-plan-content {
+    flex: 1;
+    overflow-y: auto;
+    flex-direction: column;
+    padding-right: 5px;
+    font-size: 14px;
+    color: var(--zeus-text-dim);
+}
+
+#action-plan-content .markdown-body {
+    background-color: transparent;
+    color: var(--zeus-text-dim);
+    font-family: 'Lato', sans-serif;
+}
+
+#action-plan-content .markdown-body h1,
+#action-plan-content .markdown-body h2,
+#action-plan-content .markdown-body h3,
+#action-plan-content .markdown-body h4 {
+    color: var(--zeus-text);
+    border-bottom: 1px solid var(--zeus-border);
+    padding-bottom: 5px;
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+#action-plan-content .markdown-body ul,
+#action-plan-content .markdown-body ol {
+    padding-left: 20px;
+}
+
+#action-plan-content .markdown-body li {
+    margin-bottom: 5px;
+}

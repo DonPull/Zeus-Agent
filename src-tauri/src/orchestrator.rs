@@ -6,13 +6,13 @@
 //! the master as a user-role message, and re-call the model. The loop ends on
 //! `final_answer`, plain text, or the iteration cap.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub const MAX_ORCHESTRATION_ITERATIONS: usize = 8;
 
 /// A parsed directive from the master's reply.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Directive {
     RunAction {
@@ -20,8 +20,8 @@ pub enum Directive {
         #[serde(default)]
         success_criteria: Option<String>,
     },
-    RequestApproval {
-        approval: ApprovalSpec,
+    UpdateActionPlan {
+        action_plan: String,
     },
     UpdateMemory {
         memory: String,
@@ -55,7 +55,7 @@ pub enum Directive {
     },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ActionSpec {
     #[serde(default = "default_language")]
     pub language: String,
@@ -71,32 +71,27 @@ fn default_timeout() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApprovalSpec {
-    pub summary: String,
-    #[serde(default)]
-    pub detail: String,
-}
 
-#[derive(Debug, Clone, Deserialize)]
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TaskUpdateSpec {
     #[serde(default)]
     pub title: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FinalAnswerSpec {
     pub summary: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DelegateSpec {
     pub name: String,
     pub objective: String,
     pub success_criteria: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct VerificationResult {
     pub passed: bool,
     pub feedback: String,

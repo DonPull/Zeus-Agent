@@ -1098,37 +1098,6 @@ pub async fn send_user_message(
                         });
                         // Loop: call the master again with the result.
                     }
-                    Directive::RequestApproval { approval } => {
-                        let mut approval_message = new_message(
-                            &task_id,
-                            "event",
-                            "approval",
-                            serde_json::json!({
-                                "summary": approval.summary,
-                                "detail": approval.detail,
-                                "status": "pending",
-                            })
-                            .to_string(),
-                            None,
-                            None,
-                            true,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
-                        // Stop the loop: the user's decision will arrive as a
-                        // new send, which restarts orchestration.
-                        let mut assistant_message = new_message(
-                            &task_id,
-                            "assistant",
-                            "chat",
-                            "I need your approval before continuing — see the card above.".into(),
-                            Some(units),
-                            Some(model_name.clone()),
-                            true,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                        produced_final = true;
-                        break;
-                    }
                     Directive::RunAction {
                         action,
                         success_criteria,
@@ -1214,6 +1183,20 @@ pub async fn send_user_message(
                             content: msg,
                         });
                         // Loop: call the master again with the action result.
+                    }
+                    Directive::UpdateActionPlan { action_plan } => {
+                        let mut msg = new_message(
+                            &task_id, "assistant", "action_plan",
+                            action_plan.clone(),
+                            None, None, true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut msg)?;
+                        
+                        let result_json = serde_json::json!({ "update_action_plan_result": "Action Plan saved. You may now continue." });
+                        let res_msg = orchestrator::directive_result_message(&result_json);
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", res_msg.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: res_msg });
                     }
                     Directive::DelegateTask { delegate } => {
                         let worker_future = crate::worker::run_worker(
@@ -1315,6 +1298,7 @@ pub async fn send_user_message(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Run Network Request: {} {}", method, url);
+                                let blocked_dir = Directive::HttpRequest { url: url.clone(), method: method.clone(), body: body.clone() };
                                 let mut approval_message = new_message(
                                     &task_id,
                                     "event",
@@ -1323,6 +1307,7 @@ pub async fn send_user_message(
                                         "summary": summary,
                                         "detail": body.unwrap_or_default(),
                                         "status": "pending",
+                                        "blocked_directive": blocked_dir,
                                     }).to_string(),
                                     None,
                                     None,
@@ -1388,9 +1373,10 @@ pub async fn send_user_message(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Run Command: `{}`", command);
+                                let blocked_dir = Directive::RunCommand { command: command.clone() };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
-                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
                                     None, None, true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
@@ -1432,9 +1418,10 @@ pub async fn send_user_message(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Read File: `{}`", path);
+                                let blocked_dir = Directive::ReadFile { path: path.clone() };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
-                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
                                     None, None, true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
@@ -1476,9 +1463,10 @@ pub async fn send_user_message(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Write File: `{}`", path);
+                                let blocked_dir = Directive::WriteFile { path: path.clone(), content: content.clone() };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
-                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
                                     None, None, true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
@@ -1520,9 +1508,10 @@ pub async fn send_user_message(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Delete File: `{}`", path);
+                                let blocked_dir = Directive::DeleteFile { path: path.clone() };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
-                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending" }).to_string(),
+                                    serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
                                     None, None, true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
