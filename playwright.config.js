@@ -2,9 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 300 * 1000,
+  timeout: 120 * 1000,
   expect: {
-    timeout: 10000
+    timeout: 15000
   },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -20,4 +20,10 @@ export default defineConfig({
       name: 'tauri',
     },
   ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:1420',
+    reuseExistingServer: false,
+    timeout: 120 * 1000,
+  }
 });

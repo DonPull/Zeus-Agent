@@ -10,6 +10,7 @@ import * as bridge from "./bridge";
 import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import SettingsModal from "./components/SettingsModal";
+import TaskSettingsModal from "./components/TaskSettingsModal";
 import ChatLogModal from "./components/ChatLogModal";
 import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
@@ -43,6 +44,7 @@ function App() {
 
     // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isTaskSettingsOpen, setIsTaskSettingsOpen] = useState(false);
     const [isTaskPermsOpen, setIsTaskPermsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
@@ -193,21 +195,49 @@ function App() {
     };
 
     const handleApprovalDecision = async (approved, note, permData) => {
-        if (approved && permData && permData.mode && permData.mode.startsWith("task_") && permData.command) {
-            try {
-                const scope = activeTaskIdRef.current;
-                const isApp = permData.mode === "task_app";
-                const cmd = isApp ? permData.command.split(" ")[0] : permData.command;
-                await bridge.addFilePermission(scope, cmd, "allow", "command");
-                showToast(`Permission saved for: ${cmd}`, "success", 2000);
-            } catch (err) {
-                showToast(`Failed to save command permission: ${err}`);
+        if (approved && permData) {
+            let mode = permData.mode;
+            let cmdToSave = null;
+            let typeToSave = null;
+
+            if (mode === "once" && permData.blocked) {
+                if (permData.blocked.type === "run_command") {
+                    cmdToSave = permData.blocked.command;
+                    typeToSave = "command";
+                } else if (permData.blocked.type === "read_file") {
+                    cmdToSave = permData.blocked.path;
+                    typeToSave = "read";
+                } else if (permData.blocked.type === "write_file") {
+                    cmdToSave = permData.blocked.path;
+                    typeToSave = "write";
+                }
+            } else if (mode && mode.startsWith("task_") && permData.command) {
+                cmdToSave = mode === "task_app" ? permData.command.split(" ")[0] : permData.command;
+                typeToSave = "command";
+            }
+
+            if (cmdToSave && typeToSave) {
+                try {
+                    const scope = activeTaskIdRef.current;
+                    await bridge.addFilePermission(scope, cmdToSave, "allow", typeToSave);
+                    showToast(`Permission saved for: ${cmdToSave}`, "success", 2000);
+                } catch (err) {
+                    showToast(`Failed to save permission: ${err}`);
+                }
             }
         }
         
         const verb = approved ? "APPROVED" : "DENIED";
         const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
         const retryInstruction = approved ? " Please retry your last directive now that permission is granted." : " Please find an alternative approach or report failure.";
+        
+        try {
+            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved);
+            await reconcileMessages(activeTaskIdRef.current);
+        } catch (err) {
+            console.error("Failed to resolve pending approvals", err);
+        }
+
         handleSend(`[APPROVAL DECISION] ${verb}.${extra}${retryInstruction}`);
     };
 
@@ -366,18 +396,27 @@ function App() {
             } else if (event.type === "delta") {
                 streamTextRef.current += event.text;
                 const full = streamTextRef.current;
-                const directiveIdx = full.indexOf("```zeus-directive");
+                
+                const d1 = full.indexOf("```zeus-directive");
+                const d2 = full.indexOf("<zeus-directive>");
+                const d3 = full.indexOf('{"type":');
+                
+                let directiveIdx = -1;
+                if (d1 !== -1) directiveIdx = d1;
+                if (d2 !== -1 && (directiveIdx === -1 || d2 < directiveIdx)) directiveIdx = d2;
+                if (d1 === -1 && d2 === -1 && d3 !== -1) directiveIdx = d3;
+
                 if (directiveIdx !== -1) {
                     if (!directiveModeRef.current) {
                         directiveModeRef.current = true;
                         setDirectiveMode(true);
                     }
-                    setStreamText(full.slice(0, directiveIdx));
+                    setStreamText(full.slice(0, directiveIdx).trimEnd());
                     return;
                 }
                 if (!streamFlushedRef.current) {
                     const head = full.trimStart();
-                    if (head.length >= 17 || (head.length > 0 && !"```zeus-directive".startsWith(head))) {
+                    if (head.length >= 17 || (head.length > 0 && !"```zeus-directive".startsWith(head) && !"<zeus-directive>".startsWith(head))) {
                         streamFlushedRef.current = true;
                         setStreamText(full);
                     }
@@ -503,6 +542,21 @@ function App() {
                 )}
             </Modal>
 
+            <Modal isOpen={isTaskSettingsOpen} onClose={() => setIsTaskSettingsOpen(false)} closeOnHover={false}>
+                {activeTask && (
+                    <TaskSettingsModal
+                        task={activeTask}
+                        onClose={() => setIsTaskSettingsOpen(false)}
+                        onSave={(updatedTask) => {
+                            setActiveTask(updatedTask);
+                            setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+                            setIsTaskSettingsOpen(false);
+                            showToast("Task settings saved", "success", 3000);
+                        }}
+                    />
+                )}
+            </Modal>
+
             <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
                 {activeTask && (
                     <ChatLogModal
@@ -557,6 +611,9 @@ function App() {
                                 </button>
                                 <button className="settings-button" title="Chat-scoped File Permissions" onClick={() => setIsTaskPermsOpen(true)}>
                                     <label>Permissions</label>
+                                </button>
+                                <button className="settings-button" title="Chat-scoped Settings" onClick={() => setIsTaskSettingsOpen(true)}>
+                                    <label>Settings</label>
                                 </button>
                             </div>
                         </div>

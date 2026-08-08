@@ -1,20 +1,28 @@
 import { test, expect } from '@playwright/test';
-import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse } from './testUtils.js';
+import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse , cleanupTasks } from './testUtils.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
 test.describe('Zeus E2E Tests - Directives Execution', () => {
+  test.setTimeout(120000);
+
   let browser;
   let page;
   let tempDir;
 
   test.beforeAll(async () => {
+    test.setTimeout(120000);
+
     await startMockServer();
     const tauri = await launchTauri();
     browser = tauri.browser;
     page = tauri.page;
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-test-'));
+  });
+
+  test.afterEach(async () => {
+    await cleanupTasks(page);
   });
 
   test.afterAll(async () => {

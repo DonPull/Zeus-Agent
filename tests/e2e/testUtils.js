@@ -1,14 +1,18 @@
 import { _electron as electron, chromium } from '@playwright/test';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const testWorkspaceDir = path.join(process.cwd(), 'tests', 'e2e', '.test_workspace');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const testWorkspaceDir = path.join(__dirname, '.test_workspace');
 
 let tauriProcess;
 let mockServer;
-let mockServerPort = 3000;
+let mockServerPort = 0; // dynamic port
 let mockResponses = [];
 
 // Allows tests to queue up responses for the LLM
@@ -53,7 +57,8 @@ function startMockServer() {
       });
     });
 
-    mockServer.listen(mockServerPort, () => {
+    mockServer.listen(0, () => {
+      mockServerPort = mockServer.address().port;
       resolve();
     });
   });
@@ -76,24 +81,26 @@ function stopMockServer() {
 
 // Launch Tauri using CDP
 async function launchTauri() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     // Robust cleanup: Always clear the test DB before running tests
     if (fs.existsSync(testWorkspaceDir)) {
       fs.rmSync(testWorkspaceDir, { recursive: true, force: true });
     }
     
-    console.log("Starting npm run tauri dev...");
-    tauriProcess = spawn('npm', ['run', 'tauri', 'dev'], {
-      shell: true,
+    const cdpPort = Math.floor(Math.random() * (9999 - 9222 + 1)) + 9222;
+
+    console.log(`Starting cargo run with CDP port ${cdpPort}...`);
+
+    tauriProcess = spawn('cargo', ['run', '--', '--remote-debugging-port', cdpPort.toString()], {
+      cwd: path.join(__dirname, '..', '..', 'src-tauri'),
       env: {
         ...process.env,
-        // Force test mode and mock URL
-        ZEUS_API_BASE_URL: `http://localhost:${mockServerPort}`,
-        // Isolated test workspace to prevent polluting real user DB
+        ZEUS_API_BASE_URL: `http://localhost:${mockServerPort}/`,
         ZEUS_TEST_WORKSPACE_ROOT: testWorkspaceDir,
-        // Enable WebView2 CDP debugging
-        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222'
-      }
+        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`, // Ensure WebView2 gets the port
+        WEBVIEW2_USER_DATA_FOLDER: path.join(testWorkspaceDir, `wv2_${cdpPort}`)
+      },
+      shell: process.platform === 'win32'
     });
 
     tauriProcess.stdout.on('data', (data) => {
@@ -106,7 +113,7 @@ async function launchTauri() {
       console.error(`[Tauri ERR] ${output.trim()}`);
     });
 
-    // We have to wait for the port to be open. Polling CDP port 9222.
+    // We have to wait for the port to be open. Polling CDP port.
     let connected = false;
     let attempts = 0;
     
@@ -122,7 +129,7 @@ async function launchTauri() {
         reject(new Error("Timeout waiting for Tauri WebView2 CDP"));
       }
       try {
-        const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+        const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
         clearInterval(interval);
         connected = true;
         
@@ -143,12 +150,31 @@ async function launchTauri() {
 async function stopTauri() {
   if (tauriProcess) {
     if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', tauriProcess.pid, '/f', '/t']);
+      await new Promise(resolve => {
+        const killer = spawn('taskkill', ['/pid', tauriProcess.pid, '/f', '/t']);
+        killer.on('close', resolve);
+      });
     } else {
       tauriProcess.kill();
     }
     // Wait a brief moment for the port to actually free up
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+}
+
+async function cleanupTasks(page) {
+  if (!page) return;
+  try {
+    await page.evaluate(async () => {
+      if (!window.__TAURI__ || !window.__TAURI__.core) return;
+      const { invoke } = window.__TAURI__.core;
+      const tasks = await invoke('list_tasks');
+      for (const t of tasks) {
+        await invoke('delete_task', { taskId: t.id });
+      }
+    });
+  } catch (e) {
+    console.error("Cleanup failed:", e);
   }
 }
 
@@ -157,5 +183,6 @@ export {
   startMockServer,
   stopMockServer,
   launchTauri,
-  stopTauri
+  stopTauri,
+  cleanupTasks
 };

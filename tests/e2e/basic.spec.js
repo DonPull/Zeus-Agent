@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse } from './testUtils.js';
+import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse , cleanupTasks } from './testUtils.js';
 
 test.describe('Zeus E2E Tests - Basic Flow', () => {
+  test.setTimeout(120000);
+
   let browser;
   let page;
 
   test.beforeAll(async () => {
+    test.setTimeout(120000);
+
     await startMockServer();
     const tauri = await launchTauri();
     browser = tauri.browser;
     page = tauri.page;
+  });
+
+  test.afterEach(async () => {
+    await cleanupTasks(page);
   });
 
   test.afterAll(async () => {
@@ -32,10 +40,11 @@ test.describe('Zeus E2E Tests - Basic Flow', () => {
     });
     await page.locator('#chat-send-button').click();
 
-    await expect(page.getByText('Hello human! How can I help you today?')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Hello human! How can I help you today?').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('Agent can update the task title', async () => {
+    await page.locator('#new-task-button').click();
     await page.locator('#chat-input').fill('Please update the task title to "E2E Test Chat"');
     queueMockResponse({
       choices: [{

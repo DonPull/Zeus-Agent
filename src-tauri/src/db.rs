@@ -38,7 +38,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     budget_credits INTEGER NOT NULL DEFAULT 40000,
     spent_credits REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    master_model TEXT NOT NULL,
+    worker_model TEXT NOT NULL,
+    verifier_model TEXT NOT NULL,
+    watcher_model TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -164,6 +168,28 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         "ALTER TABLE permissions ADD COLUMN match_type TEXT NOT NULL DEFAULT 'prefix'",
         [],
     );
+
+    // Migration: add model columns to tasks table
+    let has_master_model: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'master_model' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_master_model {
+        let master = crate::settings::read_settings(connection).map(|s| s.master_model).unwrap_or_else(|_| "moonshotai/Kimi-K3".into());
+        let worker = crate::settings::read_settings(connection).map(|s| s.worker_model).unwrap_or_else(|_| "deepseek-ai/DeepSeek-V4-Pro".into());
+        let verifier = crate::settings::read_settings(connection).map(|s| s.verifier_model).unwrap_or_else(|_| "grok-4.5".into());
+        let watcher = crate::settings::read_settings(connection).map(|s| s.watcher_model).unwrap_or_else(|_| "grok-4.5".into());
+        
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN master_model TEXT NOT NULL DEFAULT ''", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN worker_model TEXT NOT NULL DEFAULT ''", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN verifier_model TEXT NOT NULL DEFAULT ''", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN watcher_model TEXT NOT NULL DEFAULT ''", []);
+        
+        let _ = connection.execute(
+            "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4",
+            rusqlite::params![master, worker, verifier, watcher],
+        );
+    }
 
     // One-off migration: the first build's credit_events table had a different
     // shape (prompt_tokens/completion_tokens/credits). The rename keeps the old

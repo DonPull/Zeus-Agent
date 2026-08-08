@@ -84,7 +84,7 @@ function ApprovalCard({ message, onDecision }) {
                         </button>
                         
                         <div style={{ position: "relative" }} className="align-center">
-                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once" })}>
+                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive })}>
                                 <label>Approve</label>
                             </button>
                             {isCommand && cmd && (

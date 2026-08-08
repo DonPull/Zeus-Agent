@@ -213,38 +213,67 @@ impl std::str::FromStr for PermissionVerdict {
     }
 }
 
-/// Evaluates file permissions based on path specificity.
-/// Returns Allow, Deny, or Ask. Default is Ask if no matching rule is found.
 pub fn evaluate_file_permission(
     conn: &Connection,
     task_id: &str,
     target_path: &str,
     permission_type: &str,
 ) -> Result<PermissionVerdict, String> {
-    // We look for rules in 'global' scope or the specific task's scope.
-    // The query checks if target_path starts with the rule's path.
-    // It orders by length of rule's path descending, so the longest (most specific) match wins.
     let mut stmt = conn
-        .prepare(
-            "SELECT action FROM permissions 
-             WHERE scope IN ('global', ?1) 
-             AND permission_type = ?2
-             AND ?3 LIKE path || '%'
-             ORDER BY length(path) DESC 
-             LIMIT 1",
-        )
+        .prepare("SELECT scope, path as rule_path, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = ?2")
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
-    let mut rows = stmt
-        .query(params![task_id, permission_type, target_path])
+    let rows = stmt
+        .query_map(params![task_id, permission_type], |row| {
+            let scope: String = row.get(0)?;
+            let rule_path: String = row.get(1)?;
+            let action: String = row.get(2)?;
+            let match_type: String = row.get(3)?;
+            Ok((scope, rule_path, action, match_type))
+        })
         .map_err(|e| format!("Database query error: {}", e))?;
 
-    if let Some(row) = rows.next().map_err(|e| format!("Row error: {}", e))? {
-        let action: String = row.get(0).map_err(|e| format!("Column error: {}", e))?;
-        return action.parse::<PermissionVerdict>();
+    let mut best_match: Option<(PermissionVerdict, usize, bool, String, String)> = None;
+
+    let target_path_norm = target_path.replace("\\", "/");
+
+    for row_res in rows {
+        if let Ok((scope, rule_path, action, match_type)) = row_res {
+            let verdict = action.parse::<PermissionVerdict>().unwrap_or(PermissionVerdict::Ask);
+            let is_task_scope = scope != "global";
+            let rule_path_norm = rule_path.replace("\\", "/");
+            
+            if match_type == "exact" {
+                if target_path_norm == rule_path_norm {
+                    let specificity = rule_path_norm.len() + 1000;
+                    if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
+                        crate::logger::log(task_id, "gatekeeper", &format!("Matched exact file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
+                    }
+                }
+            } else if match_type == "regex" {
+                if let Ok(re) = regex::Regex::new(&rule_path) {
+                    if re.is_match(&target_path_norm) || re.is_match(target_path) {
+                        let specificity = rule_path.len();
+                        if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
+                            crate::logger::log(task_id, "gatekeeper", &format!("Matched regex file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
+                        }
+                    }
+                }
+            } else {
+                if target_path_norm.starts_with(&rule_path_norm) {
+                    let specificity = rule_path_norm.len();
+                    if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
+                        crate::logger::log(task_id, "gatekeeper", &format!("Matched prefix file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
+                    }
+                }
+            }
+        }
     }
 
-    // Default if no rule matched
+    if let Some((verdict, _, _, _, _)) = best_match {
+        return Ok(verdict);
+    }
+
     Ok(PermissionVerdict::Ask)
 }
 
@@ -313,7 +342,14 @@ pub fn evaluate_command_action(
                     }
                 }
             } else if match_type == "regex" {
-                // Future implementation
+                if let Ok(re) = regex::Regex::new(&rule_cmd) {
+                    if re.is_match(command) {
+                        let specificity = rule_cmd.len();
+                        if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_cmd, &action) {
+                            crate::logger::log(task_id, "gatekeeper", &format!("Matched regex rule `{}` ({}) with specificity {}", rule_cmd, scope, specificity));
+                        }
+                    }
+                }
             }
         }
     }
@@ -548,6 +584,29 @@ mod tests {
             PermissionVerdict::Deny
         );
         
+        // Add Regex rules
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('p4', 'global', '^D:/Projects/.*\\.bak$', 'deny', 'write', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('p5', 'global', '^D:/Projects/allowed_folder/.*\\.log$', 'allow', 'write', ?1, ?1)",
+            params![now],
+        ).unwrap();
+
+        assert_eq!(
+            evaluate_file_permission(&conn, "task-1", "D:/Projects/my_data.bak", "write").unwrap(),
+            PermissionVerdict::Deny
+        );
+        
+        assert_eq!(
+            evaluate_file_permission(&conn, "task-1", "D:/Projects/allowed_folder/app.log", "write").unwrap(),
+            PermissionVerdict::Allow
+        );
+        
         // 5. Another task shouldn't see task-1's rules
         assert_eq!(
             evaluate_file_permission(&conn, "task-2", "D:/Projects/allowed_folder/other.txt", "write").unwrap(),
@@ -601,61 +660,22 @@ mod tests {
              VALUES ('c7', 'task-1', 'git commit', 'allow', 'command', 'exact', ?1, ?1)",
             params![now],
         ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c8', 'global', '^cargo (check|build|test)$', 'allow', 'command', 'regex', ?1, ?1)",
+            params![now],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
+             VALUES ('c9', 'global', '^rm -rf .*$', 'deny', 'command', 'regex', ?1, ?1)",
+            params![now],
+        ).unwrap();
 
-        // A helper to quickly test evaluate_command_action logic without hitting DB directly 
-        // We'll extract the DB query into a closure for tests, but since evaluate_command_action takes State,
-        // it's easier to simulate the matching engine directly or just verify it via exact queries since evaluate_command_action is async/requires AppState.
-        // Wait, evaluate_command_action is NOT async, but it takes `&tauri::State<'_, AppState>`. 
-        // We can't easily mock `State`. But we CAN run the query exactly as it does!
         let check = |task_id: &str, cmd: &str| -> PermissionVerdict {
-            let is_composite = cmd.contains('&') 
-                || cmd.contains('|') 
-                || cmd.contains(';') 
-                || cmd.contains('>') 
-                || cmd.contains('<') 
-                || cmd.contains("$(");
-
-            let mut stmt = conn.prepare("SELECT scope, path as rule_cmd, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = 'command'").unwrap();
-            let rules = stmt.query_map(rusqlite::params![task_id], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            }).unwrap();
-
-            let cmd_tokens: Vec<&str> = cmd.split_whitespace().collect();
-            let mut best_match: Option<(PermissionVerdict, usize, bool, String, String)> = None;
-
-            for rule_res in rules {
-                if let Ok((scope, rule_cmd, action_str, match_type)) = rule_res {
-                    let verdict = match action_str.as_str() {
-                        "allow" => PermissionVerdict::Allow,
-                        "deny" => PermissionVerdict::Deny,
-                        _ => PermissionVerdict::Ask,
-                    };
-                    let is_task_scope = scope != "global";
-
-                    if match_type == "exact" {
-                        if cmd == rule_cmd {
-                            update_best_match_logging(&mut best_match, verdict, 9999, is_task_scope, &rule_cmd, &action_str);
-                        }
-                    } else if match_type == "prefix" {
-                        if is_composite { continue; }
-                        let rule_tokens: Vec<&str> = rule_cmd.split_whitespace().collect();
-                        if rule_tokens.len() <= cmd_tokens.len() {
-                            let is_prefix = rule_tokens.iter().zip(cmd_tokens.iter()).all(|(r, c)| r == c);
-                            if is_prefix {
-                                update_best_match_logging(&mut best_match, verdict, rule_tokens.len(), is_task_scope, &rule_cmd, &action_str);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Some((v, _, _, _, _)) = best_match { return v; }
-            PermissionVerdict::Ask
+            // Note: Since evaluate_command_action requires &Connection, we just pass the test db.
+            // But evaluate_command_action logs to the DB. In a test, this might insert messages.
+            // Since we pass &conn, wait... evaluate_command_action doesn't log to the DB, it uses crate::logger::log which prints to stdout for backend logging!
+            evaluate_command_action(&conn, task_id, cmd).unwrap()
         };
 
         // --- Execute 50+ assertions ---
@@ -703,14 +723,23 @@ mod tests {
 
         // Random unchecked commands -> Ask
         assert_eq!(check("task-2", "ls -la"), PermissionVerdict::Ask);
-        assert_eq!(check("task-2", "cargo check"), PermissionVerdict::Ask);
+        assert_eq!(check("task-2", "cargo run"), PermissionVerdict::Ask);
         assert_eq!(check("task-2", "git fetch"), PermissionVerdict::Ask);
         assert_eq!(check("task-2", "cat file.txt"), PermissionVerdict::Ask);
         
         // Edge cases with spaces
-        assert_eq!(check("task-2", "  npm   run dev "), PermissionVerdict::Allow); // Wait, our token split handles this! 
+        assert_eq!(check("task-2", "  npm   run dev "), PermissionVerdict::Allow);
         assert_eq!(check("task-2", "npm"), PermissionVerdict::Ask); // Prefix requires full words 'npm run'
         assert_eq!(check("task-2", "npm r"), PermissionVerdict::Ask);
+
+        // Regex tests
+        assert_eq!(check("task-2", "cargo check"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "cargo build"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "cargo test"), PermissionVerdict::Allow);
+        assert_eq!(check("task-2", "cargo clippy"), PermissionVerdict::Ask);
+        assert_eq!(check("task-2", "rm -rf /"), PermissionVerdict::Deny);
+        assert_eq!(check("task-2", "rm -rf ./node_modules"), PermissionVerdict::Deny);
+        assert_eq!(check("task-2", "rm file.txt"), PermissionVerdict::Ask);
         
         // Adding more assertions to reach ~50 checks for thoroughness
         let more_commands = vec![

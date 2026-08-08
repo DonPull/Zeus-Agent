@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse } from './testUtils.js';
+import { startMockServer, stopMockServer, launchTauri, stopTauri, queueMockResponse, cleanupTasks } from './testUtils.js';
 
 test.describe('Zeus E2E Tests - Master Context Memory', () => {
+  test.setTimeout(120000);
+
   let browser;
   let page;
 
   test.beforeAll(async () => {
+    test.setTimeout(120000);
+
     await startMockServer();
     const tauri = await launchTauri();
     browser = tauri.browser;
     page = tauri.page;
+  });
+
+  test.afterEach(async () => {
+    await cleanupTasks(page);
   });
 
   test.afterAll(async () => {

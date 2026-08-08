@@ -317,12 +317,12 @@ mod tests {
 
     #[test]
     fn bare_json_without_fence_is_accepted() {
-        let reply = "{\"type\":\"request_approval\",\"approval\":{\"summary\":\"Create x\",\"detail\":\"why\"}}";
+        let reply = "{\"type\":\"read_file\",\"path\":\"D:/test.txt\"}";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::RequestApproval { approval }, _) => {
-                assert_eq!(approval.summary, "Create x");
+            MasterReply::Directive(Directive::ReadFile { path }, _) => {
+                assert_eq!(path, "D:/test.txt");
             }
-            _ => panic!("expected bare-JSON RequestApproval"),
+            _ => panic!("expected bare-JSON ReadFile"),
         }
     }
 

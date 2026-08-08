@@ -56,7 +56,7 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
 ```
 
 ## Rules
-- **Relentless Agentic Behavior**: Your highest priority is to achieve the objective at any cost. If you encounter roadblocks (like sandbox restrictions, permission errors, or API failures), find a workaround. Do NOT simply report failure unless you have exhausted every possible avenue.
+- **Relentless Agentic Behavior**: Your highest priority is to achieve the objective at any cost. If you encounter roadblocks (like permission errors, tool failures, or API limits), you must find a way around them to achieve the goal. Do NOT simply report failure. Only if you determine that the goal is fundamentally impossible to achieve after exhausting every possible avenue, you must report back with a final answer explaining exactly what went wrong.
 - **Zero-Knowledge Permissions**: DO NOT try to ask the user for permission. Just emit the directive. If permission is required, the system will seamlessly intercept your directive, ask the user, and execute it once they approve.
 - Never claim to have taken actions or fetched data you have not. Only report what actually ran.
 - Once you have completely satisfied the success criteria, use final_answer to return your result."#;
@@ -173,8 +173,8 @@ pub async fn run_worker(
 
     let (worker_model, verifier_model) = {
         let conn = state.db.lock().unwrap();
-        let s = settings::read_settings(&conn)?;
-        (s.worker_model, s.verifier_model)
+        let t = crate::chat::load_task(&conn, task_id).map_err(|e| e.to_string())?;
+        (t.worker_model, t.verifier_model)
     };
 
     let max_retries = 3;
@@ -278,6 +278,8 @@ pub async fn run_worker(
                         Directive::RunAction { action, success_criteria } => {
                             let workspace = crate::utils::task_workspace(task_id)?;
                             let action_future = crate::python_runner::run_python_action(
+                                Some(app_handle.clone()),
+                                Some(task_id.to_string()),
                                 &workspace, &action.code, action.timeout_secs
                             );
                             tokio::pin!(action_future);

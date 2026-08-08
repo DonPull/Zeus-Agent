@@ -62,6 +62,10 @@ pub struct TaskDto {
     pub spent_credits: f64,
     pub created_at: String,
     pub updated_at: String,
+    pub master_model: String,
+    pub worker_model: String,
+    pub verifier_model: String,
+    pub watcher_model: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -301,6 +305,10 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<TaskDto> {
         spent_credits: row.get(4)?,
         created_at: row.get(5)?,
         updated_at: row.get(6)?,
+        master_model: row.get(7)?,
+        worker_model: row.get(8)?,
+        verifier_model: row.get(9)?,
+        watcher_model: row.get(10)?,
     })
 }
 
@@ -323,10 +331,10 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
     })
 }
 
-fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> {
+pub fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> {
     connection
         .query_row(
-            "SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at FROM tasks WHERE id = ?1",
+            "SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model FROM tasks WHERE id = ?1",
             params![task_id],
             row_to_task,
         )
@@ -482,13 +490,17 @@ pub async fn create_task(
         spent_credits: 0.0,
         created_at: now.clone(),
         updated_at: now.clone(),
+        master_model: app_settings.master_model,
+        worker_model: app_settings.worker_model,
+        verifier_model: app_settings.verifier_model,
+        watcher_model: app_settings.watcher_model,
     };
 
     connection
         .execute(
-            "INSERT INTO tasks (id, title, status, budget_credits, spent_credits, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![task.id, task.title, task.status, task.budget_credits, task.spent_credits, task.created_at, task.updated_at],
+            "INSERT INTO tasks (id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![task.id, task.title, task.status, task.budget_credits, task.spent_credits, task.created_at, task.updated_at, task.master_model, task.worker_model, task.verifier_model, task.watcher_model],
         )
         .map_err(|e| format!("Failed to create the task: {}", e))?;
 
@@ -504,7 +516,7 @@ pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<TaskDto>, Stri
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
     let mut statement = connection
-        .prepare("SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at FROM tasks ORDER BY updated_at DESC")
+        .prepare("SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model FROM tasks ORDER BY updated_at DESC")
         .map_err(|e| format!("Failed to prepare the task list query: {}", e))?;
 
     let rows = statement
@@ -589,6 +601,31 @@ pub async fn get_task_run_state(
         )
         .optional()
         .map_err(|e| format!("Failed to load task run state: {}", e))
+}
+
+#[tauri::command]
+pub async fn resolve_pending_approvals(
+    state: State<'_, AppState>,
+    task_id: String,
+    approved: bool,
+) -> Result<(), String> {
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+        
+    let status = if approved { "approved" } else { "denied" };
+    
+    connection
+        .execute(
+            "UPDATE messages 
+             SET content = json_set(content, '$.status', ?1) 
+             WHERE task_id = ?2 AND kind = 'approval' AND json_extract(content, '$.status') = 'pending'",
+            rusqlite::params![status, task_id],
+        )
+        .map_err(|e| format!("Failed to update pending approvals: {}", e))?;
+        
+    Ok(())
 }
 
 #[tauri::command]
@@ -723,7 +760,6 @@ pub async fn send_user_message(
             .db
             .lock()
             .map_err(|e| format!("Database lock error: {}", e))?;
-        let app_settings = settings::read_settings(&connection)?;
         let mut task = load_task(&connection, &task_id)?;
 
         if task.spent_credits >= task.budget_credits as f64 {
@@ -801,11 +837,12 @@ pub async fn send_user_message(
 
         let history = load_master_history(&connection, &task_id)?;
         let current_spend = task.spent_credits;
+        let master_model = task.master_model.clone();
         (
             history,
             user_message,
             task,
-            app_settings.master_model,
+            master_model,
             current_spend,
             updated_approval,
         )
@@ -1104,6 +1141,8 @@ pub async fn send_user_message(
                     } => {
                         let workspace = crate::utils::task_workspace(&task_id)?;
                         let action_future = crate::python_runner::run_python_action(
+                            Some(app_handle.clone()),
+                            Some(task_id.clone()),
                             &workspace,
                             &action.code,
                             action.timeout_secs,
@@ -1580,31 +1619,64 @@ pub async fn rename_task(
     Ok(())
 }
 
+#[derive(serde::Deserialize)]
+pub struct TaskSettingsDto {
+    pub master_model: String,
+    pub worker_model: String,
+    pub verifier_model: String,
+    pub watcher_model: String,
+    pub budget_credits: i64,
+}
+
+#[tauri::command]
+pub fn update_task_settings(state: State<'_, AppState>, task_id: String, settings: TaskSettingsDto) -> Result<(), String> {
+    let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    connection.execute(
+        "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4, budget_credits = ?5 WHERE id = ?6",
+        params![settings.master_model, settings.worker_model, settings.verifier_model, settings.watcher_model, settings.budget_credits, task_id],
+    ).map_err(|e| format!("Failed to update task settings: {}", e))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
-    let connection = state
+    // Ensure any active run is cancelled so it doesn't continue processing
+    if let Some(token) = state.active_runs.lock().unwrap().remove(&task_id) {
+        token.cancel();
+    }
+
+    let mut connection = state
         .db
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
-    connection
-        .execute("DELETE FROM runs WHERE task_id = ?1", params![task_id])
-        .map_err(|e| format!("Failed to delete task runs: {}", e))?;
-    connection
-        .execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])
-        .map_err(|e| format!("Failed to delete the task messages: {}", e))?;
-    connection
-        .execute(
-            "DELETE FROM credit_events WHERE task_id = ?1",
-            params![task_id],
-        )
-        .map_err(|e| format!("Failed to delete the task credit events: {}", e))?;
-    let _ = connection.execute("DELETE FROM approvals WHERE task_id = ?1", params![task_id]);
-    let _ = connection.execute("DELETE FROM workers WHERE task_id = ?1", params![task_id]);
-    let _ = connection.execute("DELETE FROM chat_memory WHERE task_id = ?1", params![task_id]);
 
-    connection
-        .execute("DELETE FROM tasks WHERE id = ?1", params![task_id])
-        .map_err(|e| format!("Database error: {}", e))?;
+    let tx = connection
+        .transaction()
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
+
+    tx.execute("DELETE FROM runs WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task runs: {}", e))?;
+    tx.execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task messages: {}", e))?;
+    tx.execute("DELETE FROM credit_events WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task credit events: {}", e))?;
+    tx.execute("DELETE FROM workers WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task workers: {}", e))?;
+    tx.execute("DELETE FROM chat_memory WHERE task_id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task chat memory: {}", e))?;
+    tx.execute("DELETE FROM permissions WHERE scope = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task permissions: {}", e))?;
+    tx.execute("DELETE FROM watcher_policies WHERE scope = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task watcher policies: {}", e))?;
+    tx.execute("DELETE FROM watcher_cache WHERE scope = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task watcher cache: {}", e))?;
+    
+    tx.execute("DELETE FROM tasks WHERE id = ?1", params![task_id])
+        .map_err(|e| format!("Failed to delete task: {}", e))?;
+
+    tx.commit()
+        .map_err(|e| format!("Transaction commit error: {}", e))?;
+
     drop(connection);
     if let Ok(workspace) = crate::utils::task_workspace(&task_id) {
         let _ = std::fs::remove_dir_all(workspace);

@@ -38,6 +38,8 @@ fn detect_python() -> Option<String> {
 /// Writes `code` to a temp file inside the workspace and executes it. Running
 /// from a file (instead of `-c`) keeps tracebacks and multi-line code sane.
 pub async fn run_python_action(
+    app_handle: Option<tauri::AppHandle>,
+    task_id: Option<String>,
     workspace: &Path,
     code: &str,
     timeout_secs: u64,
@@ -49,25 +51,93 @@ pub async fn run_python_action(
     std::fs::create_dir_all(workspace)
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
 
+    // Setup IPC server if we have context
+    let mut ipc_port = 0;
+    if let (Some(app), Some(tid)) = (app_handle, task_id) {
+        if let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await {
+            ipc_port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
+            tokio::spawn(async move {
+                while let Ok((stream, _)) = listener.accept().await {
+                    let app_clone = app.clone();
+                    let tid_clone = tid.clone();
+                    tokio::spawn(async move {
+                        handle_ipc_connection(stream, app_clone, tid_clone).await;
+                    });
+                }
+            });
+        }
+    }
+
     let script_path: PathBuf = workspace.join(format!("__zeus_action_{}.py", crate::db::new_id()));
     
     let sandbox_preamble = r#"
 import sys
 import os
+import json
+import socket
 
 _zeus_workspace = os.path.abspath(os.getcwd())
 _zeus_sys_prefix = os.path.abspath(sys.prefix)
 _zeus_sys_base = os.path.abspath(sys.base_prefix)
+_zeus_ipc_port = int(os.environ.get('ZEUS_IPC_PORT', '0'))
+_zeus_ipc_socket = None
+_zeus_ipc_f = None
+
+def _get_ipc_socket():
+    global _zeus_ipc_socket, _zeus_ipc_f
+    if _zeus_ipc_socket is None and _zeus_ipc_port != 0:
+        _zeus_ipc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _zeus_ipc_socket.connect(('127.0.0.1', _zeus_ipc_port))
+        _zeus_ipc_f = _zeus_ipc_socket.makefile('rw', encoding='utf-8')
+    return _zeus_ipc_f
+
+def _ask_gatekeeper(req):
+    f = _get_ipc_socket()
+    if not f:
+        # If IPC is disabled (e.g. tests), default to deny
+        return False
+    f.write(json.dumps(req) + '\n')
+    f.flush()
+    resp_line = f.readline()
+    if not resp_line:
+        return False
+    try:
+        resp = json.loads(resp_line)
+        return resp.get('status') == 'allow'
+    except Exception:
+        return False
+
+_zeus_approved_hosts = set()
 
 def _zeus_audit_hook(event, args):
-    if event == 'socket.connect' or event == 'socket.getaddrinfo':
-        raise PermissionError('Native network access is disabled in this sandbox. You MUST use the Zeus API tools (e.g. HttpRequest, BrowserNavigate) instead of Python network libraries.')
-    
-    # Block native OS execution which can bypass file and network rules
-    if event in ('subprocess.Popen', 'os.system', 'os.exec', 'os.spawn', 'os.posix_spawn'):
-        raise PermissionError('Native OS command execution (e.g. subprocess, os.system) is disabled in this sandbox. You MUST use the Zeus API tools (e.g. RunCommand) instead.')
+    global _zeus_approved_hosts
+    if event == 'socket.getaddrinfo':
+        host = args[0]
+        if isinstance(host, str) and host not in ('127.0.0.1', 'localhost', '::1'):
+            if host not in _zeus_approved_hosts:
+                req = {"type": "network", "url": host}
+                if not _ask_gatekeeper(req):
+                    raise PermissionError(f'Zeus Gatekeeper DENIED network access to {host}')
+                _zeus_approved_hosts.add(host)
+    elif event == 'socket.connect':
+        address = args[0] if len(args) > 0 else None
+        if isinstance(address, tuple) and len(address) > 0:
+            host = address[0]
+            if isinstance(host, str) and host not in ('127.0.0.1', 'localhost', '::1'):
+                if host not in _zeus_approved_hosts:
+                    req = {"type": "network", "url": host}
+                    if not _ask_gatekeeper(req):
+                        raise PermissionError(f'Zeus Gatekeeper DENIED network access to {host}')
+                    _zeus_approved_hosts.add(host)
 
-    # Block loading arbitrary native dynamic libraries (which can bypass audit hooks entirely)
+    if event in ('subprocess.Popen', 'os.system', 'os.exec', 'os.spawn', 'os.posix_spawn'):
+        cmd = str(args[0] if len(args)>0 else event)
+        if isinstance(args[0], list):
+            cmd = " ".join(str(x) for x in args[0])
+        req = {"type": "command", "command": cmd}
+        if not _ask_gatekeeper(req):
+            raise PermissionError(f'Zeus Gatekeeper DENIED OS command execution: {cmd}')
+
     if event in ('ctypes.dlopen', '_ctypes.dlopen'):
         raise PermissionError('Loading native dynamic libraries is disabled in this sandbox for security reasons.')
 
@@ -75,18 +145,15 @@ def _zeus_audit_hook(event, args):
         path = args[0]
         if isinstance(path, str):
             abs_path = os.path.abspath(path)
-            # Allow internal python libraries
             if abs_path.startswith(_zeus_sys_prefix) or abs_path.startswith(_zeus_sys_base):
                 return
-            # Allow workspace files
             if abs_path.startswith(_zeus_workspace):
                 return
-            # Otherwise, block reads and writes outside the workspace
             mode = args[1] if len(args) > 1 else 'r'
-            if 'w' in mode or 'a' in mode or '+' in mode:
-                raise PermissionError(f'Native file writes outside the workspace are disabled. Use the Zeus WriteFile tool. Blocked: {abs_path}')
-            else:
-                raise PermissionError(f'Native file reads outside the workspace are disabled. Use the Zeus ReadFile tool. Blocked: {abs_path}')
+            action = 'write' if ('w' in mode or 'a' in mode or '+' in mode) else 'read'
+            req = {"type": "file", "path": abs_path, "action": action}
+            if not _ask_gatekeeper(req):
+                raise PermissionError(f'Zeus Gatekeeper DENIED {action} access to {abs_path}')
 
 sys.addaudithook(_zeus_audit_hook)
 "#;
@@ -99,6 +166,7 @@ sys.addaudithook(_zeus_audit_hook)
     command
         .arg(&script_path)
         .current_dir(workspace)
+        .env("ZEUS_IPC_PORT", ipc_port.to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -110,9 +178,6 @@ sys.addaudithook(_zeus_audit_hook)
     let timeout = Duration::from_secs(timeout_secs.max(5));
     let mut timed_out = false;
 
-    // Read stdout/stderr concurrently with waiting. Pipes have a fixed OS
-    // buffer; if we wait for exit before draining, output past the buffer is
-    // dropped (this is what produced the "(empty)" stdout runs).
     let mut stdout_handle = child.stdout.take();
     let mut stderr_handle = child.stderr.take();
 
@@ -172,6 +237,121 @@ sys.addaudithook(_zeus_audit_hook)
     })
 }
 
+use tauri::Manager;
+use crate::db::AppState;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+
+async fn handle_ipc_connection(
+    mut stream: tokio::net::TcpStream,
+    app_handle: tauri::AppHandle,
+    task_id: String,
+) {
+    let (reader, mut writer) = stream.split();
+    let mut reader = tokio::io::BufReader::new(reader);
+    let mut line = String::new();
+
+    while let Ok(bytes) = reader.read_line(&mut line).await {
+        if bytes == 0 { break; }
+        
+        let req: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(r) => r,
+            Err(_) => {
+                line.clear();
+                continue;
+            }
+        };
+
+        let req_type = req["type"].as_str().unwrap_or("");
+        let state = app_handle.state::<AppState>();
+        
+        let verdict = match req_type {
+            "file" => {
+                let path = req["path"].as_str().unwrap_or("");
+                let action = req["action"].as_str().unwrap_or("read");
+                let conn = state.db.lock().unwrap();
+                crate::gatekeeper::evaluate_file_permission(&conn, &task_id, path, action).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+            },
+            "network" => {
+                let url = req["url"].as_str().unwrap_or("");
+                crate::gatekeeper::evaluate_network_action(&state, &task_id, url, "GET", None).await.unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+            },
+            "command" => {
+                let cmd = req["command"].as_str().unwrap_or("");
+                let conn = state.db.lock().unwrap();
+                crate::gatekeeper::evaluate_command_action(&conn, &task_id, cmd).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+            },
+            _ => crate::gatekeeper::PermissionVerdict::Ask,
+        };
+
+        let final_verdict = match verdict {
+            crate::gatekeeper::PermissionVerdict::Allow => "allow".to_string(),
+            crate::gatekeeper::PermissionVerdict::Deny => "deny".to_string(),
+            crate::gatekeeper::PermissionVerdict::Ask => {
+                let summary = match req_type {
+                    "file" => format!("Python Access: {} `{}`", req["action"].as_str().unwrap_or("read"), req["path"].as_str().unwrap_or("")),
+                    "network" => format!("Python Network: {}", req["url"].as_str().unwrap_or("")),
+                    "command" => format!("Python Command: {}", req["command"].as_str().unwrap_or("")),
+                    _ => "Python Action".to_string(),
+                };
+                
+                let blocked_dir = if req_type == "network" {
+                    crate::orchestrator::Directive::HttpRequest { url: req["url"].as_str().unwrap_or("").to_string(), method: "GET".to_string(), body: None }
+                } else if req_type == "command" {
+                    crate::orchestrator::Directive::RunCommand { command: req["command"].as_str().unwrap_or("").to_string() }
+                } else {
+                    crate::orchestrator::Directive::ReadFile { path: req["path"].as_str().unwrap_or("").to_string() }
+                };
+                
+                let mut approval_message = crate::chat::new_message(
+                    &task_id, "event", "approval",
+                    serde_json::json!({
+                        "summary": summary,
+                        "detail": "Requested by Python script sandbox",
+                        "status": "pending",
+                        "blocked_directive": blocked_dir,
+                    }).to_string(),
+                    None, None, true,
+                );
+                
+                let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut approval_message);
+                let approval_timestamp = approval_message.created_at.clone();
+
+                let mut decision = "deny".to_string();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    let conn = match state.db.lock() {
+                        Ok(c) => c,
+                        Err(_) => continue,
+                    };
+                    
+                    let status: Option<String> = conn.query_row(
+                        "SELECT json_extract(content, '$.status') FROM messages WHERE id = ?1",
+                        rusqlite::params![approval_message.id],
+                        |row| row.get(0)
+                    ).unwrap_or(None);
+
+                    if let Some(s) = status {
+                        if s == "approved" {
+                            decision = "allow".to_string();
+                            break;
+                        } else if s == "denied" {
+                            decision = "deny".to_string();
+                            break;
+                        }
+                    }
+                }
+                decision
+            }
+        };
+
+        let res = serde_json::json!({ "status": final_verdict });
+        let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
+        line.clear();
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,7 +361,7 @@ mod tests {
     #[tokio::test]
     async fn large_stdout_is_not_dropped() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
-        let outcome = run_python_action(&workspace, "print('x' * 200000)", 30)
+        let outcome = run_python_action(None, None, &workspace, "print('x' * 200000)", 30)
             .await
             .expect("runner failed");
         assert_eq!(outcome.exit_code, 0);
@@ -198,6 +378,7 @@ mod tests {
     async fn nonzero_exit_and_stderr_are_captured() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
         let outcome = run_python_action(
+            None, None,
             &workspace,
             "import sys\nsys.stderr.write('boom')\nsys.exit(3)",
             30,
@@ -214,6 +395,7 @@ mod tests {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
 
         let mut future = Box::pin(run_python_action(
+            None, None,
             &workspace,
             "import time\ntime.sleep(60)\nprint('should not finish')",
             120,
@@ -244,6 +426,7 @@ mod tests {
     async fn sandbox_blocks_network_socket() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
         let outcome = run_python_action(
+            None, None,
             &workspace,
             "import socket\nsocket.create_connection(('8.8.8.8', 53))",
             30,
@@ -267,7 +450,7 @@ test_file = os.path.join(parent_dir, 'zeus_hack_test.txt')
 with open(test_file, 'w') as f:
     f.write('hacked')
 "#;
-        let outcome = run_python_action(&workspace, code, 30).await.expect("runner failed");
+        let outcome = run_python_action(None, None, &workspace, code, 30).await.expect("runner failed");
         
         assert_eq!(outcome.exit_code, 1);
         assert!(outcome.stderr.contains("Native file writes outside the workspace are disabled"));
@@ -281,7 +464,7 @@ with open(test_file, 'w') as f:
 with open('local_test.txt', 'w') as f:
     f.write('allowed')
 "#;
-        let outcome = run_python_action(&workspace, code, 30).await.expect("runner failed");
+        let outcome = run_python_action(None, None, &workspace, code, 30).await.expect("runner failed");
         
         assert_eq!(outcome.exit_code, 0, "stderr was: {}", outcome.stderr);
         let content = std::fs::read_to_string(workspace.join("local_test.txt")).unwrap();

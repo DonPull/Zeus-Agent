@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+tests/e2e/.test_workspace/
+tests/advanced_e2e/results/
+test-results/
+playwright-report/
+
+# Misc
+codebase-export.txt
