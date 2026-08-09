@@ -26,7 +26,7 @@ function TaskPermissionsModal({ taskId, taskTitle, onToast, onClose }) {
     const handleAddPermission = async () => {
         if (!newPermPath.trim()) return;
         try {
-            const added = await bridge.addFilePermission(taskId, newPermPath.trim(), newPermAction, newPermType);
+            const added = await bridge.addFilePermission(taskId, newPermPath.trim(), newPermAction, newPermType, "prefix");
             setPermissions([added, ...permissions]);
             setNewPermPath("");
             onToast("Task permission added.", "success", 2000);

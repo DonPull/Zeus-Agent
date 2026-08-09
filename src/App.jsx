@@ -219,7 +219,13 @@ function App() {
             if (cmdToSave && typeToSave) {
                 try {
                     const scope = activeTaskIdRef.current;
-                    await bridge.addFilePermission(scope, cmdToSave, "allow", typeToSave);
+                    let matchType = "prefix";
+                    if (typeToSave === "command") {
+                        if (mode === "once" || mode === "task_exact" || mode === "task_full") {
+                            matchType = "exact";
+                        }
+                    }
+                    await bridge.addFilePermission(scope, cmdToSave, "allow", typeToSave, matchType);
                     showToast(`Permission saved for: ${cmdToSave}`, "success", 2000);
                 } catch (err) {
                     showToast(`Failed to save permission: ${err}`);
@@ -289,7 +295,12 @@ function App() {
                 }
                 showToast("Zeus stopped the run.", "info", 3500);
             } else if (errStr.includes("BUDGET_EXCEEDED")) {
-                // Do not create a local chat event. Chat contents must come from the DB.
+                if (activeTaskIdRef.current === taskAtSend) {
+                    await Promise.all([
+                        reconcileMessages(taskAtSend),
+                        reconcileRunState(taskAtSend),
+                    ]);
+                }
                 showToast("This task reached its unit budget.", "warning", 7000);
             } else if (errStr.includes("REQUEST_ALREADY_EXISTS")) {
                 if (activeTaskIdRef.current === taskAtSend) {
@@ -548,7 +559,6 @@ function App() {
                         task={activeTask}
                         onClose={() => setIsTaskSettingsOpen(false)}
                         onSave={(updatedTask) => {
-                            setActiveTask(updatedTask);
                             setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                             setIsTaskSettingsOpen(false);
                             showToast("Task settings saved", "success", 3000);

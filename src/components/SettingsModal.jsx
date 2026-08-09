@@ -30,7 +30,7 @@ export const ModelDropdown = ({ value, options, onChange }) => {
 
     // Ensure default models are present
     const fullOptions = [...options];
-    ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"].forEach(m => {
+    ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp", "deepseek/deepseek-chat"].forEach(m => {
         if (!fullOptions.includes(m)) fullOptions.push(m);
     });
 
@@ -197,7 +197,7 @@ function SettingsModal({ onToast, onClose }) {
     const handleAddPermission = async () => {
         if (!newPermPath.trim()) return;
         try {
-            const added = await bridge.addFilePermission("global", newPermPath.trim(), newPermAction, newPermType);
+            const added = await bridge.addFilePermission("global", newPermPath.trim(), newPermAction, newPermType, "prefix");
             setPermissions([added, ...permissions]);
             setNewPermPath("");
             onToast("Global permission added.", "success", 2000);
@@ -280,7 +280,7 @@ function SettingsModal({ onToast, onClose }) {
         <div className="modal column gap-20" style={{ padding: "24px", minWidth: "500px", maxHeight: "80vh", overflowY: "auto" }}>
             <div className="align-center justify-space-between">
                 <h2 style={{ margin: 0 }}>Settings</h2>
-                <button className="icon-button" onClick={onClose}>
+                <button id="settings-close-button" className="icon-button" onClick={onClose}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>

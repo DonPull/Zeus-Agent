@@ -282,13 +282,24 @@ pub fn evaluate_command_action(
     task_id: &str,
     command: &str,
 ) -> Result<PermissionVerdict, String> {
-    // Check if the command contains shell injection operators
-    let is_composite = command.contains('&') 
-        || command.contains('|') 
-        || command.contains(';') 
-        || command.contains('>') 
-        || command.contains('<') 
-        || command.contains("$(");
+    let mut is_composite = false;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    
+    let chars: Vec<char> = command.chars().collect();
+    for i in 0..chars.len() {
+        let c = chars[i];
+        if c == '\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+        } else if c == '"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+        } else if !in_single_quote && !in_double_quote {
+            if c == '&' || c == '|' || c == ';' || c == '>' || c == '<' || (c == '$' && i + 1 < chars.len() && chars[i+1] == '(') {
+                is_composite = true;
+                break;
+            }
+        }
+    }
 
     if is_composite {
         crate::logger::log(task_id, "gatekeeper", &format!("Shell injection pattern detected in command: `{}`. Disabling prefix matches.", command));

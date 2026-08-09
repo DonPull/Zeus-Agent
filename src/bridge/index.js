@@ -32,7 +32,7 @@ export const getDebugLog       = (taskId)         => invoke("get_debug_log", { t
 
 // ---- Gatekeeper ------------------------------------------------------------
 export const getFilePermissions    = (scope)      => invoke("get_file_permissions", { scope });
-export const addFilePermission     = (scope, path, action, permissionType) => invoke("add_file_permission", { scope, path, action, permissionType });
+export const addFilePermission     = (scope, path, action, permissionType, matchType) => invoke("add_file_permission", { scope, path, action, permissionType, matchType });
 export const deleteFilePermission  = (id)         => invoke("delete_file_permission", { id });
 
 export const getWatcherPolicies       = (scope)                                 => invoke("get_watcher_policies", { scope });

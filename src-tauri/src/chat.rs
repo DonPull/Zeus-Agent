@@ -763,6 +763,12 @@ pub async fn send_user_message(
         let mut task = load_task(&connection, &task_id)?;
 
         if task.spent_credits >= task.budget_credits as f64 {
+            let mut note = new_message(
+                &task_id, "event", "chat",
+                "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
+                None, None, true,
+            );
+            insert_message(&connection, &mut note)?;
             return Err("BUDGET_EXCEEDED".into());
         }
 
@@ -937,6 +943,17 @@ pub async fn send_user_message(
         let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
             Ok(v) => v,
             Err(e) => {
+                if e == "BUDGET_EXCEEDED" {
+                    let mut note = new_message(
+                        &task_id, "event", "chat",
+                        "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
+                        None, None, true,
+                    );
+                    persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
+                    produced_final = true;
+                    break;
+                }
+
                 // Persist the failure as an event so it survives reloads.
                 crate::logger::log(&task_id, "gateway", &format!("model call failed: {}", e));
                 let mut error_message = new_message(
@@ -1383,18 +1400,24 @@ pub async fn send_user_message(
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
                                 let workspace = crate::utils::task_workspace(&task_id)?;
-                                let output = tokio::process::Command::new("cmd")
+                                let output_future = tokio::process::Command::new("cmd")
                                     .args(&["/c", &command])
                                     .current_dir(workspace)
-                                    .output()
-                                    .await;
-                                let res = match output {
-                                    Ok(out) => {
+                                    .output();
+                                
+                                let output_result = tokio::time::timeout(
+                                    std::time::Duration::from_secs(300),
+                                    output_future
+                                ).await;
+
+                                let res = match output_result {
+                                    Ok(Ok(out)) => {
                                         let stdout = String::from_utf8_lossy(&out.stdout).to_string();
                                         let stderr = String::from_utf8_lossy(&out.stderr).to_string();
                                         format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
                                     }
-                                    Err(e) => format!("Failed to execute command: {}", e),
+                                    Ok(Err(e)) => format!("Failed to execute command: {}", e),
+                                    Err(_) => "Command timed out after 300 seconds.".to_string(),
                                 };
                                 let result_json = serde_json::json!({ "command_result": res });
                                 let msg = orchestrator::directive_result_message(&result_json);

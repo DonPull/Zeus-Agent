@@ -131,9 +131,20 @@ def _zeus_audit_hook(event, args):
                     _zeus_approved_hosts.add(host)
 
     if event in ('subprocess.Popen', 'os.system', 'os.exec', 'os.spawn', 'os.posix_spawn'):
-        cmd = str(args[0] if len(args)>0 else event)
-        if isinstance(args[0], list):
-            cmd = " ".join(str(x) for x in args[0])
+        exe = args[0] if len(args) > 0 else None
+        cmd_args = args[1] if len(args) > 1 else None
+        
+        if exe is None and cmd_args is not None:
+            if isinstance(cmd_args, list):
+                cmd = " ".join(str(x) for x in cmd_args)
+            else:
+                cmd = str(cmd_args)
+        else:
+            if isinstance(exe, list):
+                cmd = " ".join(str(x) for x in exe)
+            else:
+                cmd = str(exe if exe is not None else event)
+                
         req = {"type": "command", "command": cmd}
         if not _ask_gatekeeper(req):
             raise PermissionError(f'Zeus Gatekeeper DENIED OS command execution: {cmd}')
@@ -167,6 +178,7 @@ sys.addaudithook(_zeus_audit_hook)
         .arg(&script_path)
         .current_dir(workspace)
         .env("ZEUS_IPC_PORT", ipc_port.to_string())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);

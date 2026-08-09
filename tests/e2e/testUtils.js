@@ -80,7 +80,7 @@ function stopMockServer() {
 }
 
 // Launch Tauri using CDP
-async function launchTauri() {
+async function launchTauri(useRealApi = false) {
   return new Promise(async (resolve, reject) => {
     // Robust cleanup: Always clear the test DB before running tests
     if (fs.existsSync(testWorkspaceDir)) {
@@ -91,15 +91,20 @@ async function launchTauri() {
 
     console.log(`Starting cargo run with CDP port ${cdpPort}...`);
 
+    const env = {
+      ...process.env,
+      ZEUS_TEST_WORKSPACE_ROOT: testWorkspaceDir,
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`, // Ensure WebView2 gets the port
+      WEBVIEW2_USER_DATA_FOLDER: path.join(testWorkspaceDir, `wv2_${cdpPort}`)
+    };
+
+    if (!useRealApi) {
+      env.ZEUS_API_BASE_URL = `http://localhost:${mockServerPort}/`;
+    }
+
     tauriProcess = spawn('cargo', ['run', '--', '--remote-debugging-port', cdpPort.toString()], {
       cwd: path.join(__dirname, '..', '..', 'src-tauri'),
-      env: {
-        ...process.env,
-        ZEUS_API_BASE_URL: `http://localhost:${mockServerPort}/`,
-        ZEUS_TEST_WORKSPACE_ROOT: testWorkspaceDir,
-        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`, // Ensure WebView2 gets the port
-        WEBVIEW2_USER_DATA_FOLDER: path.join(testWorkspaceDir, `wv2_${cdpPort}`)
-      },
+      env,
       shell: process.platform === 'win32'
     });
 

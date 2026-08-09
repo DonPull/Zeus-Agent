@@ -37,9 +37,12 @@ const TaskSettingsModal = ({ task, onClose, onSave }) => {
 
     const handleSaveSettings = async () => {
         setSaving(true);
+        console.log("[TaskSettingsModal] Saving settings...", settings);
         try {
             await bridge.updateTaskSettings(task.id, settings);
+            console.log("[TaskSettingsModal] updateTaskSettings resolved!");
             onSave({ ...task, ...settings });
+            console.log("[TaskSettingsModal] onSave called!");
         } catch (e) {
             console.error("Failed to save task settings", e);
             alert("Failed to save task settings: " + e);

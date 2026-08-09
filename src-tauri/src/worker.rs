@@ -171,10 +171,10 @@ pub async fn run_worker(
     );
     persist_and_emit(state, app_handle, task_id, &mut initial_user_msg)?;
 
-    let (worker_model, verifier_model) = {
+    let (worker_model, verifier_model, budget_units) = {
         let conn = state.db.lock().unwrap();
         let t = crate::chat::load_task(&conn, task_id).map_err(|e| e.to_string())?;
-        (t.worker_model, t.verifier_model)
+        (t.worker_model, t.verifier_model, t.budget_credits)
     };
 
     let max_retries = 3;
@@ -234,6 +234,10 @@ pub async fn run_worker(
                 record_spend(&conn, task_id, &actual_model, &usage, &usage_json).unwrap_or(0.0)
             };
             current_spend += units;
+
+            if current_spend >= budget_units as f64 {
+                break Err("BUDGET_EXCEEDED".to_string());
+            }
 
             match orchestrator::parse_master_reply(&reply_text) {
                 orchestrator::MasterReply::Text(text) => {

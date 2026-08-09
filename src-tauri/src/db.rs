@@ -184,6 +184,8 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         let _ = connection.execute("ALTER TABLE tasks ADD COLUMN worker_model TEXT NOT NULL DEFAULT ''", []);
         let _ = connection.execute("ALTER TABLE tasks ADD COLUMN verifier_model TEXT NOT NULL DEFAULT ''", []);
         let _ = connection.execute("ALTER TABLE tasks ADD COLUMN watcher_model TEXT NOT NULL DEFAULT ''", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN budget_credits INTEGER NOT NULL DEFAULT 40000", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN spent_credits REAL NOT NULL DEFAULT 0", []);
         
         let _ = connection.execute(
             "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4",
@@ -221,12 +223,9 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         .and_then(|mut s| s.exists([]))
         .unwrap_or(false);
     if !has_visible {
-        connection
-            .execute(
-                "ALTER TABLE messages ADD COLUMN visible INTEGER NOT NULL DEFAULT 1",
-                [],
-            )
-            .map_err(|e| format!("Failed to add the messages.visible column: {}", e))?;
+        let _ = connection.execute("ALTER TABLE messages ADD COLUMN visible INTEGER NOT NULL DEFAULT 1", []);
+        let _ = connection.execute("ALTER TABLE messages ADD COLUMN usage_json TEXT", []);
+        let _ = connection.execute("ALTER TABLE messages ADD COLUMN model_used TEXT", []);
     }
     connection
         .execute(
