@@ -2,6 +2,7 @@
 
 mod chat;
 pub mod db;
+pub mod browser_manager;
 pub mod gatekeeper;
 pub mod gateway;
 pub mod logger;
@@ -28,6 +29,7 @@ pub fn run() {
         .manage(db::AppState {
             db: std::sync::Mutex::new(connection),
             active_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
+            browser_manager: browser_manager::BrowserManager::new(),
         })
         .invoke_handler(tauri::generate_handler![
             chat::create_task,
@@ -38,6 +40,7 @@ pub fn run() {
             chat::cancel_task_run,
             chat::send_user_message,
             chat::resolve_pending_approvals,
+            chat::resolve_handoff,
             chat::rename_task,
             chat::update_task_settings,
             chat::delete_task,
@@ -56,6 +59,9 @@ pub fn run() {
             gatekeeper::add_watcher_policy,
             gatekeeper::delete_watcher_policy,
             gatekeeper::negotiate_watcher_policy,
+            browser_manager::start_browser_handoff,
+            browser_manager::finish_browser_handoff,
+            browser_manager::get_browser_history,
         ])
         .run(generate_context!())
         .expect("error while running tauri application");

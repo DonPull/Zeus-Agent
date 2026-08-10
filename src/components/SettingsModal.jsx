@@ -369,6 +369,36 @@ function SettingsModal({ onToast, onClose }) {
                     </div>
                     <label className="settings-hint">Hard cap enforced by the Rust core per task. 1 unit = 1 token or 1 tool call — the master sees its spend and can plan around it.</label>
                 </div>
+
+                <div className="settings-section column gap-10">
+                    <label className="settings-section-label">Browser</label>
+                    <div className="settings-model-row align-center gap-10">
+                        <label>Default Browser Mode</label>
+                        <select 
+                            className="settings-input" 
+                            style={{ flex: 1 }}
+                            value={settings.browser_mode || "sandboxed"} 
+                            onChange={e => updateSetting("browser_mode", e.target.value)}
+                        >
+                            <option value="sandboxed">Workspace Sandboxed Browser (Isolated)</option>
+                            <option value="main">User Main Browser Takeover</option>
+                        </select>
+                    </div>
+                    {settings.browser_mode === "main" && (
+                        <div className="settings-model-row align-center gap-10">
+                            <label>Browser Executable (Optional)</label>
+                            <input
+                                type="text"
+                                className="settings-input"
+                                style={{ flex: 1 }}
+                                placeholder="Auto-detect or enter path to browser .exe"
+                                value={settings.browser_executable_path || ""}
+                                onChange={(e) => updateSetting("browser_executable_path", e.target.value)}
+                            />
+                        </div>
+                    )}
+                    <label className="settings-hint">Sandboxed creates a new empty browser per chat. Main Takeover uses your daily browser (you must close it first).</label>
+                </div>
             </div>
 
             <div className="column gap-20">

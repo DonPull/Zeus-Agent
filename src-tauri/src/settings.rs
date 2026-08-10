@@ -17,6 +17,8 @@ pub struct AppSettings {
     pub verifier_model: String,
     pub watcher_model: String,
     pub default_budget_credits: i64,
+    pub browser_mode: String,
+    pub browser_executable_path: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -27,6 +29,8 @@ impl Default for AppSettings {
             verifier_model: "grok-4.5".into(),
             watcher_model: "grok-4.5".into(),
             default_budget_credits: 40000,
+            browser_mode: "sandboxed".into(),
+            browser_executable_path: None,
         }
     }
 }
@@ -63,6 +67,8 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
         default_budget_credits: get_setting(connection, "default_budget_credits")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(defaults.default_budget_credits),
+        browser_mode: get_setting(connection, "browser_mode")?.unwrap_or_else(|| defaults.browser_mode),
+        browser_executable_path: get_setting(connection, "browser_executable_path")?,
     })
 }
 
@@ -84,11 +90,18 @@ pub fn save_settings(state: State<AppState>, settings: AppSettings) -> Result<()
     set_setting(&connection, "master_model", &settings.master_model)?;
     set_setting(&connection, "worker_model", &settings.worker_model)?;
     set_setting(&connection, "verifier_model", &settings.verifier_model)?;
+    set_setting(&connection, "watcher_model", &settings.watcher_model)?;
     set_setting(
         &connection,
         "default_budget_credits",
         &settings.default_budget_credits.to_string(),
     )?;
+    set_setting(&connection, "browser_mode", &settings.browser_mode)?;
+    if let Some(path) = &settings.browser_executable_path {
+        set_setting(&connection, "browser_executable_path", path)?;
+    } else {
+        let _ = connection.execute("DELETE FROM settings WHERE key = 'browser_executable_path'", []);
+    }
     Ok(())
 }
 
@@ -150,6 +163,8 @@ pub fn load_gemini_api_key() -> Result<String, String> {
 /// flip this to true so the app uses the baked-in prompt and never writes the file.
 pub const EMBED_PROMPT: bool = false;
 
+pub const EXPECTED_PROMPT_VERSION: &str = "2.5";
+
 /// The file name inside the per-user app data dir.
 pub const PROMPT_FILE_NAME: &str = "master.txt";
 
@@ -160,8 +175,6 @@ fn app_data_dir() -> Result<std::path::PathBuf, String> {
     crate::utils::workspace_root()
 }
 
-/// Ensures the prompts directory and prompt file exist, seeding the file from
-/// the embedded default on first run. Returns the prompt content to use.
 pub fn load_master_prompt() -> Result<String, String> {
     if EMBED_PROMPT {
         return Ok(DEFAULT_MASTER_PROMPT.to_string());
@@ -169,10 +182,28 @@ pub fn load_master_prompt() -> Result<String, String> {
     let dir = app_data_dir()?.join("prompts");
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create the prompts folder: {}", e))?;
     let path = dir.join(PROMPT_FILE_NAME);
+    
+    let default_first_line = DEFAULT_MASTER_PROMPT.lines().next().unwrap_or("");
+    let mut needs_update = false;
+
     if !path.exists() {
-        fs::write(&path, DEFAULT_MASTER_PROMPT)
-            .map_err(|e| format!("Failed to seed the master prompt file: {}", e))?;
+        needs_update = true;
+    } else {
+        if let Ok(content) = fs::read_to_string(&path) {
+            let existing_first_line = content.lines().next().unwrap_or("");
+            if existing_first_line != default_first_line {
+                needs_update = true;
+            }
+        } else {
+            needs_update = true;
+        }
     }
+
+    if needs_update {
+        fs::write(&path, DEFAULT_MASTER_PROMPT)
+            .map_err(|e| format!("Failed to seed or update the master prompt file: {}", e))?;
+    }
+
     let content = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read the master prompt file: {}", e))?;
     let trimmed = content.trim();

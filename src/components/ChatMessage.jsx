@@ -68,6 +68,35 @@ function ApprovalCard({ message, onDecision }) {
     const baseApp = cmd ? cmd.split(" ")[0] : null;
     const isComposite = cmd ? /[&|;><]|(\$\()/.test(cmd) : false;
 
+    // File request logic
+    const isFileRequest = data.blocked_directive && (data.blocked_directive.type === "read_file" || data.blocked_directive.type === "write_file");
+    const isPythonFileRequest = summaryStr.startsWith("Python Access: ");
+    const hasFileAccess = isFileRequest || isPythonFileRequest;
+    
+    let filePath = null;
+    let fileAction = null;
+    if (isFileRequest) {
+        filePath = data.blocked_directive.path;
+        fileAction = data.blocked_directive.type === "read_file" ? "read" : "write";
+    } else if (isPythonFileRequest) {
+        const match = summaryStr.match(/Python Access: (\w+) `([^`]+)`/);
+        if (match) {
+            fileAction = match[1];
+            filePath = match[2];
+        }
+    }
+
+    let parentDir = null;
+    if (filePath) {
+        const parts = filePath.replace(/\\/g, "/").split("/");
+        if (parts.length > 1) {
+            parts.pop();
+            parentDir = parts.join("/");
+        }
+    }
+
+    const showDropdown = isCommand || hasFileAccess;
+
     return (
         <div className="chat-message event">
             <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
@@ -85,9 +114,9 @@ function ApprovalCard({ message, onDecision }) {
                         
                         <div style={{ position: "relative" }} className="align-center">
                             <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive })}>
-                                <label>Approve</label>
+                                <label>Approve (Once)</label>
                             </button>
-                            {isCommand && cmd && (
+                            {showDropdown && (
                                 <button className="settings-button" style={{ marginLeft: "5px", padding: "4px 8px" }} onClick={() => setDropdownOpen(!dropdownOpen)} title="More options">
                                     <label>▾</label>
                                 </button>
@@ -116,6 +145,22 @@ function ApprovalCard({ message, onDecision }) {
                                             🔴 Always Deny Prefix `{baseApp}` (Task)
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {dropdownOpen && hasFileAccess && filePath && (
+                                <div className="approval-dropdown column">
+                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
+                                        🟢 Always Allow Access to This File (Task)
+                                    </div>
+                                    {parentDir && (
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_parent_dir", path: parentDir, permissionType: fileAction }); }}>
+                                            🟢 Always Allow Access to Parent Directory (Task)
+                                        </div>
+                                    )}
+                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
+                                        🔴 Always Deny Access to This File (Task)
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -152,6 +197,41 @@ function WorkerCard({ message }) {
     );
 }
 
+function HandoffCard({ message, onDecision }) {
+    const data = useMemo(() => parseEventContent(message), [message]);
+    if (!data) return null;
+
+    const pending = data.status === "pending";
+
+    return (
+        <div className="chat-message event">
+            <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
+                <div className="approval-card-header align-center justify-space-between no-user-select">
+                    <span className="approval-card-title">Browser Handoff Needed</span>
+                    <span className="approval-card-status">{pending ? "waiting for user" : data.status}</span>
+                </div>
+                
+                <div className="approval-card-body">
+                    Zeus needs you to complete a manual task in the browser before it can continue.
+                    {data.reason && <div style={{ marginTop: "10px", padding: "10px", background: "rgba(0,0,0,0.1)", borderRadius: "6px" }}><strong>Reason:</strong> {data.reason}</div>}
+                </div>
+                
+                {pending ? (
+                    <div className="align-center gap-10" style={{ marginTop: "10px" }}>
+                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once" })}>
+                            <label>Cancel Task</label>
+                        </button>
+                        
+                        <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once" })}>
+                            <label>Done, Resume Agent</label>
+                        </button>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 function ReasoningPill({ reasoning, streaming }) {
     const [open, setOpen] = useState(true);
     if (!reasoning) return null;
@@ -167,7 +247,7 @@ function ReasoningPill({ reasoning, streaming }) {
     );
 }
 
-function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDecision }) {
+function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDecision, onHandoffDecision }) {
     if (message.role === "user") {
         return (
             <div className="chat-message user">
@@ -183,6 +263,7 @@ function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDec
     if (message.role === "event") {
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
+        if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;
         if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
         return (
             <div className="chat-message event">

@@ -8,7 +8,9 @@ const TaskSettingsModal = ({ task, onClose, onSave }) => {
         worker_model: task.worker_model || "gemini-1.5-pro",
         verifier_model: task.verifier_model || "gemini-1.5-pro",
         watcher_model: task.watcher_model || "grok-4.5",
-        budget_credits: task.budget_credits || 1000
+        budget_credits: task.budget_credits || 1000,
+        browser_mode: task.browser_mode || "sandboxed",
+        browser_executable_path: task.browser_executable_path || ""
     });
     const [availableModels, setAvailableModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
@@ -107,6 +109,37 @@ const TaskSettingsModal = ({ task, onClose, onSave }) => {
                         />
                     </div>
                     <label className="settings-hint">Hard cap enforced by the Rust core for this specific task. 1 unit = 1 token or 1 tool call.</label>
+                </div>
+            </div>
+
+            <div className="column gap-20">
+                <h3 style={{ margin: 0, opacity: 0.9 }}>Browser</h3>
+                <div className="settings-section column gap-10">
+                    <div className="settings-model-row align-center gap-10">
+                        <label>Browser Mode</label>
+                        <select 
+                            className="settings-input" 
+                            style={{ flex: 1 }}
+                            value={settings.browser_mode} 
+                            onChange={e => updateSetting("browser_mode", e.target.value)}
+                        >
+                            <option value="sandboxed">Workspace Sandboxed Browser (Isolated)</option>
+                            <option value="main">User Main Browser Takeover</option>
+                        </select>
+                    </div>
+                    {settings.browser_mode === "main" && (
+                        <div className="settings-model-row align-center gap-10">
+                            <label>Browser Executable (Optional)</label>
+                            <input
+                                type="text"
+                                className="settings-input"
+                                style={{ flex: 1 }}
+                                placeholder="Auto-detect or enter path to browser .exe"
+                                value={settings.browser_executable_path}
+                                onChange={(e) => updateSetting("browser_executable_path", e.target.value)}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 

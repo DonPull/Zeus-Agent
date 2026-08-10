@@ -11,6 +11,7 @@ import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import SettingsModal from "./components/SettingsModal";
 import TaskSettingsModal from "./components/TaskSettingsModal";
+import BrowserHistoryModal from "./components/BrowserHistoryModal";
 import ChatLogModal from "./components/ChatLogModal";
 import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
@@ -45,8 +46,10 @@ function App() {
     // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isTaskSettingsOpen, setIsTaskSettingsOpen] = useState(false);
+    const [isBrowserHistoryOpen, setIsBrowserHistoryOpen] = useState(false);
     const [isTaskPermsOpen, setIsTaskPermsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
+    const [isActionPlanOpen, setIsActionPlanOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
     const [inputValue, setInputValue] = useState("");
     const [toastObj, setToastObj] = useState({ show: false, message: null, duration: 3000, type: "error" });
@@ -200,20 +203,14 @@ function App() {
             let cmdToSave = null;
             let typeToSave = null;
 
-            if (mode === "once" && permData.blocked) {
-                if (permData.blocked.type === "run_command") {
-                    cmdToSave = permData.blocked.command;
+            if (mode && mode.startsWith("task_")) {
+                if (permData.command) {
+                    cmdToSave = mode === "task_app" ? permData.command.split(" ")[0] : permData.command;
                     typeToSave = "command";
-                } else if (permData.blocked.type === "read_file") {
-                    cmdToSave = permData.blocked.path;
-                    typeToSave = "read";
-                } else if (permData.blocked.type === "write_file") {
-                    cmdToSave = permData.blocked.path;
-                    typeToSave = "write";
+                } else if (permData.path && permData.permissionType) {
+                    cmdToSave = permData.path;
+                    typeToSave = permData.permissionType;
                 }
-            } else if (mode && mode.startsWith("task_") && permData.command) {
-                cmdToSave = mode === "task_app" ? permData.command.split(" ")[0] : permData.command;
-                typeToSave = "command";
             }
 
             if (cmdToSave && typeToSave) {
@@ -221,9 +218,13 @@ function App() {
                     const scope = activeTaskIdRef.current;
                     let matchType = "prefix";
                     if (typeToSave === "command") {
-                        if (mode === "once" || mode === "task_exact" || mode === "task_full") {
+                        if (mode === "task_exact" || mode === "task_full") {
                             matchType = "exact";
                         }
+                    } else if (mode === "task_parent_dir") {
+                        matchType = "prefix";
+                    } else if (mode === "task_exact") {
+                        matchType = "exact";
                     }
                     await bridge.addFilePermission(scope, cmdToSave, "allow", typeToSave, matchType);
                     showToast(`Permission saved for: ${cmdToSave}`, "success", 2000);
@@ -233,10 +234,6 @@ function App() {
             }
         }
         
-        const verb = approved ? "APPROVED" : "DENIED";
-        const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
-        const retryInstruction = approved ? " Please retry your last directive now that permission is granted." : " Please find an alternative approach or report failure.";
-        
         try {
             await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved);
             await reconcileMessages(activeTaskIdRef.current);
@@ -244,7 +241,28 @@ function App() {
             console.error("Failed to resolve pending approvals", err);
         }
 
+        const verb = approved ? "APPROVED" : "DENIED";
+        const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
+        const retryInstruction = approved 
+            ? " The directive has been executed natively and the results are available in your context. Please proceed using the results." 
+            : " Please find an alternative approach or report failure.";
+            
         handleSend(`[APPROVAL DECISION] ${verb}.${extra}${retryInstruction}`);
+    };
+
+    const handleHandoffDecision = async (approved, note) => {
+        const verb = approved ? "COMPLETED" : "CANCELLED";
+        const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
+        const instruction = approved ? " You may now continue." : " Please abort the task or find an alternative approach.";
+        
+        try {
+            await bridge.resolveHandoff(activeTaskIdRef.current, approved, note || "");
+            await reconcileMessages(activeTaskIdRef.current);
+        } catch (err) {
+            console.error("Failed to resolve handoff", err);
+        }
+
+        handleSend(`[HANDOFF ${verb}]${extra}${instruction}`);
     };
 
     const handleSend = async (overrideContent) => {
@@ -522,9 +540,16 @@ function App() {
     // P0: the backend owns visibility. Hidden pipeline messages still arrive
     // via events (for the debug log) but are filtered by the DB flag alone.
     const visibleMessages = messages.filter((m) => m.visible !== false && m.kind !== "action_plan");
-
     const actionPlanMessage = messages.filter((m) => m.kind === "action_plan").pop();
     const actionPlanMarkdown = actionPlanMessage ? actionPlanMessage.content : "";
+
+    useEffect(() => {
+        if (actionPlanMessage) {
+            setIsActionPlanOpen(true);
+        } else {
+            setIsActionPlanOpen(false);
+        }
+    }, [actionPlanMessage?.id]);
 
     return (
         <main id="app-container">
@@ -619,18 +644,30 @@ function App() {
                                 <button id="chat-log-button" title="View the full chat log and copy it" onClick={() => setIsChatLogOpen(true)}>
                                     <label>Chat log</label>
                                 </button>
+                                <button className="settings-button" title="View Browser History" onClick={() => setIsBrowserHistoryOpen(true)}>
+                                    <label>Browser History</label>
+                                </button>
                                 <button className="settings-button" title="Chat-scoped File Permissions" onClick={() => setIsTaskPermsOpen(true)}>
                                     <label>Permissions</label>
                                 </button>
                                 <button className="settings-button" title="Chat-scoped Settings" onClick={() => setIsTaskSettingsOpen(true)}>
                                     <label>Settings</label>
                                 </button>
+                                <button className={`settings-button ${isActionPlanOpen ? 'active' : ''}`} title="Toggle Action Plan" onClick={() => setIsActionPlanOpen(!isActionPlanOpen)}>
+                                    <label>Action Plan</label>
+                                </button>
                             </div>
                         </div>
 
+                        <BrowserHistoryModal
+                            isOpen={isBrowserHistoryOpen}
+                            onClose={() => setIsBrowserHistoryOpen(false)}
+                            taskId={activeTaskIdRef.current}
+                        />
+
                         <div ref={messagesContainerRef} id="chat-messages" className="column gap-15" onScroll={handleMessagesScroll}>
                             {visibleMessages.map((message) => (
-                                <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} />
+                                <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} onHandoffDecision={handleHandoffDecision} />
                             ))}
                             {activeTaskIsSending && (
                                 <div className="chat-message assistant">
@@ -720,7 +757,9 @@ function App() {
                 )}
             </div>
 
-            <ActionPlanPanel actionPlanMarkdown={actionPlanMarkdown} />
+            {isActionPlanOpen && (
+                <ActionPlanPanel actionPlanMarkdown={actionPlanMarkdown} onClose={() => setIsActionPlanOpen(false)} />
+            )}
         </main>
     );
 }

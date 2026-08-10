@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { expect } from '@playwright/test';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +17,7 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
     });
 
     // Click "New Task"
-    await page.click('#new-task-button, #empty-state-new-task-button');
+    await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
 
     // Open Settings
     await page.click('.settings-button:has-text("Settings")');
@@ -73,11 +74,15 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
     if (expectedText) {
         const endTime = Date.now() + timeoutMs;
         while (Date.now() < endTime) {
-            // Check if expectedText is present anywhere in the assistant or event messages
-            const chatLog = page.locator('.chat-message.assistant, .chat-message.event');
+            // Check for credit exhaustion
+            const chatLog = page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system');
             if (await chatLog.count() > 0) {
                 const text = await chatLog.allInnerTexts();
-                if (text.join('\n').includes(expectedText)) {
+                const joinedText = text.join('\n');
+                if (joinedText.includes('BUDGET_EXCEEDED') || joinedText.includes('credit') && joinedText.includes('run out')) {
+                    throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
+                }
+                if (joinedText.includes(expectedText)) {
                     return; // Success!
                 }
             }
@@ -97,6 +102,38 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
                 await page.waitForTimeout(1000);
             }
 
+            // Check if there's a pending handoff card
+            const pendingHandoff = page.locator('.approval-card.pending button:has-text("Done, Resume Agent")').last();
+            if (await pendingHandoff.count() > 0) {
+                console.log("[Test] Detected Browser Handoff card. Copying golden profile...");
+                const taskId = await page.evaluate(async () => {
+                    if (!window.__ZEUS_BRIDGE__) return null;
+                    const tasks = await window.__ZEUS_BRIDGE__.listTasks();
+                    return tasks && tasks.length > 0 ? tasks[0].id : null;
+                });
+                
+                if (taskId) {
+                    const testWorkspaceDir = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
+                    const taskBrowserDir = path.join(testWorkspaceDir, 'tasks', taskId, 'browser', 'user_data');
+                    
+                    const goldenProfile = "D:\\Hristian projects\\browser_data";
+                    if (fs.existsSync(goldenProfile)) {
+                        // Remove existing user_data
+                        if (fs.existsSync(taskBrowserDir)) {
+                            fs.rmSync(taskBrowserDir, { recursive: true, force: true });
+                        }
+                        fs.mkdirSync(taskBrowserDir, { recursive: true });
+                        fs.cpSync(goldenProfile, taskBrowserDir, { recursive: true });
+                        console.log("[Test] Golden profile swapped successfully.");
+                    } else {
+                        console.log("[Test] WARNING: Golden profile not found at " + goldenProfile);
+                    }
+                }
+                
+                await pendingHandoff.click({ force: true });
+                await page.waitForTimeout(2000);
+            }
+
             // If the button is back to "Send", it means the agent yielded prematurely
             const btnText = await page.locator('#chat-send-button').innerText();
             if (btnText.includes('Send')) {
@@ -105,7 +142,8 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
                     // Only kick if there's no pending approval card we just handled
                     console.log("[Test] Agent yielded, kicking to continue...");
                     await page.fill('#chat-input', "Please continue working on the task using your tools autonomously. You must output the phrase exactly to finish.");
-                    await page.click('#chat-send-button', { force: true });
+                    await expect(page.locator('#chat-send-button')).toBeEnabled();
+                    await page.click('#chat-send-button');
                     await expect(page.locator('#chat-send-button')).toHaveText(/Stop/, { timeout: 10000 });
                 }
             }
@@ -198,9 +236,33 @@ function pruneResults() {
     }
 }
 
+/**
+ * Cleans up the task browser directory to save disk space.
+ */
+async function cleanupTaskBrowserDir(page) {
+    try {
+        const taskId = await page.evaluate(async () => {
+            if (!window.__ZEUS_BRIDGE__) return null;
+            const tasks = await window.__ZEUS_BRIDGE__.listTasks();
+            return tasks && tasks.length > 0 ? tasks[0].id : null;
+        });
+        if (taskId) {
+            const testWorkspaceDir = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
+            const taskBrowserDir = path.join(testWorkspaceDir, 'tasks', taskId, 'browser');
+            if (fs.existsSync(taskBrowserDir)) {
+                fs.rmSync(taskBrowserDir, { recursive: true, force: true });
+                console.log(`[cleanupTaskBrowserDir] Cleaned up browser dir for task ${taskId}`);
+            }
+        }
+    } catch (e) {
+        console.log(`[cleanupTaskBrowserDir] Error cleaning up: ${e}`);
+    }
+}
+
 export {
     setupAdvancedTask,
     submitPromptAndWait,
     captureArtifacts,
-    pruneResults
+    pruneResults,
+    cleanupTaskBrowserDir
 };

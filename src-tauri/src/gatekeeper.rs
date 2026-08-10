@@ -219,6 +219,25 @@ pub fn evaluate_file_permission(
     target_path: &str,
     permission_type: &str,
 ) -> Result<PermissionVerdict, String> {
+    // Whitelist: automatically allow read/write/delete if target_path is inside the task's workspace.
+    if let Ok(workspace_dir) = crate::utils::workspace_root() {
+        let task_workspace = workspace_dir.join("tasks").join(task_id).join("workspace");
+        if let Ok(canon_workspace) = task_workspace.canonicalize() {
+            let canon_workspace_str = canon_workspace.to_string_lossy().replace("\\", "/").replace("\\\\?\\", "");
+            let target_norm = target_path.replace("\\", "/").replace("\\\\?\\", "");
+            if target_norm.starts_with(&canon_workspace_str) {
+                return Ok(PermissionVerdict::Allow);
+            }
+        } else {
+            // If the workspace directory does not exist yet, we can check prefix directly without canonicalizing.
+            let task_workspace_str = task_workspace.to_string_lossy().replace("\\", "/").replace("\\\\?\\", "");
+            let target_norm = target_path.replace("\\", "/").replace("\\\\?\\", "");
+            if target_norm.starts_with(&task_workspace_str) {
+                return Ok(PermissionVerdict::Allow);
+            }
+        }
+    }
+
     let mut stmt = conn
         .prepare("SELECT scope, path as rule_path, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = ?2")
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
@@ -525,6 +544,116 @@ pub async fn evaluate_network_action(
         task_id,
         "gatekeeper",
         &format!("Network action {} {} evaluated to: {} (cached)", method, url, verdict_str),
+    );
+
+    match verdict_str.as_str() {
+        "ALLOW" => Ok(PermissionVerdict::Allow),
+        "DENY" => Ok(PermissionVerdict::Deny),
+        _ => Ok(PermissionVerdict::Ask),
+    }
+}
+
+pub async fn evaluate_browser_action(
+    state: &tauri::State<'_, AppState>,
+    task_id: &str,
+    action: &str,
+    url: Option<&str>,
+) -> Result<PermissionVerdict, String> {
+    use crate::gateway::{chat_completion, ChatMessage as GatewayMsg};
+
+    let mut policies = Vec::new();
+    let browser_mode: String;
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        
+        let last_user_msg: String = conn.query_row(
+            "SELECT content FROM messages WHERE task_id = ?1 AND role = 'user' ORDER BY rowid DESC LIMIT 1",
+            rusqlite::params![task_id],
+            |row| row.get(0)
+        ).unwrap_or_default();
+        if last_user_msg.starts_with("[APPROVAL DECISION] APPROVED") {
+            return Ok(PermissionVerdict::Allow);
+        }
+        
+        browser_mode = conn.query_row(
+            "SELECT browser_mode FROM tasks WHERE id = ?1",
+            rusqlite::params![task_id],
+            |row| row.get(0)
+        ).unwrap_or_else(|_| "sandbox".to_string());
+
+        let mut stmt = conn
+            .prepare("SELECT scope, rules_summary FROM watcher_policies WHERE scope IN ('global', ?1) ORDER BY created_at ASC")
+            .map_err(|e| e.to_string())?;
+            
+        let rows = stmt.query_map(rusqlite::params![task_id], |row| {
+            let scope: String = row.get(0)?;
+            let rules: String = row.get(1)?;
+            Ok((scope, rules))
+        }).map_err(|e| e.to_string())?;
+        
+        for r in rows {
+            if let Ok(p) = r {
+                policies.push(p);
+            }
+        }
+    }
+
+    if browser_mode == "main" {
+        policies.push(("system".to_string(), "CRITICAL ENFORCEMENT: The agent is controlling the user's MAIN BROWSER. The agent is strictly DENIED from navigating to ANY browser settings (e.g. chrome://, edge://, about:), clearing history or cookies, or closing ANY browser tabs/windows.".to_string()));
+    }
+
+    if policies.is_empty() {
+        return Ok(PermissionVerdict::Allow);
+    }
+
+    let settings = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::settings::read_settings(&conn).map_err(|e| e.to_string())?
+    };
+    
+    let model = settings.watcher_model.clone();
+    if model.is_empty() {
+        return Ok(PermissionVerdict::Ask);
+    }
+
+    let mut context = String::new();
+    for (scope, rules) in policies {
+        context.push_str(&format!("[{}] Rules:\n{}\n---\n", scope.to_uppercase(), rules));
+    }
+
+    let sys_prompt = format!(
+        "You are the Watcher AI Policy Enforcer. You evaluate browser actions proposed by an autonomous agent.\n\n\
+        POLICIES:\n{}\n\n\
+        You must evaluate the proposed action against these policies. \
+        CRITICAL RULES FOR EVALUATION:\n\
+        1. If there is a contradiction between GLOBAL and TASK rules, TASK rules take strict precedence. SYSTEM rules take absolute precedence.\n\
+        2. Evaluate the intent of the browser action.\n\n\
+        Output EXACTLY one of the following words and nothing else:\n\
+        ALLOW - if the action is explicitly permitted by the policies, or if it doesn't violate any restrictions.\n\
+        DENY - if the action is explicitly blocked by the policies.\n\
+        ASK - if it is ambiguous or risky.",
+        context
+    );
+
+    let action_desc = if let Some(u) = url {
+        format!("Browser Action: {}\nURL: {}", action, u)
+    } else {
+        format!("Browser Action: {}", action)
+    };
+
+    let messages = vec![
+        GatewayMsg { role: "system".into(), content: sys_prompt },
+        GatewayMsg { role: "user".into(), content: action_desc.clone() },
+    ];
+
+    let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
+    
+    let verdict_str = text.trim().to_uppercase();
+    
+    crate::logger::log(
+        task_id,
+        "gatekeeper",
+        &format!("Browser action '{}' evaluated to: {}", action_desc.replace("\n", " "), verdict_str),
     );
 
     match verdict_str.as_str() {

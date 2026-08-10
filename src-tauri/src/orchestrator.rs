@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub const MAX_ORCHESTRATION_ITERATIONS: usize = 8;
+pub const MAX_ORCHESTRATION_ITERATIONS: usize = 40;
 
 /// A parsed directive from the master's reply.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -22,6 +22,8 @@ pub enum Directive {
     },
     UpdateActionPlan {
         action_plan: String,
+        #[serde(default)]
+        request_approval: bool,
     },
     UpdateMemory {
         memory: String,
@@ -47,6 +49,16 @@ pub enum Directive {
     },
     RunCommand {
         command: String,
+    },
+    ListDir {
+        path: String,
+    },
+    SearchFiles {
+        path: String,
+        pattern: String,
+    },
+    AskUserForLogin {
+        reason: String,
     },
     HttpRequest {
         url: String,
@@ -101,12 +113,10 @@ pub struct VerificationResult {
 pub enum MasterReply {
     /// Plain conversational text — show it and stop.
     Text(String),
-    /// A directive plus the full raw reply, kept for model context.
-    Directive(Directive, String),
-    /// A directive fence was present but could not be parsed.
-    /// (error description, full raw reply). The caller must NOT show the raw
-    /// reply to the user — it feeds the error back to the model instead.
-    MalformedDirective(String, String),
+    /// The text before the directive, the directive itself, and the raw JSON of the directive.
+    Directive(String, Directive, String),
+    /// The text before the directive, the error description, and the full raw reply.
+    MalformedDirective(String, String, String),
 }
 
 /// The fenced block tag the master uses for directives.
@@ -163,6 +173,7 @@ fn parse_directive_json(json_str: &str) -> Result<Directive, String> {
 
 pub fn parse_master_reply(text: &str) -> MasterReply {
     if let Some(start) = text.find(DIRECTIVE_FENCE) {
+        let pre_text = text[..start].trim().to_string();
         let after = &text[start + DIRECTIVE_FENCE.len()..];
         let mut candidates: Vec<usize> = Vec::new();
         if let Some(e) = after.rfind("```") {
@@ -177,11 +188,11 @@ pub fn parse_master_reply(text: &str) -> MasterReply {
         for end in candidates {
             let json_str = after[..end].trim();
             match parse_directive_json(json_str) {
-                Ok(d) => return MasterReply::Directive(d, text.to_string()),
+                Ok(d) => return MasterReply::Directive(pre_text, d, text.to_string()),
                 Err(e) => last_err = e,
             }
         }
-        return MasterReply::MalformedDirective(last_err, text.to_string());
+        return MasterReply::MalformedDirective(pre_text, last_err, text.to_string());
     }
 
     let trimmed = text.trim();
@@ -193,8 +204,9 @@ pub fn parse_master_reply(text: &str) -> MasterReply {
         if let Some(end_brace) = trimmed.rfind('}') {
             if start_brace < end_brace {
                 let json_str = &trimmed[start_brace..=end_brace];
+                let pre_text = trimmed[..start_brace].trim().to_string();
                 if let Ok(d) = parse_directive_json(json_str) {
-                    return MasterReply::Directive(d, text.to_string());
+                    return MasterReply::Directive(pre_text, d, text.to_string());
                 }
             }
         }
@@ -210,6 +222,150 @@ pub fn directive_result_message(result_json: &serde_json::Value) -> String {
         "[DIRECTIVE_RESULT]\n```zeus-result\n{}\n```",
         serde_json::to_string_pretty(result_json).unwrap_or_else(|_| "{}".into())
     )
+}
+
+pub async fn execute_directive_bypass_gatekeeper(
+    _state: &tauri::State<'_, crate::db::AppState>,
+    _app_handle: &tauri::AppHandle,
+    task_id: &str,
+    directive: Directive,
+) -> Result<String, String> {
+    match directive {
+        Directive::HttpRequest { url, method, body } => {
+            let client = reqwest::Client::new();
+            let mut req = client.request(
+                method.parse().unwrap_or(reqwest::Method::GET),
+                &url
+            );
+            if let Some(b) = body {
+                req = req.body(b);
+            }
+            let res = match req.send().await {
+                Ok(response) => {
+                    let status = response.status();
+                    let text = response.text().await.unwrap_or_default();
+                    format!("Status: {}\nBody: {}", status, text)
+                },
+                Err(e) => format!("Request failed: {}", e)
+            };
+            let result_json = serde_json::json!({ "http_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::RunCommand { command } => {
+            let workspace = crate::utils::task_workspace(task_id)?;
+            let output_future = tokio::process::Command::new("cmd")
+                .args(&["/c", &command])
+                .current_dir(workspace)
+                .output();
+            
+            let output_result = tokio::time::timeout(
+                std::time::Duration::from_secs(300),
+                output_future
+            ).await;
+
+            let res = match output_result {
+                Ok(Ok(out)) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                    format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
+                }
+                Ok(Err(e)) => format!("Failed to execute command: {}", e),
+                Err(_) => "Command timed out after 300 seconds.".to_string(),
+            };
+            let result_json = serde_json::json!({ "command_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::ReadFile { path } => {
+            let res = match tokio::fs::read_to_string(&path).await {
+                Ok(content) => content,
+                Err(e) => format!("Failed to read file: {}", e),
+            };
+            let result_json = serde_json::json!({ "read_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::WriteFile { path, content } => {
+            let res = match tokio::fs::write(&path, content).await {
+                Ok(_) => "Successfully wrote file.".to_string(),
+                Err(e) => format!("Failed to write file: {}", e),
+            };
+            let result_json = serde_json::json!({ "write_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::DeleteFile { path } => {
+            let res = match tokio::fs::remove_file(&path).await {
+                Ok(_) => "Successfully deleted file.".to_string(),
+                Err(e) => format!("Failed to delete file: {}", e),
+            };
+            let result_json = serde_json::json!({ "delete_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::ListDir { path } => {
+            let res = match std::fs::read_dir(&path) {
+                Ok(entries) => {
+                    let mut list = Vec::new();
+                    for entry in entries.flatten() {
+                        let ftype = match entry.metadata() {
+                            Ok(metadata) if metadata.is_dir() => "DIR ",
+                            _ => "FILE",
+                        };
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        list.push(format!("[{}] {}", ftype, name));
+                    }
+                    if list.is_empty() {
+                        "Directory is empty.".to_string()
+                    } else {
+                        list.join("\n")
+                    }
+                }
+                Err(e) => format!("Failed to list directory: {}", e),
+            };
+            let result_json = serde_json::json!({ "list_dir_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::SearchFiles { path, pattern } => {
+            if !std::path::Path::new(&path).exists() {
+                let result_json = serde_json::json!({ "search_files_result": "Error: The specified path does not exist." });
+                return Ok(crate::orchestrator::directive_result_message(&result_json));
+            }
+            
+            // Using walkdir to find matching files
+            let mut matches = Vec::new();
+            
+            let mut iter = walkdir::WalkDir::new(&path).into_iter();
+            while let Some(Ok(entry)) = iter.next() {
+                let file_name = entry.file_name().to_string_lossy().to_lowercase();
+                
+                // Skip common large/irrelevant directories
+                if entry.file_type().is_dir() && (file_name == "node_modules" || file_name == ".git" || file_name == "target") {
+                    iter.skip_current_dir();
+                    continue;
+                }
+
+                if file_name.contains(&pattern.to_lowercase()) {
+                    let type_prefix = if entry.file_type().is_dir() { "[DIR] " } else { "" };
+                    matches.push(format!("{}{}", type_prefix, entry.path().to_string_lossy()));
+                    if matches.len() >= 100 {
+                        break;
+                    }
+                }
+            }
+            
+            let res = if matches.is_empty() {
+                "No matching files found.".to_string()
+            } else {
+                let mut out = matches.join("\n");
+                if matches.len() >= 100 {
+                    out.push_str("\n... (results truncated)");
+                }
+                out
+            };
+            let result_json = serde_json::json!({ "search_files_result": res });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        _ => {
+            Err("Directive does not support bypass execution.".to_string())
+        }
+    }
 }
 
 /// Builds the JSON result for a completed (or failed) Python action.
@@ -271,7 +427,7 @@ mod tests {
     fn fenced_run_action_parses() {
         let reply = "```zeus-directive\n{\"type\":\"run_action\",\"action\":{\"language\":\"python\",\"code\":\"print(1)\",\"timeout_secs\":10},\"success_criteria\":\"prints 1\"}\n```";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::RunAction { action, .. }, _) => {
+            MasterReply::Directive(_, Directive::RunAction { action, .. }, _) => {
                 assert_eq!(action.code, "print(1)");
             }
             _ => panic!("expected RunAction"),
@@ -282,7 +438,7 @@ mod tests {
     fn preamble_before_fence_still_parses() {
         let reply = "Plan written. Now let's read it back.\n\n```zeus-directive\n{\"type\":\"run_action\",\"action\":{\"code\":\"print(2)\"}}\n```";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::RunAction { action, .. }, raw) => {
+            MasterReply::Directive(_, Directive::RunAction { action, .. }, raw) => {
                 assert_eq!(action.code, "print(2)");
                 assert!(raw.starts_with("Plan written."));
             }
@@ -295,10 +451,10 @@ mod tests {
         // Fix the raw unescaped newlines inside the JSON string literal using double slashes
         let reply = "```zeus-directive\n{\"type\":\"final_answer\",\"final_answer\":{\"summary\":\"Done. Example:\\n```python\\nprint('hi')\\n```\\nAll good.\"}}\n```";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::FinalAnswer { final_answer }, _) => {
+            MasterReply::Directive(_, Directive::FinalAnswer { final_answer }, _) => {
                 assert!(final_answer.summary.contains("```python"));
             }
-            MasterReply::MalformedDirective(e, _) => panic!("malformed: {}", e),
+            MasterReply::MalformedDirective(e, _, _) => panic!("malformed: {}", e),
             _ => panic!("expected FinalAnswer"),
         }
     }
@@ -308,7 +464,7 @@ mod tests {
         let reply =
             "```zeus-directive\n{\"type\":\"final_answer\",\"final_answer\":\"All done!\"}\n```";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::FinalAnswer { final_answer }, _) => {
+            MasterReply::Directive(_, Directive::FinalAnswer { final_answer }, _) => {
                 assert_eq!(final_answer.summary, "All done!");
             }
             _ => panic!("expected lenient FinalAnswer"),
@@ -319,7 +475,7 @@ mod tests {
     fn bare_json_without_fence_is_accepted() {
         let reply = "{\"type\":\"read_file\",\"path\":\"D:/test.txt\"}";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::ReadFile { path }, _) => {
+            MasterReply::Directive(_, Directive::ReadFile { path }, _) => {
                 assert_eq!(path, "D:/test.txt");
             }
             _ => panic!("expected bare-JSON ReadFile"),
@@ -330,7 +486,7 @@ mod tests {
     fn broken_json_inside_fence_is_malformed_not_text() {
         let reply = "```zeus-directive\n{\"type\":\"run_action\", BROKEN\n```";
         match parse_master_reply(reply) {
-            MasterReply::MalformedDirective(err, raw) => {
+            MasterReply::MalformedDirective(err, _, raw) => {
                 assert!(err.contains("invalid JSON"));
                 assert!(raw.contains("BROKEN"));
             }
@@ -344,7 +500,7 @@ mod tests {
 {"type":"delegate_task","delegate":{"name":"Worker Name","objective":"Do something","success_criteria":"Check something"}}
 ```"#;
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::DelegateTask { delegate }, _) => {
+            MasterReply::Directive(_, Directive::DelegateTask { delegate }, _) => {
                 assert_eq!(delegate.name, "Worker Name");
                 assert_eq!(delegate.objective, "Do something");
                 assert_eq!(delegate.success_criteria, "Check something");
@@ -357,7 +513,7 @@ mod tests {
     fn unclosed_fence_is_malformed() {
         let reply = "```zeus-directive\n{\"type\":\"run_action\"";
         match parse_master_reply(reply) {
-            MasterReply::MalformedDirective(_, _) => {}
+            MasterReply::MalformedDirective(_, _, _) => {}
             _ => panic!("expected MalformedDirective for unclosed fence"),
         }
     }
@@ -369,10 +525,10 @@ mod tests {
         let reply =
             "```zeus-directive\n{\"type\":\"run_action\",\"action\":{\"code\":\"print(3)\"}}}\n```";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::RunAction { action, .. }, _) => {
+            MasterReply::Directive(_, Directive::RunAction { action, .. }, _) => {
                 assert_eq!(action.code, "print(3)");
             }
-            MasterReply::MalformedDirective(e, _) => panic!("malformed: {}", e),
+            MasterReply::MalformedDirective(e, _, _) => panic!("malformed: {}", e),
             _ => panic!("expected RunAction"),
         }
     }
@@ -381,7 +537,7 @@ mod tests {
     fn bare_json_with_trailing_brace_is_tolerated() {
         let reply = "{\"type\":\"task_update\",\"update\":{\"title\":\"x\"}}}";
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::TaskUpdate { .. }, _) => {}
+            MasterReply::Directive(_, Directive::TaskUpdate { .. }, _) => {}
             _ => panic!("expected TaskUpdate despite trailing brace"),
         }
     }
@@ -399,7 +555,7 @@ mod tests {
 }
 ```"#;
         match parse_master_reply(reply) {
-            MasterReply::Directive(Directive::DelegateTask { delegate }, _) => {
+            MasterReply::Directive(_, Directive::DelegateTask { delegate }, _) => {
                 assert_eq!(delegate.name, "researcher");
                 assert_eq!(delegate.objective, "find things");
                 assert_eq!(delegate.success_criteria, "found things");

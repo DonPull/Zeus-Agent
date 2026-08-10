@@ -43,6 +43,7 @@ pub async fn run_python_action(
     workspace: &Path,
     code: &str,
     timeout_secs: u64,
+    browser_port: Option<u16>,
 ) -> Result<ActionOutcome, String> {
     let interpreter = detect_python().ok_or_else(|| {
         "No Python interpreter found (tried `python`, `python3`, `py`). Install Python 3.11 and make sure it is on your PATH.".to_string()
@@ -167,6 +168,54 @@ def _zeus_audit_hook(event, args):
                 raise PermissionError(f'Zeus Gatekeeper DENIED {action} access to {abs_path}')
 
 sys.addaudithook(_zeus_audit_hook)
+
+try:
+    import playwright.sync_api
+    
+    _zeus_original_click = playwright.sync_api.Page.click
+    _zeus_original_fill = playwright.sync_api.Page.fill
+    
+    def _zeus_screenshot_before_action(page, action_name):
+        history_dir = os.path.join(_zeus_workspace, ".zeus", "browser_history")
+        os.makedirs(history_dir, exist_ok=True)
+        import time
+        ts = int(time.time() * 1000)
+        shot_path = os.path.join(history_dir, f"{ts}_{action_name}.png")
+        try:
+            page.screenshot(path=shot_path)
+            # We could draw a box here using locator, but keeping it simple for now.
+        except Exception:
+            pass
+
+    def _zeus_patched_click(self, selector, **kwargs):
+        _zeus_screenshot_before_action(self, "click")
+        return _zeus_original_click(self, selector, **kwargs)
+        
+    def _zeus_patched_fill(self, selector, value, **kwargs):
+        _zeus_screenshot_before_action(self, "fill")
+        return _zeus_original_fill(self, selector, value, **kwargs)
+        
+    _zeus_original_goto = playwright.sync_api.Page.goto
+    _zeus_original_close = playwright.sync_api.Page.close
+
+    def _zeus_patched_goto(self, url, **kwargs):
+        req = {"type": "browser", "action": "goto", "url": url}
+        if not _ask_gatekeeper(req):
+            raise PermissionError(f'Zeus Gatekeeper DENIED browser navigation to {url}')
+        return _zeus_original_goto(self, url, **kwargs)
+        
+    def _zeus_patched_close(self, **kwargs):
+        req = {"type": "browser", "action": "close"}
+        if not _ask_gatekeeper(req):
+            raise PermissionError(f'Zeus Gatekeeper DENIED closing the browser tab')
+        return _zeus_original_close(self, **kwargs)
+
+    playwright.sync_api.Page.click = _zeus_patched_click
+    playwright.sync_api.Page.fill = _zeus_patched_fill
+    playwright.sync_api.Page.goto = _zeus_patched_goto
+    playwright.sync_api.Page.close = _zeus_patched_close
+except ImportError:
+    pass
 "#;
 
     let final_code = format!("{}\n{}", sandbox_preamble, code);
@@ -177,7 +226,14 @@ sys.addaudithook(_zeus_audit_hook)
     command
         .arg(&script_path)
         .current_dir(workspace)
-        .env("ZEUS_IPC_PORT", ipc_port.to_string())
+        .env("PYTHONUNBUFFERED", "1")
+        .env("ZEUS_IPC_PORT", ipc_port.to_string());
+        
+    if let Some(port) = browser_port {
+        command.env("ZEUS_BROWSER_WS_ENDPOINT", format!("ws://127.0.0.1:{}", port));
+    }
+
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -288,9 +344,23 @@ async fn handle_ipc_connection(
                 crate::gatekeeper::evaluate_network_action(&state, &task_id, url, "GET", None).await.unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
             },
             "command" => {
-                let cmd = req["command"].as_str().unwrap_or("");
-                let conn = state.db.lock().unwrap();
-                crate::gatekeeper::evaluate_command_action(&conn, &task_id, cmd).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+                let cmd_value = req["command"].clone();
+                let cmd_str = if let Some(cmd_array) = cmd_value.as_array() {
+                    cmd_array.iter().filter_map(|v| v.as_str()).collect::<Vec<&str>>().join(" ")
+                } else {
+                    cmd_value.as_str().unwrap_or("").to_string()
+                };
+                if cmd_str.contains("pip install playwright") || cmd_str.contains("playwright install") {
+                    crate::gatekeeper::PermissionVerdict::Allow
+                } else {
+                    let conn = state.db.lock().unwrap();
+                    crate::gatekeeper::evaluate_command_action(&conn, &task_id, &cmd_str).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+                }
+            },
+            "browser" => {
+                let action = req["action"].as_str().unwrap_or("");
+                let url = req["url"].as_str();
+                crate::gatekeeper::evaluate_browser_action(&state, &task_id, action, url).await.unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
             },
             _ => crate::gatekeeper::PermissionVerdict::Ask,
         };
@@ -373,7 +443,7 @@ mod tests {
     #[tokio::test]
     async fn large_stdout_is_not_dropped() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
-        let outcome = run_python_action(None, None, &workspace, "print('x' * 200000)", 30)
+        let outcome = run_python_action(None, None, &workspace, "print('x' * 200000)", 30, None)
             .await
             .expect("runner failed");
         assert_eq!(outcome.exit_code, 0);
@@ -394,6 +464,7 @@ mod tests {
             &workspace,
             "import sys\nsys.stderr.write('boom')\nsys.exit(3)",
             30,
+            None,
         )
         .await
         .expect("runner failed");
@@ -411,6 +482,7 @@ mod tests {
             &workspace,
             "import time\ntime.sleep(60)\nprint('should not finish')",
             120,
+            None,
         ));
 
         tokio::select! {
@@ -442,6 +514,7 @@ mod tests {
             &workspace,
             "import socket\nsocket.create_connection(('8.8.8.8', 53))",
             30,
+            None,
         )
         .await
         .expect("runner failed");
@@ -462,7 +535,7 @@ test_file = os.path.join(parent_dir, 'zeus_hack_test.txt')
 with open(test_file, 'w') as f:
     f.write('hacked')
 "#;
-        let outcome = run_python_action(None, None, &workspace, code, 30).await.expect("runner failed");
+        let outcome = run_python_action(None, None, &workspace, code, 30, None).await.expect("runner failed");
         
         assert_eq!(outcome.exit_code, 1);
         assert!(outcome.stderr.contains("Native file writes outside the workspace are disabled"));
@@ -476,7 +549,7 @@ with open(test_file, 'w') as f:
 with open('local_test.txt', 'w') as f:
     f.write('allowed')
 "#;
-        let outcome = run_python_action(None, None, &workspace, code, 30).await.expect("runner failed");
+        let outcome = run_python_action(None, None, &workspace, code, 30, None).await.expect("runner failed");
         
         assert_eq!(outcome.exit_code, 0, "stderr was: {}", outcome.stderr);
         let content = std::fs::read_to_string(workspace.join("local_test.txt")).unwrap();

@@ -13,6 +13,8 @@ pub struct AppState {
     /// The map provides both single-flight enforcement and the cancellation
     /// token used to stop the task's model stream or Python action.
     pub active_runs: Mutex<HashMap<String, CancellationToken>>,
+
+    pub browser_manager: crate::browser_manager::BrowserManager,
 }
 
 pub fn new_id() -> String {
@@ -42,7 +44,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     master_model TEXT NOT NULL,
     worker_model TEXT NOT NULL,
     verifier_model TEXT NOT NULL,
-    watcher_model TEXT NOT NULL
+    watcher_model TEXT NOT NULL,
+    browser_mode TEXT NOT NULL DEFAULT 'sandboxed',
+    browser_executable_path TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -190,6 +194,24 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         let _ = connection.execute(
             "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4",
             rusqlite::params![master, worker, verifier, watcher],
+        );
+    }
+
+    // Migration: add browser columns to tasks table
+    let has_browser_mode: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'browser_mode' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_browser_mode {
+        let browser_mode = crate::settings::read_settings(connection).map(|s| s.browser_mode).unwrap_or_else(|_| "sandboxed".into());
+        let browser_executable = crate::settings::read_settings(connection).map(|s| s.browser_executable_path).unwrap_or_default();
+        
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN browser_mode TEXT NOT NULL DEFAULT 'sandboxed'", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN browser_executable_path TEXT", []);
+        
+        let _ = connection.execute(
+            "UPDATE tasks SET browser_mode = ?1, browser_executable_path = ?2",
+            rusqlite::params![browser_mode, browser_executable],
         );
     }
 

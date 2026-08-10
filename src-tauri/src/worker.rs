@@ -50,7 +50,12 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
 {"type":"run_action","action":{"language":"python","code":"<python source>","timeout_secs":60},"success_criteria":"expected result"}
 ```
 
-7. Finish the task with a final answer:
+7. Ask user to login / solve CAPTCHA in browser:
+```zeus-directive
+{"type":"ask_user_for_login","reason":"Please log into X so I can continue."}
+```
+
+8. Finish the task with a final answer:
 ```zeus-directive
 {"type":"final_answer","final_answer":{"summary":"the complete answer in markdown"}}
 ```
@@ -59,6 +64,9 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
 - **Relentless Agentic Behavior**: Your highest priority is to achieve the objective at any cost. If you encounter roadblocks (like permission errors, tool failures, or API limits), you must find a way around them to achieve the goal. Do NOT simply report failure. Only if you determine that the goal is fundamentally impossible to achieve after exhausting every possible avenue, you must report back with a final answer explaining exactly what went wrong.
 - **Zero-Knowledge Permissions**: DO NOT try to ask the user for permission. Just emit the directive. If permission is required, the system will seamlessly intercept your directive, ask the user, and execute it once they approve.
 - Never claim to have taken actions or fetched data you have not. Only report what actually ran.
+- **Browser Automation**: To control the browser, write a Python script using the `playwright` package. Connect to the active browser using the `ZEUS_BROWSER_WS_ENDPOINT` environment variable like this:
+  `p.chromium.connect_over_cdp(os.environ["ZEUS_BROWSER_WS_ENDPOINT"])`
+  Do NOT launch a new browser instance using `p.chromium.launch()`.
 - Once you have completely satisfied the success criteria, use final_answer to return your result."#;
 
 const VERIFIER_PROMPT: &str = r#"You are the Zeus Verifier.
@@ -248,8 +256,22 @@ pub async fn run_worker(
                     history.push(ChatMessage { role: "assistant".into(), content: text.clone() });
                     break Ok(text); // Worker just replied with text, we consider it their final answer.
                 }
-                orchestrator::MasterReply::MalformedDirective(error, raw) => {
+                orchestrator::MasterReply::MalformedDirective(error, _extracted, raw) => {
                     let feedback = format!("[DIRECTIVE_ERROR] {}", error);
+                    let preamble = if let Some(idx) = raw.find("```zeus-directive") {
+                        raw[..idx].trim().to_string()
+                    } else if let Some(idx) = raw.find('{') {
+                        raw[..idx].trim().to_string()
+                    } else {
+                        String::new()
+                    };
+                    if !preamble.is_empty() {
+                        let mut preamble_msg = new_message_for_conversation(
+                            task_id, &conversation, "assistant", "chat", preamble, None, None, false
+                        );
+                        persist_and_emit(state, app_handle, task_id, &mut preamble_msg)?;
+                    }
+
                     let mut hidden_directive = new_message_for_conversation(
                         task_id, &conversation, "assistant", "directive", raw.clone(), Some(units), Some(actual_model), false
                     );
@@ -263,7 +285,21 @@ pub async fn run_worker(
                     history.push(ChatMessage { role: "assistant".into(), content: raw });
                     history.push(ChatMessage { role: "user".into(), content: feedback });
                 }
-                orchestrator::MasterReply::Directive(directive, raw) => {
+                orchestrator::MasterReply::Directive(preamble, directive, raw) => {
+                    let preamble = if let Some(idx) = raw.find("```zeus-directive") {
+                        raw[..idx].trim().to_string()
+                    } else if let Some(idx) = raw.find('{') {
+                        raw[..idx].trim().to_string()
+                    } else {
+                        String::new()
+                    };
+                    if !preamble.is_empty() {
+                        let mut preamble_msg = new_message_for_conversation(
+                            task_id, &conversation, "assistant", "chat", preamble, None, None, false
+                        );
+                        persist_and_emit(state, app_handle, task_id, &mut preamble_msg)?;
+                    }
+
                     let mut hidden_directive = new_message_for_conversation(
                         task_id, &conversation, "assistant", "directive", raw.clone(), Some(units), Some(actual_model.clone()), false
                     );
@@ -281,10 +317,14 @@ pub async fn run_worker(
                         }
                         Directive::RunAction { action, success_criteria } => {
                             let workspace = crate::utils::task_workspace(task_id)?;
+                            let task_data = crate::chat::load_task(&state.db.lock().unwrap(), task_id).map_err(|e| e.to_string())?;
+                            let browser_port = state.browser_manager.ensure_browser(task_id, &task_data.browser_mode, &task_data.browser_executable_path).ok();
+                            
                             let action_future = crate::python_runner::run_python_action(
                                 Some(app_handle.clone()),
                                 Some(task_id.to_string()),
-                                &workspace, &action.code, action.timeout_secs
+                                &workspace, &action.code, action.timeout_secs,
+                                browser_port
                             );
                             tokio::pin!(action_future);
 
@@ -306,6 +346,33 @@ pub async fn run_worker(
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
                             history.push(ChatMessage { role: "user".into(), content: msg });
+                        }
+                        Directive::AskUserForLogin { reason } => {
+                            let mut approval = new_message_for_conversation(
+                                task_id, &conversation, "event", "handoff", json!({ "status": "pending", "reason": reason }).to_string(), None, None, true
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut approval)?;
+                            
+                            // Stop headless browser, start headed, then wait for approval
+                            let _ = crate::browser_manager::start_browser_handoff(state.clone(), task_id.to_string()).await;
+                            
+                            // Wait for user
+                            let (approved, note) = crate::chat::wait_for_approval(state.clone(), app_handle.clone(), task_id, &approval.id, run_id, cancellation_token.clone()).await?;
+                            
+                            // Restart headless
+                            let _ = crate::browser_manager::finish_browser_handoff(state.clone(), task_id.to_string()).await;
+                            
+                            let feedback = if approved {
+                                format!("User completed the handoff. You may continue. Note: {}", note)
+                            } else {
+                                "User denied the handoff or it failed.".to_string()
+                            };
+                            
+                            let mut hidden_result = new_message_for_conversation(
+                                task_id, &conversation, "user", "handoff_result", feedback.clone(), None, None, false
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+                            history.push(ChatMessage { role: "user".into(), content: feedback });
                         }
                         _ => {
                             // Workers cannot delegate or request approval for now
