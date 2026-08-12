@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests', // We'll run both e2e and advanced_e2e from here, Playwright finds *.spec.js recursively
-  timeout: 5 * 60 * 1000, // 5 minutes for real LLM runs
+  timeout: 25 * 60 * 1000, // 25 minutes for real LLM runs
   expect: {
     timeout: 30000 // 30 seconds for expectations to accommodate UI latency
   },

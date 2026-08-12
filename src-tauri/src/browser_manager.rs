@@ -63,7 +63,7 @@ impl BrowserManager {
             actual_user_data_dir = Some(state_user_data_dir.clone());
         };
         
-        let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), true)?;
+        let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), false)?;
         
         browsers.insert(task_id.to_string(), BrowserState {
             process: Some(child),
@@ -215,7 +215,7 @@ pub async fn finish_browser_handoff(
         };
         
         // Spawn headless
-        let new_child = spawn_browser(&exe, browser_state.port, actual_user_data_dir, true)?;
+        let new_child = spawn_browser(&exe, browser_state.port, actual_user_data_dir, false)?;
         browser_state.process = Some(new_child);
     }
     Ok(())

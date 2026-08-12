@@ -437,7 +437,18 @@ pub async fn run_worker(
             }
         };
 
-        let v_res: Result<orchestrator::VerificationResult, _> = serde_json::from_str(verifier_output.trim());
+        let mut clean_output = verifier_output.trim();
+        if clean_output.starts_with("```json") {
+            clean_output = &clean_output[7..];
+        } else if clean_output.starts_with("```") {
+            clean_output = &clean_output[3..];
+        }
+        if clean_output.ends_with("```") {
+            clean_output = &clean_output[..clean_output.len() - 3];
+        }
+        clean_output = clean_output.trim();
+
+        let v_res: Result<orchestrator::VerificationResult, _> = serde_json::from_str(clean_output);
         match v_res {
             Ok(vr) => {
                 if vr.passed {

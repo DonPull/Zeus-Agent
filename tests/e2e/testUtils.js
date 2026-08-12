@@ -101,6 +101,9 @@ async function launchTauri(useRealApi = false) {
     if (!useRealApi) {
       env.ZEUS_API_BASE_URL = `http://localhost:${mockServerPort}/`;
     }
+    
+    // Ensure the Node process also knows the test workspace root so it creates files in the right place
+    process.env.ZEUS_TEST_WORKSPACE_ROOT = testWorkspaceDir;
 
     tauriProcess = spawn('cargo', ['run', '--', '--remote-debugging-port', cdpPort.toString()], {
       cwd: path.join(__dirname, '..', '..', 'src-tauri'),

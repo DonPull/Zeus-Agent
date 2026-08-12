@@ -26,9 +26,12 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
     const modal = page.locator('.modal-content:has-text("Task Settings"), .modal:has-text("Task Settings")').first();
     await expect(modal).toBeVisible();
 
-    // Wait for models to finish loading
-    await expect(modal.locator('button:has-text("Load available models")')).toBeEnabled({ timeout: 15000 });
-
+    // Click "Load available models" to force load and wait for it to finish
+    const loadButton = modal.locator('button:has-text("Load available models")');
+    await loadButton.click();
+    await page.waitForTimeout(2000); // Wait for Tauri IPC to return models
+    await expect(loadButton).toBeEnabled({ timeout: 15000 });
+    
     // Set models if provided
     if (modelConfig) {
         for (const [role, modelName] of Object.entries(modelConfig)) {
@@ -44,12 +47,16 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
             
             // Type into the search input which appears
             const searchInput = row.locator('input[placeholder="Search model..."]');
-            await expect(searchInput).toBeVisible();
+            await expect(searchInput).toBeVisible({ timeout: 10000 });
             await searchInput.fill(modelName);
 
-            const option = page.locator(`.align-center.gap-10:has-text("${modelName}")`).first();
-            await expect(option).toBeVisible();
+            const option = row.locator(`.align-center.gap-10:has-text("${modelName}")`).first();
+            await expect(option).toBeVisible({ timeout: 10000 });
             await option.click();
+            await expect(searchInput).not.toBeVisible({ timeout: 10000 });
+            
+            // Give it a tiny bit of time to settle React state
+            await page.waitForTimeout(100);
         }
     }
 
@@ -61,7 +68,7 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
 /**
  * Submits a prompt and waits for the agent to finish autonomously.
  */
-async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedText = null, actionOnApprovalCard = 'approve') {
+async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 480000, expectedText = null, actionOnApprovalCard = 'approve') {
     // Fill prompt
     await page.fill('#chat-input', prompt);
     
@@ -79,7 +86,7 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
             if (await chatLog.count() > 0) {
                 const text = await chatLog.allInnerTexts();
                 const joinedText = text.join('\n');
-                if (joinedText.includes('BUDGET_EXCEEDED') || joinedText.includes('credit') && joinedText.includes('run out')) {
+                if (joinedText.includes('BUDGET_EXCEEDED') || (joinedText.includes('credit') && joinedText.includes('run out')) || joinedText.includes('reached its unit budget')) {
                     throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
                 }
                 if (joinedText.includes(expectedText)) {
@@ -87,9 +94,12 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
                 }
             }
 
+            let handledCard = false;
+
             // Check if there's a pending approval card blocking the agent (could happen while button is Stop for python scripts)
             const pendingApproval = page.locator('.approval-card.pending button:has-text("Approve")').last();
             if (await pendingApproval.count() > 0) {
+                await takeMilestoneScreenshot(page, "Pending Card Detected", null);
                 if (actionOnApprovalCard === 'approve') {
                     console.log("[Test] Auto-approving pending approval card...");
                     await pendingApproval.click({ force: true });
@@ -98,6 +108,7 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
                     const denyButton = page.locator('.approval-card.pending button:has-text("Deny")').last();
                     await denyButton.click({ force: true });
                 }
+                handledCard = true;
                 // Wait a bit after clicking
                 await page.waitForTimeout(1000);
             }
@@ -105,6 +116,7 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
             // Check if there's a pending handoff card
             const pendingHandoff = page.locator('.approval-card.pending button:has-text("Done, Resume Agent")').last();
             if (await pendingHandoff.count() > 0) {
+                await takeMilestoneScreenshot(page, "Browser Handoff Detected", null);
                 console.log("[Test] Detected Browser Handoff card. Copying golden profile...");
                 const taskId = await page.evaluate(async () => {
                     if (!window.__ZEUS_BRIDGE__) return null;
@@ -131,20 +143,26 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
                 }
                 
                 await pendingHandoff.click({ force: true });
+                handledCard = true;
                 await page.waitForTimeout(2000);
             }
 
-            // If the button is back to "Send", it means the agent yielded prematurely
-            const btnText = await page.locator('#chat-send-button').innerText();
-            if (btnText.includes('Send')) {
-                const pendingAfterYield = page.locator('.approval-card.pending button:has-text("Approve")').last();
-                if (await pendingAfterYield.count() === 0) {
-                    // Only kick if there's no pending approval card we just handled
-                    console.log("[Test] Agent yielded, kicking to continue...");
-                    await page.fill('#chat-input', "Please continue working on the task using your tools autonomously. You must output the phrase exactly to finish.");
-                    await expect(page.locator('#chat-send-button')).toBeEnabled();
-                    await page.click('#chat-send-button');
-                    await expect(page.locator('#chat-send-button')).toHaveText(/Stop/, { timeout: 10000 });
+            if (!handledCard) {
+                // If the button is back to "Send", it means the agent yielded prematurely
+                const btnText = await page.locator('#chat-send-button').innerText();
+                if (btnText.includes('Send')) {
+                    const pendingAfterYield = page.locator('.approval-card.pending button:has-text("Approve")').last();
+                    if (await pendingAfterYield.count() === 0) {
+                        // Only kick if there's no pending approval card we just handled
+                        const text = await page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system').allInnerTexts();
+                        console.log("[Test] Agent yielded, kicking to continue...");
+                        console.log("[Test] Agent's last chat log text:", text.join('\\n'));
+                        await takeMilestoneScreenshot(page, "Agent Yielded - Kicking", testInfo);
+                        await page.fill('#chat-input', "Please continue working on the task using your tools autonomously. You must output the phrase exactly to finish.");
+                        await expect(page.locator('#chat-send-button')).toBeEnabled();
+                        await page.click('#chat-send-button');
+                        await expect(page.locator('#chat-send-button')).toHaveText(/Stop/, { timeout: 10000 });
+                    }
                 }
             }
 
@@ -162,7 +180,8 @@ async function submitPromptAndWait(page, prompt, timeoutMs = 480000, expectedTex
  * Dumps the debug log and screenshots to the results directory.
  */
 async function captureArtifacts(page, testInfo, suffix = '') {
-    const resultsDir = path.join(__dirname, 'results', testInfo.title.replace(/\s+/g, '_'));
+    const safeTitle = testInfo.title.replace(/[^a-z0-9_-]/gi, '_');
+    const resultsDir = path.join(__dirname, 'results', safeTitle);
     if (!fs.existsSync(resultsDir)) {
         fs.mkdirSync(resultsDir, { recursive: true });
     }
@@ -227,6 +246,28 @@ async function captureArtifacts(page, testInfo, suffix = '') {
 }
 
 /**
+ * Takes a milestone screenshot during execution to provide visual observability
+ * without relying on heavy video recording.
+ */
+async function takeMilestoneScreenshot(page, eventName, testInfo) {
+    if (!testInfo) return;
+    try {
+        const safeTitle = testInfo.title.replace(/[^a-z0-9_-]/gi, '_');
+        const resultsDir = path.join(__dirname, 'results', safeTitle);
+        if (!fs.existsSync(resultsDir)) {
+            fs.mkdirSync(resultsDir, { recursive: true });
+        }
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const safeEventName = eventName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const screenshotPath = path.join(resultsDir, `milestone_${timestamp}_${safeEventName}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        console.log(`[Test] Captured milestone screenshot: ${screenshotPath}`);
+    } catch (e) {
+        console.log(`[Test] Failed to capture milestone screenshot: ${e.message}`);
+    }
+}
+
+/**
  * Prunes old results directory to prevent unbounded growth.
  */
 function pruneResults() {
@@ -264,5 +305,6 @@ export {
     submitPromptAndWait,
     captureArtifacts,
     pruneResults,
-    cleanupTaskBrowserDir
+    cleanupTaskBrowserDir,
+    takeMilestoneScreenshot
 };
