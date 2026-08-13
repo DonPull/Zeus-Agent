@@ -31,3 +31,6 @@ playwright-report/
 
 # Misc
 codebase-export.txt
+debug-log.txt
+chat-log.txt
+extract_msgs.py
