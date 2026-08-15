@@ -108,12 +108,12 @@ function ApprovalCard({ message, onDecision }) {
                 
                 {pending ? (
                     <div className="align-center gap-10">
-                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once" })}>
+                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once", messageId: message.id })}>
                             <label>Deny</label>
                         </button>
                         
                         <div style={{ position: "relative" }} className="align-center">
-                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive })}>
+                            <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive, messageId: message.id })}>
                                 <label>Approve (Once)</label>
                             </button>
                             {showDropdown && (
@@ -124,24 +124,24 @@ function ApprovalCard({ message, onDecision }) {
                             
                             {dropdownOpen && isCommand && cmd && (
                                 <div className="approval-dropdown column">
-                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_exact", command: cmd }); }}>
+                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { messageId: message.id, mode: "task_exact", command: cmd }); }}>
                                         🟢 Always Allow Exact `{cmd}` (Task)
                                     </div>
                                     {!isComposite && (
-                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_prefix", command: cmd }); }}>
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { messageId: message.id, mode: "task_prefix", command: cmd }); }}>
                                             🟢 Always Allow Prefix `{cmd}` (Task)
                                         </div>
                                     )}
                                     {!isComposite && baseApp && baseApp !== cmd && (
-                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_prefix", command: baseApp }); }}>
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { messageId: message.id, mode: "task_prefix", command: baseApp }); }}>
                                             🟢 Always Allow Prefix `{baseApp}` (Task)
                                         </div>
                                     )}
-                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_exact", command: cmd }); }}>
+                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { messageId: message.id, mode: "task_exact", command: cmd }); }}>
                                         🔴 Always Deny Exact `{cmd}` (Task)
                                     </div>
                                     {!isComposite && baseApp && (
-                                        <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_prefix", command: baseApp }); }}>
+                                        <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { messageId: message.id, mode: "task_prefix", command: baseApp }); }}>
                                             🔴 Always Deny Prefix `{baseApp}` (Task)
                                         </div>
                                     )}
@@ -150,15 +150,15 @@ function ApprovalCard({ message, onDecision }) {
 
                             {dropdownOpen && hasFileAccess && filePath && (
                                 <div className="approval-dropdown column">
-                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
+                                    <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { messageId: message.id, mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
                                         🟢 Always Allow Access to This File (Task)
                                     </div>
                                     {parentDir && (
-                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { mode: "task_parent_dir", path: parentDir, permissionType: fileAction }); }}>
+                                        <div className="approval-dropdown-item" onClick={() => { setDropdownOpen(false); onDecision(true, null, { messageId: message.id, mode: "task_parent_dir", path: parentDir, permissionType: fileAction }); }}>
                                             🟢 Always Allow Access to Parent Directory (Task)
                                         </div>
                                     )}
-                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
+                                    <div className="approval-dropdown-item danger" onClick={() => { setDropdownOpen(false); onDecision(false, null, { messageId: message.id, mode: "task_exact", path: filePath, permissionType: fileAction }); }}>
                                         🔴 Always Deny Access to This File (Task)
                                     </div>
                                 </div>
@@ -218,11 +218,11 @@ function HandoffCard({ message, onDecision }) {
                 
                 {pending ? (
                     <div className="align-center gap-10" style={{ marginTop: "10px" }}>
-                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once" })}>
+                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { messageId: message.id, mode: "once" })}>
                             <label>Cancel Task</label>
                         </button>
                         
-                        <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once" })}>
+                        <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { messageId: message.id, mode: "once" })}>
                             <label>Done, Resume Agent</label>
                         </button>
                     </div>

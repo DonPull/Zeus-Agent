@@ -438,16 +438,6 @@ pub async fn evaluate_network_action(
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         
-        // Break infinite loops: if the user JUST approved, allow it as a one-off.
-        let last_user_msg: String = conn.query_row(
-            "SELECT content FROM messages WHERE task_id = ?1 AND role = 'user' ORDER BY rowid DESC LIMIT 1",
-            rusqlite::params![task_id],
-            |row| row.get(0)
-        ).unwrap_or_default();
-        if last_user_msg.starts_with("[APPROVAL DECISION] APPROVED") {
-            return Ok(PermissionVerdict::Allow);
-        }
-
         // SEMANTIC CACHING ENGINE
         // Check if we have a cached verdict for this domain + method
         if let Ok(cached_verdict_str) = conn.query_row(
@@ -565,15 +555,6 @@ pub async fn evaluate_browser_action(
     let browser_mode: String;
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        
-        let last_user_msg: String = conn.query_row(
-            "SELECT content FROM messages WHERE task_id = ?1 AND role = 'user' ORDER BY rowid DESC LIMIT 1",
-            rusqlite::params![task_id],
-            |row| row.get(0)
-        ).unwrap_or_default();
-        if last_user_msg.starts_with("[APPROVAL DECISION] APPROVED") {
-            return Ok(PermissionVerdict::Allow);
-        }
         
         browser_mode = conn.query_row(
             "SELECT browser_mode FROM tasks WHERE id = ?1",

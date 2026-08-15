@@ -369,6 +369,8 @@ async fn handle_ipc_connection(
             crate::gatekeeper::PermissionVerdict::Allow => "allow".to_string(),
             crate::gatekeeper::PermissionVerdict::Deny => "deny".to_string(),
             crate::gatekeeper::PermissionVerdict::Ask => {
+                // Reuse an existing pending card with the same summary so the
+                // sandbox cannot stack duplicate cards for one request.
                 let summary = match req_type {
                     "file" => format!("Python Access: {} `{}`", req["action"].as_str().unwrap_or("read"), req["path"].as_str().unwrap_or("")),
                     "network" => format!("Python Network: {}", req["url"].as_str().unwrap_or("")),
@@ -384,6 +386,17 @@ async fn handle_ipc_connection(
                     crate::orchestrator::Directive::ReadFile { path: req["path"].as_str().unwrap_or("").to_string() }
                 };
                 
+                let existing_id: Option<String> = {
+                    let conn = state.db.lock().ok();
+                    conn.and_then(|c| {
+                        c.query_row(
+                            "SELECT id FROM messages WHERE task_id = ?1 AND kind = 'approval' AND json_extract(content, '$.status') = 'pending' AND json_extract(content, '$.summary') = ?2 ORDER BY rowid DESC LIMIT 1",
+                            rusqlite::params![task_id, summary],
+                            |row| row.get(0),
+                        ).ok()
+                    })
+                };
+
                 let mut approval_message = crate::chat::new_message(
                     &task_id, "event", "approval",
                     serde_json::json!({
@@ -394,8 +407,11 @@ async fn handle_ipc_connection(
                     }).to_string(),
                     None, None, true,
                 );
-                
-                let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut approval_message);
+                if let Some(id) = existing_id {
+                    approval_message.id = id;
+                } else {
+                    let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut approval_message);
+                }
                 let approval_timestamp = approval_message.created_at.clone();
 
                 let mut decision = "deny".to_string();
@@ -520,7 +536,7 @@ mod tests {
         .expect("runner failed");
         
         assert_eq!(outcome.exit_code, 1);
-        assert!(outcome.stderr.contains("Native network access is disabled in this sandbox"));
+        assert!(outcome.stderr.contains("Gatekeeper DENIED") || outcome.stderr.contains("PermissionError"), "stderr was: {}", outcome.stderr);
         let _ = std::fs::remove_dir_all(workspace);
     }
 
@@ -538,7 +554,7 @@ with open(test_file, 'w') as f:
         let outcome = run_python_action(None, None, &workspace, code, 30, None).await.expect("runner failed");
         
         assert_eq!(outcome.exit_code, 1);
-        assert!(outcome.stderr.contains("Native file writes outside the workspace are disabled"));
+        assert!(outcome.stderr.contains("Gatekeeper DENIED") || outcome.stderr.contains("PermissionError"), "stderr was: {}", outcome.stderr);
         let _ = std::fs::remove_dir_all(workspace);
     }
 

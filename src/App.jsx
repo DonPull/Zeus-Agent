@@ -235,19 +235,23 @@ function App() {
         }
         
         try {
-            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved);
+            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved, permData && permData.messageId);
             await reconcileMessages(activeTaskIdRef.current);
         } catch (err) {
             console.error("Failed to resolve pending approvals", err);
         }
 
-        const verb = approved ? "APPROVED" : "DENIED";
-        const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
-        const retryInstruction = approved 
-            ? " The directive has been executed natively and the results are available in your context. Please proceed using the results." 
-            : " Please find an alternative approach or report failure.";
-            
-        handleSend(`[APPROVAL DECISION] ${verb}.${extra}${retryInstruction}`);
+        // If a run is already waiting on this card, flipping status is enough.
+        // Starting another send_user_message would be rejected (TASK_ALREADY_RUNNING)
+        // or would stack a second turn / card.
+        if (!sendLockRef.current && !sending) {
+            const verb = approved ? "APPROVED" : "DENIED";
+            const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
+            const retryInstruction = approved 
+                ? " The directive has been executed natively and the results are available in your context. Please proceed using the results." 
+                : " Please find an alternative approach or report failure.";
+            handleSend(`[APPROVAL DECISION] ${verb}.${extra}${retryInstruction}`);
+        }
     };
 
     const handleHandoffDecision = async (approved, note) => {

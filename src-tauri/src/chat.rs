@@ -614,24 +614,63 @@ pub async fn resolve_pending_approvals(
     state: State<'_, AppState>,
     task_id: String,
     approved: bool,
+    message_id: Option<String>,
 ) -> Result<(), String> {
     let connection = state
         .db
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
-        
+
     let status = if approved { "approved" } else { "denied" };
-    
-    connection
-        .execute(
-            "UPDATE messages 
-             SET content = json_set(content, '$.status', ?1) 
-             WHERE task_id = ?2 AND kind = 'approval' AND json_extract(content, '$.status') = 'pending'",
-            rusqlite::params![status, task_id],
-        )
-        .map_err(|e| format!("Failed to update pending approvals: {}", e))?;
-        
+
+    if let Some(id) = message_id.filter(|s| !s.trim().is_empty()) {
+        connection
+            .execute(
+                "UPDATE messages
+                 SET content = json_set(content, '$.status', ?1)
+                 WHERE id = ?2 AND task_id = ?3 AND kind = 'approval'
+                   AND json_extract(content, '$.status') = 'pending'",
+                rusqlite::params![status, id, task_id],
+            )
+            .map_err(|e| format!("Failed to update approval: {}", e))?;
+    } else {
+        return Err("message_id is required to resolve an approval card.".into());
+    }
+
     Ok(())
+}
+
+pub(crate) fn count_pending_approvals(connection: &Connection, task_id: &str) -> Result<i64, String> {
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM messages
+             WHERE task_id = ?1 AND kind IN ('approval', 'handoff')
+               AND json_extract(content, '$.status') = 'pending'",
+            params![task_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to count pending approvals: {}", e))
+}
+
+/// Block until every pending approval/handoff card for this task is resolved.
+pub(crate) async fn wait_until_no_pending_approvals(
+    state: &AppState,
+    task_id: &str,
+    cancellation_token: &CancellationToken,
+) -> Result<(), String> {
+    loop {
+        if cancellation_token.is_cancelled() {
+            return Err("Task cancelled".into());
+        }
+        let pending = {
+            let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            count_pending_approvals(&conn, task_id)?
+        };
+        if pending == 0 {
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    }
 }
 
 #[tauri::command]
@@ -961,6 +1000,23 @@ pub async fn send_user_message(
             break;
         }
 
+        // Re-anchor this model call on the latest action plan without growing durable history.
+        let injected_plan = {
+            let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            conn.query_row(
+                "SELECT content FROM messages WHERE task_id = ?1 AND kind = 'action_plan' ORDER BY rowid DESC LIMIT 1",
+                params![task_id],
+                |row| row.get::<_, String>(0),
+            ).optional().ok().flatten()
+        };
+        if let Some(plan) = &injected_plan {
+            history.push(ChatMessage {
+                role: "system".into(),
+                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]
+{}", plan),
+            });
+        }
+
         // Keep the streaming future in its own scope. It immutably borrows
         // `history`, so it must be dropped before this iteration appends any
         // assistant or directive-result messages to the history.
@@ -1018,6 +1074,10 @@ pub async fn send_user_message(
                 }
             }
         };
+        if injected_plan.is_some() {
+            let _ = history.pop();
+        }
+
         let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
             Ok(v) => v,
             Err(e) => {
@@ -1334,19 +1394,44 @@ pub async fn send_user_message(
                         });
                         // Loop: call the master again with the action result.
                     }
-                    Directive::UpdateActionPlan { action_plan, request_approval: _ } => {
+                    Directive::UpdateActionPlan { action_plan, request_approval } => {
+                        let prior_plans: i64 = {
+                            let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                            conn.query_row(
+                                "SELECT COUNT(*) FROM messages WHERE task_id = ?1 AND kind = 'action_plan'",
+                                params![task_id],
+                                |row| row.get(0),
+                            ).unwrap_or(0)
+                        };
+
                         let mut msg = new_message(
                             &task_id, "assistant", "action_plan",
                             action_plan.clone(),
                             None, None, true,
                         );
                         persist_and_emit(&state, &app_handle, &task_id, &mut msg)?;
-                        
-                        let result_json = serde_json::json!({ "update_action_plan_result": "Action Plan saved. You may now continue." });
+
+                        let is_alignment_plan = request_approval || prior_plans == 0;
+                        let result_json = if is_alignment_plan {
+                            serde_json::json!({ "update_action_plan_result": "Action Plan saved and shown to the user. STOP and wait. Do not start work until the user replies (proceed, or request changes)." })
+                        } else {
+                            serde_json::json!({ "update_action_plan_result": "Action Plan updated. Continue the current work." })
+                        };
                         let res_msg = orchestrator::directive_result_message(&result_json);
                         let mut hidden_result = new_message(&task_id, "user", "directive_result", res_msg.clone(), None, None, false);
                         persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { role: "user".into(), content: res_msg });
+
+                        if is_alignment_plan {
+                            let mut pause = new_message(
+                                &task_id, "assistant", "chat",
+                                "I've written an implementation plan (see the Action Plan panel). Review it and tell me to proceed, or say what to change.".into(),
+                                None, Some(model_name.clone()), true,
+                            );
+                            persist_and_emit(&state, &app_handle, &task_id, &mut pause)?;
+                            produced_final = true;
+                            break;
+                        }
                     }
                     Directive::DelegateTask { delegate } => {
                         let worker_future = crate::worker::run_worker(
@@ -1475,8 +1560,16 @@ pub async fn send_user_message(
                                     true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1542,8 +1635,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1587,8 +1688,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1632,8 +1741,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1677,8 +1794,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1723,8 +1848,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1769,8 +1902,16 @@ pub async fn send_user_message(
                                     Some(units), Some(model_name.clone()), true,
                                 );
                                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                                produced_final = true;
-                                break;
+                                apply_resolved_approval(
+                                    &state,
+                                    &app_handle,
+                                    &task_id,
+                                    &run_id,
+                                    &cancellation_token,
+                                    &approval_message.id,
+                                    blocked_dir,
+                                    &mut history,
+                                ).await?;
                             }
                         }
                     }
@@ -1789,8 +1930,16 @@ pub async fn send_user_message(
                             Some(units), Some(model_name.clone()), true,
                         );
                         persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                        produced_final = true;
-                        break;
+                        apply_resolved_approval(
+                            &state,
+                            &app_handle,
+                            &task_id,
+                            &run_id,
+                            &cancellation_token,
+                            &approval_message.id,
+                            blocked_dir,
+                            &mut history,
+                        ).await?;
                     }
             }
         }
@@ -1911,13 +2060,205 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
     Ok(())
 }
 
+
+/// Evaluate Gatekeeper for a native mutating/read directive, wait if asked,
+/// then return the directive_result text. Approval cards are always visible
+/// on the master conversation so the UI can show them.
+pub(crate) async fn execute_gated_native_directive(
+    state: &tauri::State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    run_id: &str,
+    cancellation_token: &CancellationToken,
+    directive: Directive,
+) -> Result<String, String> {
+    let verdict = match &directive {
+        Directive::HttpRequest { url, method, body } => {
+            crate::gatekeeper::evaluate_network_action(state, task_id, url, method, body.as_deref())
+                .await
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+        }
+        Directive::RunCommand { command } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            crate::gatekeeper::evaluate_command_action(&conn, task_id, command)
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+        }
+        Directive::ReadFile { path } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            crate::gatekeeper::evaluate_file_permission(&conn, task_id, path, "read")
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+        }
+        Directive::WriteFile { path, .. } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            crate::gatekeeper::evaluate_file_permission(&conn, task_id, path, "write")
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+        }
+        Directive::DeleteFile { path } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            crate::gatekeeper::evaluate_file_permission(&conn, task_id, path, "delete")
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
+        }
+        Directive::ListDir { path } | Directive::SearchFiles { path, .. } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            let mut v = crate::gatekeeper::evaluate_file_permission(&conn, task_id, path, "read")
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask);
+            if v == crate::gatekeeper::PermissionVerdict::Ask {
+                v = crate::gatekeeper::PermissionVerdict::Allow;
+            }
+            v
+        }
+        _ => return Err("Not a gated native directive".into()),
+    };
+
+    match verdict {
+        crate::gatekeeper::PermissionVerdict::Allow => {
+            orchestrator::execute_directive_bypass_gatekeeper(state, app_handle, task_id, directive).await
+        }
+        crate::gatekeeper::PermissionVerdict::Deny => {
+            Ok(orchestrator::directive_result_message(&serde_json::json!({
+                "error": "Gatekeeper DENIED this action based on current policies."
+            })))
+        }
+        crate::gatekeeper::PermissionVerdict::Ask => {
+            let summary = match &directive {
+                Directive::HttpRequest { url, method, .. } => format!("Run Network Request: {} {}", method, url),
+                Directive::RunCommand { command } => format!("Run Command: `{}`", command),
+                Directive::ReadFile { path } => format!("Read File: `{}`", path),
+                Directive::WriteFile { path, .. } => format!("Write File: `{}`", path),
+                Directive::DeleteFile { path } => format!("Delete File: `{}`", path),
+                Directive::ListDir { path } => format!("List Directory: `{}`", path),
+                Directive::SearchFiles { path, pattern } => format!("Search Files in `{}` for `{}`", path, pattern),
+                _ => "Permission required".into(),
+            };
+            let mut approval_message = new_message(
+                task_id,
+                "event",
+                "approval",
+                serde_json::json!({
+                    "summary": summary,
+                    "detail": "",
+                    "status": "pending",
+                    "blocked_directive": directive,
+                })
+                .to_string(),
+                None,
+                None,
+                true,
+            );
+            persist_and_emit(state, app_handle, task_id, &mut approval_message)?;
+
+            let (approved, note) = match wait_for_approval(
+                state.inner(),
+                app_handle,
+                task_id,
+                &approval_message.id,
+                run_id,
+                cancellation_token,
+            )
+            .await
+            {
+                Ok(v) => v,
+                Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
+                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
+                    return Err("RUN_CANCELLED".into());
+                }
+                Err(e) => return Err(e),
+            };
+            match wait_until_no_pending_approvals(state.inner(), task_id, cancellation_token).await {
+                Ok(()) => {}
+                Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
+                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
+                    return Err("RUN_CANCELLED".into());
+                }
+                Err(e) => return Err(e),
+            }
+
+            if approved {
+                orchestrator::execute_directive_bypass_gatekeeper(state, app_handle, task_id, directive).await
+            } else {
+                let reason = if note.is_empty() {
+                    "User DENIED the permission request.".to_string()
+                } else {
+                    format!("User DENIED the permission request. Note: {}", note)
+                };
+                Ok(orchestrator::directive_result_message(&serde_json::json!({ "error": reason })))
+            }
+        }
+    }
+}
+
+async fn apply_resolved_approval(
+    state: &tauri::State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    run_id: &str,
+    cancellation_token: &CancellationToken,
+    approval_id: &str,
+    blocked: Directive,
+    history: &mut Vec<ChatMessage>,
+) -> Result<(), String> {
+    let (approved, note) = match wait_for_approval(
+        state.inner(),
+        app_handle,
+        task_id,
+        approval_id,
+        run_id,
+        cancellation_token,
+    ).await {
+        Ok(v) => v,
+        Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
+            finish_cancelled_run(state, app_handle, task_id, run_id)?;
+            return Err("RUN_CANCELLED".into());
+        }
+        Err(e) => return Err(e),
+    };
+    match wait_until_no_pending_approvals(state.inner(), task_id, cancellation_token).await {
+        Ok(()) => {}
+        Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
+            finish_cancelled_run(state, app_handle, task_id, run_id)?;
+            return Err("RUN_CANCELLED".into());
+        }
+        Err(e) => return Err(e),
+    }
+
+    let feedback = if approved {
+        match blocked {
+            Directive::AskUserForLogin { .. } => {
+                orchestrator::directive_result_message(&serde_json::json!({
+                    "login_result": if note.is_empty() { "User completed the requested login.".to_string() } else { note.clone() }
+                }))
+            }
+            other => match orchestrator::execute_directive_bypass_gatekeeper(state, app_handle, task_id, other).await {
+                Ok(text) => text,
+                Err(e) => orchestrator::directive_result_message(&serde_json::json!({ "error": e })),
+            },
+        }
+    } else {
+        let reason = if note.is_empty() {
+            "User DENIED the permission request.".to_string()
+        } else {
+            format!("User DENIED the permission request. Note: {}", note)
+        };
+        orchestrator::directive_result_message(&serde_json::json!({ "error": reason }))
+    };
+
+    if !feedback.is_empty() {
+        let mut hidden_result = new_message(
+            task_id, "user", "directive_result", feedback.clone(), None, None, false,
+        );
+        persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+        history.push(ChatMessage { role: "user".into(), content: feedback });
+    }
+    Ok(())
+}
+
 pub async fn wait_for_approval(
-    state: tauri::State<'_, crate::db::AppState>,
-    _app_handle: tauri::AppHandle,
+    state: &AppState,
+    _app_handle: &tauri::AppHandle,
     _task_id: &str,
     approval_id: &str,
     _run_id: &str,
-    cancellation_token: tokio_util::sync::CancellationToken,
+    cancellation_token: &CancellationToken,
 ) -> Result<(bool, String), String> {
     loop {
         if cancellation_token.is_cancelled() {
@@ -2001,5 +2342,30 @@ mod tests {
         assert!(token.is_cancelled());
         drop(guard);
         assert!(!state.active_runs.lock().unwrap().contains_key("task-1"));
+    }
+
+    #[test]
+    fn count_pending_approvals_counts_only_pending() {
+        let state = test_state();
+        {
+            let conn = state.db.lock().unwrap();
+            crate::db::init_schema(&conn).unwrap();
+            conn.execute(
+                "INSERT INTO tasks (id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode)
+                 VALUES ('t1', 't', 'active', 10, 0, 'n', 'n', '', '', '', '', 'sandbox')",
+                [],
+            ).ok();
+            conn.execute(
+                r#"INSERT INTO messages (id, task_id, conversation, role, kind, content, created_at, visible)
+                 VALUES ('a1', 't1', 'master', 'event', 'approval', '{"status":"pending"}', 'n', 1)"#,
+                [],
+            ).unwrap();
+            conn.execute(
+                r#"INSERT INTO messages (id, task_id, conversation, role, kind, content, created_at, visible)
+                 VALUES ('a2', 't1', 'master', 'event', 'approval', '{"status":"approved"}', 'n', 1)"#,
+                [],
+            ).unwrap();
+            assert_eq!(count_pending_approvals(&conn, "t1").unwrap(), 1);
+        }
     }
 }

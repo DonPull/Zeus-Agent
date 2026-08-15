@@ -45,6 +45,16 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
 {"type":"http_request","url":"<url>","method":"GET","body":null}
 ```
 
+5b. List a directory:
+```zeus-directive
+{"type":"list_dir","path":"<absolute_path>"}
+```
+
+5c. Search for files:
+```zeus-directive
+{"type":"search_files","path":"<absolute_directory_path>","pattern":"<filename_substring>"}
+```
+
 6. Run a Python script:
 ```zeus-directive
 {"type":"run_action","action":{"language":"python","code":"<python source>","timeout_secs":60},"success_criteria":"expected result"}
@@ -150,7 +160,7 @@ pub async fn run_worker(
         },
         ChatMessage {
             role: "user".into(),
-            content: "Begin executing your assigned objective. Remember to use the RunAction directive to perform work in the workspace.".into(),
+            content: "Begin executing your assigned objective. Use native directives (read_file, write_file, run_command, list_dir, search_files, http_request) when they fit; use run_action (Python) for browser automation or multi-step scripts.".into(),
         }
     ];
 
@@ -172,7 +182,7 @@ pub async fn run_worker(
         &conversation,
         "user",
         "chat",
-        "Begin executing your assigned objective. Remember to use the RunAction directive to perform work in the workspace.".into(),
+        "Begin executing your assigned objective. Use native directives (read_file, write_file, run_command, list_dir, search_files, http_request) when they fit; use run_action (Python) for browser automation or multi-step scripts.".into(),
         None,
         None,
         false,
@@ -357,7 +367,7 @@ pub async fn run_worker(
                             let _ = crate::browser_manager::start_browser_handoff(state.clone(), task_id.to_string()).await;
                             
                             // Wait for user
-                            let (approved, note) = crate::chat::wait_for_approval(state.clone(), app_handle.clone(), task_id, &approval.id, run_id, cancellation_token.clone()).await?;
+                            let (approved, note) = crate::chat::wait_for_approval(state.inner(), app_handle, task_id, &approval.id, run_id, cancellation_token).await?;
                             
                             // Restart headless
                             let _ = crate::browser_manager::finish_browser_handoff(state.clone(), task_id.to_string()).await;
@@ -374,9 +384,30 @@ pub async fn run_worker(
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
                             history.push(ChatMessage { role: "user".into(), content: feedback });
                         }
+                        Directive::ReadFile { .. }
+                        | Directive::WriteFile { .. }
+                        | Directive::DeleteFile { .. }
+                        | Directive::RunCommand { .. }
+                        | Directive::HttpRequest { .. }
+                        | Directive::ListDir { .. }
+                        | Directive::SearchFiles { .. } => {
+                            let msg = crate::chat::execute_gated_native_directive(
+                                state,
+                                app_handle,
+                                task_id,
+                                run_id,
+                                cancellation_token,
+                                directive,
+                            ).await?;
+                            let mut hidden_result = new_message_for_conversation(
+                                task_id, &conversation, "user", "directive_result", msg.clone(), None, None, false
+                            );
+                            persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
+                            history.push(ChatMessage { role: "user".into(), content: msg });
+                        }
                         _ => {
-                            // Workers cannot delegate or request approval for now
-                            let feedback = "[DIRECTIVE_ERROR] This directive is not allowed for worker agents.".to_string();
+                            // Master-only: delegate, memory, action plan, task title.
+                            let feedback = "[DIRECTIVE_ERROR] This directive is reserved for the Master agent (planning / user-facing). Use native file/command/http tools or run_action instead.".to_string();
                             let mut hidden_result = new_message_for_conversation(
                                 task_id, &conversation, "user", "directive_result", feedback.clone(), None, None, false
                             );
