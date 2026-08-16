@@ -147,10 +147,23 @@ CREATE TABLE IF NOT EXISTS watcher_cache (
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     domain TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '',
     method TEXT NOT NULL,
     verdict TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS cookie_vault (
+    id TEXT PRIMARY KEY,
+    service TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    account_identifier TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    cookies_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cookie_vault_domain ON cookie_vault(domain);
 ";
 
 pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
@@ -172,6 +185,15 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         "ALTER TABLE permissions ADD COLUMN match_type TEXT NOT NULL DEFAULT 'prefix'",
         [],
     );
+
+    // Migration: add url column to watcher_cache if it doesn't exist
+    let has_watcher_url: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('watcher_cache') WHERE name = 'url' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_watcher_url {
+        let _ = connection.execute("ALTER TABLE watcher_cache ADD COLUMN url TEXT NOT NULL DEFAULT ''", []);
+    }
 
     // Migration: add model columns to tasks table
     let has_master_model: bool = connection
@@ -314,6 +336,112 @@ pub fn update_chat_memory(conn: &Connection, task_id: &str, content: &str) -> ru
          ON CONFLICT(task_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
         rusqlite::params![task_id, content, now],
     )?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CookieVaultEntry {
+    pub id: String,
+    pub service: String,
+    pub domain: String,
+    pub account_identifier: String,
+    pub display_name: String,
+    pub cookies_json: String,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+}
+
+pub fn list_cookie_vault(conn: &Connection, domain: Option<&str>) -> Result<Vec<CookieVaultEntry>, rusqlite::Error> {
+    if let Some(d) = domain {
+        let mut s = conn.prepare("SELECT id, service, domain, account_identifier, display_name, cookies_json, created_at, last_used_at FROM cookie_vault WHERE domain = ?1 OR domain LIKE ?2 ORDER BY last_used_at DESC")?;
+        let like_pattern = format!("%{}", d);
+        let rows = s.query_map(rusqlite::params![d, like_pattern], |row| {
+            Ok(CookieVaultEntry {
+                id: row.get(0)?,
+                service: row.get(1)?,
+                domain: row.get(2)?,
+                account_identifier: row.get(3)?,
+                display_name: row.get(4)?,
+                cookies_json: row.get(5)?,
+                created_at: row.get(6)?,
+                last_used_at: row.get(7)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    } else {
+        let mut s = conn.prepare("SELECT id, service, domain, account_identifier, display_name, cookies_json, created_at, last_used_at FROM cookie_vault ORDER BY last_used_at DESC")?;
+        let rows = s.query_map([], |row| {
+            Ok(CookieVaultEntry {
+                id: row.get(0)?,
+                service: row.get(1)?,
+                domain: row.get(2)?,
+                account_identifier: row.get(3)?,
+                display_name: row.get(4)?,
+                cookies_json: row.get(5)?,
+                created_at: row.get(6)?,
+                last_used_at: row.get(7)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+}
+
+pub fn get_cookie_vault_entry(conn: &Connection, id: &str) -> Result<Option<CookieVaultEntry>, rusqlite::Error> {
+    let mut s = conn.prepare("SELECT id, service, domain, account_identifier, display_name, cookies_json, created_at, last_used_at FROM cookie_vault WHERE id = ?1 LIMIT 1")?;
+    let mut rows = s.query_map(rusqlite::params![id], |row| {
+        Ok(CookieVaultEntry {
+            id: row.get(0)?,
+            service: row.get(1)?,
+            domain: row.get(2)?,
+            account_identifier: row.get(3)?,
+            display_name: row.get(4)?,
+            cookies_json: row.get(5)?,
+            created_at: row.get(6)?,
+            last_used_at: row.get(7)?,
+        })
+    })?;
+    if let Some(r) = rows.next() {
+        Ok(Some(r?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn save_cookie_vault_entry(conn: &Connection, entry: &CookieVaultEntry) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO cookie_vault (id, service, domain, account_identifier, display_name, cookies_json, created_at, last_used_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(id) DO UPDATE SET
+            service = excluded.service,
+            domain = excluded.domain,
+            account_identifier = excluded.account_identifier,
+            display_name = excluded.display_name,
+            cookies_json = excluded.cookies_json,
+            last_used_at = excluded.last_used_at",
+        rusqlite::params![
+            entry.id,
+            entry.service,
+            entry.domain,
+            entry.account_identifier,
+            entry.display_name,
+            entry.cookies_json,
+            entry.created_at,
+            entry.last_used_at
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn delete_cookie_vault_entry(conn: &Connection, id: &str) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM cookie_vault WHERE id = ?1", rusqlite::params![id])?;
     Ok(())
 }
 

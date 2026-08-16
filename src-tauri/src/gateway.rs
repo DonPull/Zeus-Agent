@@ -33,7 +33,12 @@ const UNIT_PER_TOOL_CALL: f64 = 1.0;
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn http_client() -> &'static reqwest::Client {
-    HTTP_CLIENT.get_or_init(reqwest::Client::new)
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
 }
 
 /// Models whose upstream rejects the Responses API are remembered here for the
@@ -172,13 +177,17 @@ pub async fn chat_completion(
     let body = json!({ "model": model, "messages": messages });
 
     let client = http_client();
-    let response = client
-        .post(format!("{}/chat/completions", base_url))
-        .bearer_auth(api_key)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(90),
+        client
+            .post(format!("{}/chat/completions", base_url))
+            .bearer_auth(api_key)
+            .json(&body)
+            .send(),
+    )
+    .await
+    .map_err(|_| "API request timed out after 90 seconds.".to_string())?
+    .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     let text = response
@@ -218,13 +227,17 @@ where
     let body = json!({ "model": model, "messages": messages, "stream": true });
 
     let client = http_client();
-    let response = client
-        .post(format!("{}/chat/completions", base_url))
-        .bearer_auth(api_key)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(180),
+        client
+            .post(format!("{}/chat/completions", base_url))
+            .bearer_auth(api_key)
+            .json(&body)
+            .send(),
+    )
+    .await
+    .map_err(|_| "API connection timed out after 180 seconds.".to_string())?
+    .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -247,8 +260,19 @@ where
     let mut byte_stream = response.bytes_stream();
     let mut buffer = String::new();
 
-    while let Some(chunk) = byte_stream.next().await {
-        let chunk = chunk.map_err(|e| format!("API stream read failed: {}", e))?;
+    loop {
+        let chunk_res = tokio::time::timeout(
+            std::time::Duration::from_secs(90),
+            byte_stream.next(),
+        ).await;
+
+        let chunk = match chunk_res {
+            Ok(Some(Ok(c))) => c,
+            Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
+            Ok(None) => break,
+            Err(_) => return Err("LLM stream timed out after 90 seconds of inactivity.".into()),
+        };
+
         buffer.push_str(&String::from_utf8_lossy(&chunk));
 
         while let Some(newline_pos) = buffer.find('\n') {
@@ -359,13 +383,17 @@ where
     });
 
     let client = http_client();
-    let response = client
-        .post(format!("{}/responses", base_url))
-        .bearer_auth(api_key)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("API request failed: {}", e))?;
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(180),
+        client
+            .post(format!("{}/responses", base_url))
+            .bearer_auth(api_key)
+            .json(&body)
+            .send(),
+    )
+    .await
+    .map_err(|_| "API connection timed out after 180 seconds.".to_string())?
+    .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -390,8 +418,19 @@ where
     let mut buffer = String::new();
     let mut current_event_type = String::new();
 
-    while let Some(chunk) = byte_stream.next().await {
-        let chunk = chunk.map_err(|e| format!("API stream read failed: {}", e))?;
+    loop {
+        let chunk_res = tokio::time::timeout(
+            std::time::Duration::from_secs(90),
+            byte_stream.next(),
+        ).await;
+
+        let chunk = match chunk_res {
+            Ok(Some(Ok(c))) => c,
+            Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
+            Ok(None) => break,
+            Err(_) => return Err("LLM stream timed out after 90 seconds of inactivity.".into()),
+        };
+
         if !valid_utf8(&chunk) {
             continue;
         }

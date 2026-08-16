@@ -439,16 +439,16 @@ pub async fn evaluate_network_action(
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         
         // SEMANTIC CACHING ENGINE
-        // Check if we have a cached verdict for this domain + method
+        // Check if we have a cached verdict for this exact full url + method
         if let Ok(cached_verdict_str) = conn.query_row(
-            "SELECT verdict FROM watcher_cache WHERE domain = ?1 AND method = ?2 ORDER BY created_at DESC LIMIT 1",
-            rusqlite::params![domain, method],
+            "SELECT verdict FROM watcher_cache WHERE (url = ?1 OR (url = '' AND domain = ?2)) AND method = ?3 ORDER BY created_at DESC LIMIT 1",
+            rusqlite::params![url, domain, method],
             |row| row.get::<_, String>(0)
         ) {
             crate::logger::log(
                 task_id,
                 "gatekeeper",
-                &format!("Cache hit for {} {}: {}", method, domain, cached_verdict_str),
+                &format!("Cache hit for {} {}: {}", method, url, cached_verdict_str),
             );
             return match cached_verdict_str.as_str() {
                 "ALLOW" => Ok(PermissionVerdict::Allow),
@@ -525,8 +525,8 @@ pub async fn evaluate_network_action(
         let now = crate::db::now_iso();
         let scope = task_id.to_string();
         let _ = conn.execute(
-            "INSERT INTO watcher_cache (id, scope, domain, method, verdict, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![id, scope, domain, method, verdict_str, now]
+            "INSERT INTO watcher_cache (id, scope, domain, url, method, verdict, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![id, scope, domain, url, method, verdict_str, now]
         );
     }
 

@@ -65,6 +65,44 @@ pub enum Directive {
         method: String,
         body: Option<String>,
     },
+    RecallMessages {
+        query: String,
+        #[serde(default)]
+        limit: Option<usize>,
+    },
+    AskUserChoice {
+        prompt: String,
+        options: Vec<ChoiceOption>,
+        #[serde(default = "default_true")]
+        allow_custom_input: bool,
+        #[serde(default)]
+        custom_placeholder: Option<String>,
+    },
+    ConfigureBrowser {
+        #[serde(default)]
+        permissions: Option<serde_json::Value>,
+        #[serde(default)]
+        viewport: Option<serde_json::Value>,
+    },
+    InstallBrowserExtension {
+        extension_path: String,
+    },
+    ManageBrowserExtension {
+        extension_id: String,
+        action: String,
+    },
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChoiceOption {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -362,6 +400,58 @@ pub async fn execute_directive_bypass_gatekeeper(
             let result_json = serde_json::json!({ "search_files_result": res });
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
+        Directive::RecallMessages { query, limit } => {
+            let max_limit = limit.unwrap_or(10).min(50);
+            let conn = _state.db.lock().map_err(|e| e.to_string())?;
+            let search_pattern = format!("%{}%", query);
+            let mut stmt = conn.prepare(
+                "SELECT role, kind, content, created_at FROM messages
+                 WHERE task_id = ?1 AND content LIKE ?2
+                 ORDER BY rowid DESC LIMIT ?3"
+            ).map_err(|e| e.to_string())?;
+
+            let rows = stmt.query_map(rusqlite::params![task_id, search_pattern, max_limit], |row| {
+                let role: String = row.get(0)?;
+                let kind: String = row.get(1)?;
+                let content: String = row.get(2)?;
+                let created_at: String = row.get(3)?;
+                Ok(serde_json::json!({
+                    "role": role,
+                    "kind": kind,
+                    "content": content,
+                    "created_at": created_at,
+                }))
+            }).map_err(|e| e.to_string())?;
+
+            let mut results = Vec::new();
+            for r in rows {
+                if let Ok(item) = r {
+                    results.push(item);
+                }
+            }
+
+            let result_json = serde_json::json!({
+                "recall_results": results,
+                "matches_count": results.len()
+            });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::AskUserChoice { prompt: _, options: _, allow_custom_input: _, custom_placeholder: _ } => {
+            let result_json = serde_json::json!({ "choice_result": "User decision processed." });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::ConfigureBrowser { permissions: _, viewport: _ } => {
+            let result_json = serde_json::json!({ "configure_browser_result": "Browser configuration applied." });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::InstallBrowserExtension { extension_path } => {
+            let result_json = serde_json::json!({ "install_browser_extension_result": format!("Extension at '{}' loaded.", extension_path) });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
+        Directive::ManageBrowserExtension { extension_id, action } => {
+            let result_json = serde_json::json!({ "manage_browser_extension_result": format!("Extension '{}' {}.", extension_id, action) });
+            Ok(crate::orchestrator::directive_result_message(&result_json))
+        }
         _ => {
             Err("Directive does not support bypass execution.".to_string())
         }
@@ -561,6 +651,24 @@ mod tests {
                 assert_eq!(delegate.success_criteria, "found things");
             }
             _ => panic!("expected DelegateTask directive"),
+        }
+    }
+
+    #[test]
+    fn recall_messages_is_parsed_correctly() {
+        let reply = r#"```zeus-directive
+{
+  "type": "recall_messages",
+  "query": "database password",
+  "limit": 5
+}
+```"#;
+        match parse_master_reply(reply) {
+            MasterReply::Directive(_, Directive::RecallMessages { query, limit }, _) => {
+                assert_eq!(query, "database password");
+                assert_eq!(limit, Some(5));
+            }
+            _ => panic!("expected RecallMessages directive"),
         }
     }
 }

@@ -127,10 +127,54 @@
     margin-top: 4px;
 }
 
+.task-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: var(--zeus-text-dim);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.task-status-dot.running {
+    background-color: #10b981;
+    box-shadow: 0 0 6px #10b981aa;
+}
+
+.task-status-dot.waiting,
+.task-status-dot.handoff,
+.task-status-dot.approval,
+.task-status-dot.choice {
+    background-color: #f59e0b;
+    box-shadow: 0 0 6px #f59e0baa;
+}
+
+.task-status-dot.failed,
+.task-status-dot.error {
+    background-color: #ef4444;
+}
+
+.task-status-dot.completed {
+    background-color: #6b7280;
+}
+
 .sidebar-task-status {
     color: var(--zeus-text-dim);
     font-size: 12px;
     text-transform: capitalize;
+}
+
+.sidebar-task-status.running {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.sidebar-task-status.waiting,
+.sidebar-task-status.handoff,
+.sidebar-task-status.approval,
+.sidebar-task-status.choice {
+    color: #f59e0b;
+    font-weight: 600;
 }
 
 .sidebar-task-spend {

@@ -232,6 +232,111 @@ function HandoffCard({ message, onDecision }) {
     );
 }
 
+function InteractiveChoiceCard({ message, onDecision }) {
+    const data = useMemo(() => parseEventContent(message), [message]);
+    const [selectedId, setSelectedId] = useState(null);
+    const [customText, setCustomText] = useState("");
+    if (!data) return null;
+
+    const pending = data.status === "pending";
+    const options = data.options || [];
+
+    const handleSelectOption = (optId) => {
+        if (!pending) return;
+        setSelectedId(optId);
+    };
+
+    const handleSubmit = () => {
+        if (!pending || (!selectedId && !customText.trim())) return;
+        if (onDecision) {
+            onDecision(selectedId || "custom", customText.trim(), { messageId: message.id });
+        }
+    };
+
+    return (
+        <div className="chat-message event">
+            <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : "approved"}`}>
+                <div className="approval-card-header align-center justify-space-between no-user-select">
+                    <span className="approval-card-title">Decision Required</span>
+                    <span className="approval-card-status">{pending ? "waiting for selection" : "resolved"}</span>
+                </div>
+                
+                <div className="approval-card-body">
+                    <strong>{data.prompt || "Please select an option:"}</strong>
+                </div>
+
+                <div className="choice-options-list column gap-8" style={{ marginTop: "6px" }}>
+                    {options.map((opt) => (
+                        <div
+                            key={opt.id}
+                            className={`choice-option-item align-center gap-10 ${selectedId === opt.id ? "selected" : ""}`}
+                            onClick={() => handleSelectOption(opt.id)}
+                            style={{
+                                padding: "10px 14px",
+                                borderRadius: "8px",
+                                border: selectedId === opt.id ? "1.5px solid var(--accent-color, #4f46e5)" : "1px solid rgba(255,255,255,0.1)",
+                                background: selectedId === opt.id ? "rgba(79, 70, 229, 0.15)" : "rgba(255,255,255,0.03)",
+                                cursor: pending ? "pointer" : "default",
+                                transition: "all 0.15s ease"
+                            }}
+                        >
+                            <input
+                                type="radio"
+                                name={`choice-${message.id}`}
+                                checked={selectedId === opt.id || (!pending && data.selected_option === opt.id)}
+                                onChange={() => handleSelectOption(opt.id)}
+                                disabled={!pending}
+                            />
+                            <div className="column">
+                                <span style={{ fontWeight: 600, fontSize: "0.92rem" }}>{opt.label}</span>
+                                {opt.description && <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>{opt.description}</span>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {data.allow_custom_input && pending && (
+                    <div className="choice-custom-input column gap-5" style={{ marginTop: "6px" }}>
+                        <input
+                            type="text"
+                            placeholder={data.custom_placeholder || "Or type custom input / instructions..."}
+                            value={customText}
+                            onChange={(e) => {
+                                setCustomText(e.target.value);
+                                if (e.target.value.trim()) setSelectedId(null);
+                            }}
+                            style={{
+                                padding: "8px 12px",
+                                borderRadius: "6px",
+                                border: "1px solid rgba(255,255,255,0.15)",
+                                background: "rgba(0,0,0,0.2)",
+                                color: "inherit",
+                                fontSize: "0.88rem"
+                            }}
+                        />
+                    </div>
+                )}
+
+                {pending ? (
+                    <div className="align-center justify-end" style={{ marginTop: "10px" }}>
+                        <button
+                            className="confirm-dialog-button"
+                            disabled={!selectedId && !customText.trim()}
+                            onClick={handleSubmit}
+                        >
+                            <label>Submit Choice</label>
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ fontSize: "0.82rem", opacity: 0.7, marginTop: "4px" }}>
+                        Selected: {data.selected_option} {data.custom_input ? `("${data.custom_input}")` : ""}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function ReasoningPill({ reasoning, streaming }) {
     const [open, setOpen] = useState(true);
     if (!reasoning) return null;
@@ -247,7 +352,7 @@ function ReasoningPill({ reasoning, streaming }) {
     );
 }
 
-function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDecision, onHandoffDecision }) {
+function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDecision, onHandoffDecision, onChoiceDecision }) {
     if (message.role === "user") {
         return (
             <div className="chat-message user">
@@ -264,6 +369,7 @@ function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDec
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
         if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;
+        if (message.kind === "choice") return <InteractiveChoiceCard message={message} onDecision={onChoiceDecision} />;
         if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
         return (
             <div className="chat-message event">

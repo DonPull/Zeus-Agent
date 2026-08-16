@@ -16,11 +16,16 @@ export const getTaskRunState = (taskId) => invoke("get_task_run_state", { taskId
 export const cancelTaskRun = (taskId) => invoke("cancel_task_run", { taskId });
 export const sendUserMessage = (taskId, content, requestId) => invoke("send_user_message", { taskId, content, requestId });
 export const resolvePendingApprovals = (taskId, approved, messageId) => invoke("resolve_pending_approvals", { taskId, approved, messageId });
-export const resolveHandoff = (taskId, approved, note) => invoke("resolve_handoff", { taskId, approved, note });
+export const resolveHandoff = (taskId, approved, note, messageId) => invoke("resolve_handoff", { taskId, approved, note, messageId });
+export const resolveChoice = (taskId, choiceId, customText, messageId) => invoke("resolve_choice", { taskId, choiceId, customText, messageId });
 export const renameTask  = (taskId, title)  => invoke("rename_task",        { taskId, newTitle: title });
 export const updateTaskSettings = (taskId, settings) => invoke("update_task_settings", { taskId, settings });
 export const deleteTask  = (taskId)         => invoke("delete_task",        { taskId });
 export const getBrowserHistory = (taskId)   => invoke("get_browser_history", { taskId });
+export const getVaultAccounts = (domain)    => invoke("get_vault_accounts", { domain });
+export const getVaultAccount = (id)         => invoke("get_vault_account",  { id });
+export const saveVaultAccount = (entry)     => invoke("save_vault_account", { entry });
+export const deleteVaultAccount = (id)      => invoke("delete_vault_account", { id });
 
 // ---- Settings --------------------------------------------------------------
 export const getSettings        = ()              => invoke("get_settings");

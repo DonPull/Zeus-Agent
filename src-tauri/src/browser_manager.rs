@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::collections::HashMap;
 use tauri::State;
 use crate::db::AppState;
@@ -13,6 +13,13 @@ pub struct BrowserState {
 
 pub struct BrowserManager {
     pub active_browsers: Mutex<HashMap<String, BrowserState>>,
+}
+
+fn find_free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map(|addr| addr.port())
+        .unwrap_or(9222)
 }
 
 impl BrowserManager {
@@ -46,24 +53,25 @@ impl BrowserManager {
             get_browser_executable()
         }.ok_or("No browser executable found.")?;
         
-        let port = 9222; // In reality we should find a free port or random port
+        let port = find_free_port();
         
-        // For sandboxed, use workspace/.zeus/browser_data
+        // For sandboxed, use workspace/.zeus/browser_profiles/<task_id>
         let workspace = crate::utils::task_workspace(task_id)?;
         let mut actual_user_data_dir = None;
         let mut state_user_data_dir = PathBuf::new();
         
         if mode == "main" {
             // Main browser takeover uses default profile (omit --user-data-dir).
-            // User MUST close browser before this runs.
         } else {
-            let dir = workspace.join(".zeus").join("browser_data");
+            let dir = workspace.join(".zeus").join("browser_profiles").join(task_id);
             std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create user data dir: {}", e))?;
             state_user_data_dir = dir.clone();
             actual_user_data_dir = Some(state_user_data_dir.clone());
         };
         
-        let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), false)?;
+        let is_headless = std::env::var("ZEUS_HEADLESS_BROWSER").is_ok();
+        let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), is_headless)?;
+        let pid = child.id();
         
         browsers.insert(task_id.to_string(), BrowserState {
             process: Some(child),
@@ -71,11 +79,24 @@ impl BrowserManager {
             user_data_dir: state_user_data_dir,
         });
         
+        crate::logger::log(task_id, "browser", &format!("Spawned browser (PID: {:?}) on port {}", pid, port));
         Ok(port)
     }
 }
 
 pub fn get_browser_executable() -> Option<PathBuf> {
+    // Check local pre-installed or downloaded Chromium
+    if let Ok(app_dir) = crate::utils::workspace_root() {
+        let local_chromium_win = app_dir.join(".zeus").join("browsers").join("chromium").join("chrome-win").join("chrome.exe");
+        if local_chromium_win.exists() {
+            return Some(local_chromium_win);
+        }
+        let local_chromium_linux = app_dir.join(".zeus").join("browsers").join("chromium").join("chrome-linux").join("chrome");
+        if local_chromium_linux.exists() {
+            return Some(local_chromium_linux);
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         let paths = [
@@ -97,6 +118,7 @@ pub fn get_browser_executable() -> Option<PathBuf> {
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
             "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
         ];
         for p in paths.iter() {
             if Path::new(p).exists() {
@@ -136,6 +158,9 @@ pub fn spawn_browser(executable: &Path, port: u16, user_data_dir: Option<&Path>,
     cmd.arg("--no-first-run");
     cmd.arg("--no-default-browser-check");
     cmd.arg("--disable-sync");
+    cmd.arg("--disable-background-timer-throttling");
+    cmd.arg("--disable-renderer-backgrounding");
+    cmd.arg("--disable-backgrounding-occluded-windows");
     
     if headless {
         cmd.arg("--headless=new");
@@ -152,34 +177,9 @@ pub async fn start_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
-    let mut browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
-    if let Some(browser_state) = browsers.get_mut(&task_id) {
-        if let Some(mut child) = browser_state.process.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        
-        let task_data = crate::chat::load_task(&state.db.lock().unwrap(), &task_id).map_err(|e| e.to_string())?;
-        
-        let exe = if let Some(path) = &task_data.browser_executable_path {
-            if !path.trim().is_empty() {
-                Some(PathBuf::from(path.trim()))
-            } else {
-                get_browser_executable()
-            }
-        } else {
-            get_browser_executable()
-        }.ok_or("No browser executable found.")?;
-        
-        let actual_user_data_dir = if task_data.browser_mode == "main" {
-            None
-        } else {
-            Some(browser_state.user_data_dir.as_path())
-        };
-        
-        let is_headless = std::env::var("ZEUS_HEADLESS_HANDOFF").is_ok();
-        let new_child = spawn_browser(&exe, browser_state.port, actual_user_data_dir, is_headless)?;
-        browser_state.process = Some(new_child);
+    let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
+    if let Some(browser_state) = browsers.get(&task_id) {
+        crate::logger::log(&task_id, "browser", &format!("Browser handoff started on port {}", browser_state.port));
     }
     Ok(())
 }
@@ -189,34 +189,9 @@ pub async fn finish_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
-    let mut browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
-    if let Some(browser_state) = browsers.get_mut(&task_id) {
-        if let Some(mut child) = browser_state.process.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        
-        let task_data = crate::chat::load_task(&state.db.lock().unwrap(), &task_id).map_err(|e| e.to_string())?;
-        
-        let exe = if let Some(path) = &task_data.browser_executable_path {
-            if !path.trim().is_empty() {
-                Some(PathBuf::from(path.trim()))
-            } else {
-                get_browser_executable()
-            }
-        } else {
-            get_browser_executable()
-        }.ok_or("No browser executable found.")?;
-        
-        let actual_user_data_dir = if task_data.browser_mode == "main" {
-            None
-        } else {
-            Some(browser_state.user_data_dir.as_path())
-        };
-        
-        // Spawn headless
-        let new_child = spawn_browser(&exe, browser_state.port, actual_user_data_dir, false)?;
-        browser_state.process = Some(new_child);
+    let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
+    if let Some(browser_state) = browsers.get(&task_id) {
+        crate::logger::log(&task_id, "browser", &format!("Browser handoff completed on port {}", browser_state.port));
     }
     Ok(())
 }

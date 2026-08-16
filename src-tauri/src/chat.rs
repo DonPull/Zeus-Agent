@@ -438,6 +438,72 @@ pub(crate) fn persist_and_emit(
     Ok(())
 }
 
+/// Compacts conversation history when it grows long to preserve token budget and
+/// reasoning sharpness, while keeping the system prompt, initial user prompt,
+/// task memory, and the most recent K turns intact.
+pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
+    const MAX_COMPACT_MESSAGES: usize = 16;
+    const MAX_COMPACT_CHARS: usize = 24_000;
+    const RECENT_MESSAGES_TO_KEEP: usize = 6;
+
+    let total_chars: usize = history.iter().map(|m| m.content.len()).sum();
+    if history.len() <= MAX_COMPACT_MESSAGES && total_chars <= MAX_COMPACT_CHARS {
+        return history;
+    }
+
+    if history.len() <= 3 {
+        return history;
+    }
+
+    let system_msg = history[0].clone();
+    let initial_user_msg = history[1].clone();
+
+    let recent_count = RECENT_MESSAGES_TO_KEEP.min(history.len().saturating_sub(2));
+    let split_index = history.len() - recent_count;
+
+    if split_index <= 2 {
+        return history;
+    }
+
+    let intermediate_messages = &history[2..split_index];
+    let mut summary_lines = Vec::new();
+    summary_lines.push("[CONVERSATION MILESTONES (COMPACTED)]".to_string());
+    summary_lines.push("Older conversation turns have been summarized to save context. Use the `recall_messages` directive if you need exact details from earlier steps.".to_string());
+
+    for msg in intermediate_messages {
+        let role_label = match msg.role.as_str() {
+            "assistant" => "Assistant",
+            "user" => "User/Tool",
+            _ => "System",
+        };
+        let trimmed = msg.content.trim();
+        let first_line = trimmed.lines().next().unwrap_or("");
+        let snippet: String = if first_line.len() > 180 {
+            format!("{}...", &first_line[..180])
+        } else if trimmed.len() > first_line.len() {
+            format!("{}... [more]", first_line)
+        } else {
+            first_line.to_string()
+        };
+        if !snippet.is_empty() {
+            summary_lines.push(format!("- [{}] {}", role_label, snippet));
+        }
+    }
+
+    let summary_msg = ChatMessage {
+        role: "system".into(),
+        content: summary_lines.join("\n"),
+    };
+
+    let mut compacted = Vec::with_capacity(3 + recent_count);
+    compacted.push(system_msg);
+    compacted.push(initial_user_msg);
+    compacted.push(summary_msg);
+    compacted.extend_from_slice(&history[split_index..]);
+
+    compacted
+}
+
 fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<ChatMessage>, String> {
     let mut system_prompt = settings::load_master_prompt()?;
     if let Ok(Some(memory)) = crate::db::get_chat_memory(connection, task_id) {
@@ -451,7 +517,7 @@ fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<Cha
 
     let mut statement = connection
         .prepare(
-            "SELECT role, content FROM messages
+            "SELECT role, content, kind FROM messages
              WHERE task_id = ?1 AND conversation = 'master' AND kind IN ('chat','directive','directive_result') AND role IN ('user', 'assistant', 'system', 'tool')
              ORDER BY rowid ASC",
         )
@@ -459,17 +525,36 @@ fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<Cha
 
     let rows = statement
         .query_map(params![task_id], |row| {
-            Ok(ChatMessage {
-                role: row.get(0)?,
-                content: row.get(1)?,
-            })
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
         })
         .map_err(|e| format!("Failed to load the conversation history: {}", e))?;
 
+    let mut raw_history: Vec<(String, String, String)> = Vec::new();
     for row in rows {
-        history.push(row.map_err(|e| format!("Failed to read a history row: {}", e))?);
+        raw_history.push(row.map_err(|e| format!("Failed to read a history row: {}", e))?);
     }
-    Ok(history)
+
+    // Filter out assistant 'chat' messages that immediately precede a 'directive' message
+    // because the 'directive' message already contains the complete raw output (preamble + directive JSON).
+    for i in 0..raw_history.len() {
+        let (role, content, kind) = &raw_history[i];
+        if role == "assistant" && kind == "chat" {
+            let next_is_directive = raw_history.get(i + 1).map(|(r, _, k)| r == "assistant" && k == "directive").unwrap_or(false);
+            if next_is_directive {
+                continue;
+            }
+        }
+        history.push(ChatMessage {
+            role: role.clone(),
+            content: content.clone(),
+        });
+    }
+
+    Ok(compact_master_history(history))
 }
 
 #[tauri::command]
@@ -640,11 +725,47 @@ pub async fn resolve_pending_approvals(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn resolve_choice(
+    state: State<'_, AppState>,
+    task_id: String,
+    choice_id: String,
+    custom_text: Option<String>,
+    message_id: Option<String>,
+) -> Result<(), String> {
+    let connection = state
+        .db
+        .lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+    
+    let custom = custom_text.unwrap_or_default();
+    if let Some(id) = message_id.filter(|s| !s.trim().is_empty()) {
+        connection
+            .execute(
+                "UPDATE messages
+                 SET content = json_set(json_set(json_set(content, '$.status', 'resolved'), '$.selected_option', ?1), '$.custom_input', ?2)
+                 WHERE id = ?3 AND task_id = ?4 AND kind = 'choice' AND json_extract(content, '$.status') = 'pending'",
+                rusqlite::params![choice_id, custom, id, task_id],
+            )
+            .map_err(|e| format!("Failed to update choice: {}", e))?;
+    } else {
+        connection
+            .execute(
+                "UPDATE messages
+                 SET content = json_set(json_set(json_set(content, '$.status', 'resolved'), '$.selected_option', ?1), '$.custom_input', ?2)
+                 WHERE task_id = ?3 AND kind = 'choice' AND json_extract(content, '$.status') = 'pending'",
+                rusqlite::params![choice_id, custom, task_id],
+            )
+            .map_err(|e| format!("Failed to update choice: {}", e))?;
+    }
+    Ok(())
+}
+
 pub(crate) fn count_pending_approvals(connection: &Connection, task_id: &str) -> Result<i64, String> {
     connection
         .query_row(
             "SELECT COUNT(*) FROM messages
-             WHERE task_id = ?1 AND kind IN ('approval', 'handoff')
+             WHERE task_id = ?1 AND kind IN ('approval', 'handoff', 'choice')
                AND json_extract(content, '$.status') = 'pending'",
             params![task_id],
             |row| row.get(0),
@@ -679,6 +800,7 @@ pub async fn resolve_handoff(
     task_id: String,
     approved: bool,
     note: String,
+    message_id: Option<String>,
 ) -> Result<(), String> {
     let connection = state
         .db
@@ -687,14 +809,25 @@ pub async fn resolve_handoff(
         
     let status = if approved { "approved" } else { "denied" };
     
-    connection
-        .execute(
-            "UPDATE messages 
-             SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2) 
-             WHERE task_id = ?3 AND kind = 'handoff' AND json_extract(content, '$.status') = 'pending'",
-            rusqlite::params![status, note, task_id],
-        )
-        .map_err(|e| format!("Failed to update handoff: {}", e))?;
+    if let Some(id) = message_id.filter(|s| !s.trim().is_empty()) {
+        connection
+            .execute(
+                "UPDATE messages 
+                 SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2) 
+                 WHERE id = ?3 AND task_id = ?4 AND kind = 'handoff' AND json_extract(content, '$.status') = 'pending'",
+                rusqlite::params![status, note, id, task_id],
+            )
+            .map_err(|e| format!("Failed to update handoff: {}", e))?;
+    } else {
+        connection
+            .execute(
+                "UPDATE messages 
+                 SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2) 
+                 WHERE task_id = ?3 AND kind = 'handoff' AND json_extract(content, '$.status') = 'pending'",
+                rusqlite::params![status, note, task_id],
+            )
+            .map_err(|e| format!("Failed to update handoff: {}", e))?;
+    }
         
     Ok(())
 }
@@ -907,6 +1040,33 @@ pub async fn send_user_message(
                     }
                 }
             }
+        } else if content.starts_with("[CHOICE DECISION]") {
+            let latest = connection
+                .query_row(
+                    &format!(
+                        "SELECT {} FROM messages WHERE task_id = ?1 AND kind = 'choice'
+                         ORDER BY rowid DESC LIMIT 1",
+                        MESSAGE_COLUMNS
+                    ),
+                    params![task_id],
+                    row_to_message,
+                )
+                .optional();
+            if let Ok(Some(mut choice_msg)) = latest {
+                if let Ok(mut data) = serde_json::from_str::<serde_json::Value>(&choice_msg.content) {
+                    let executed = data.get("executed").and_then(|v| v.as_bool()).unwrap_or(false);
+                    if !executed {
+                        data["status"] = serde_json::Value::String("resolved".into());
+                        data["executed"] = serde_json::Value::Bool(true);
+                        choice_msg.content = data.to_string();
+                        let _ = connection.execute(
+                            "UPDATE messages SET content = ?1 WHERE id = ?2",
+                            params![choice_msg.content, choice_msg.id],
+                        );
+                        updated_approval = Some(choice_msg);
+                    }
+                }
+            }
         }
 
         if task.title == DEFAULT_TASK_TITLE {
@@ -945,15 +1105,28 @@ pub async fn send_user_message(
     let budget_units = task.budget_credits;
     let mut history = history;
     let mut produced_final = false;
+    let mut steps_since_action_plan: usize = 0;
+    let mut plain_text_nudges: usize = 0;
 
     if let Some(msg) = &updated_approval {
         if let Ok(data) = serde_json::from_str::<serde_json::Value>(&msg.content) {
             if let (Some(status), Some(directive_val)) = (data.get("status").and_then(|s| s.as_str()), data.get("blocked_directive")) {
                 if let Ok(directive) = serde_json::from_value::<orchestrator::Directive>(directive_val.clone()) {
-                    let feedback = if status == "approved" {
-                        match orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, directive).await {
-                            Ok(text) => text,
-                            Err(e) => orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
+                    let feedback = if status == "approved" || status == "resolved" {
+                        if matches!(directive, orchestrator::Directive::AskUserChoice { .. }) {
+                            let opt = data.get("selected_option").and_then(|s| s.as_str()).unwrap_or("");
+                            let custom = data.get("custom_input").and_then(|s| s.as_str()).unwrap_or("");
+                            let result_text = if !custom.is_empty() {
+                                format!("User selected option: {} (custom input: '{}')", opt, custom)
+                            } else {
+                                format!("User selected option: {}", opt)
+                            };
+                            orchestrator::directive_result_message(&serde_json::json!({ "choice_result": result_text }))
+                        } else {
+                            match orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, directive).await {
+                                Ok(text) => text,
+                                Err(e) => orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
+                            }
                         }
                     } else if status == "denied" {
                         let note = data.get("note").and_then(|n| n.as_str()).unwrap_or("");
@@ -978,7 +1151,7 @@ pub async fn send_user_message(
 
     // 2) Orchestration loop. Each iteration may add directive-result messages
     //    to `history` (and persist them) before re-calling the master.
-    for _iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+    for iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
         if cancellation_token.is_cancelled() {
             finish_cancelled_run(&state, &app_handle, &task_id, &run_id)?;
             return Err("RUN_CANCELLED".into());
@@ -1000,6 +1173,18 @@ pub async fn send_user_message(
             break;
         }
 
+        // Compact history if conversation has grown long to preserve token budget
+        history = compact_master_history(history);
+
+        let mut injected_reminder = false;
+        if steps_since_action_plan >= 4 {
+            history.push(ChatMessage {
+                role: "system".into(),
+                content: "[SYSTEM REMINDER]: You have performed 4 consecutive actions without updating the Action Plan. If milestones were completed or tasks adjusted, call `update_action_plan` to keep the plan current for the user.".into(),
+            });
+            injected_reminder = true;
+        }
+
         // Re-anchor this model call on the latest action plan without growing durable history.
         let injected_plan = {
             let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
@@ -1012,8 +1197,7 @@ pub async fn send_user_message(
         if let Some(plan) = &injected_plan {
             history.push(ChatMessage {
                 role: "system".into(),
-                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]
-{}", plan),
+                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]\n{}", plan),
             });
         }
 
@@ -1077,6 +1261,9 @@ pub async fn send_user_message(
         if injected_plan.is_some() {
             let _ = history.pop();
         }
+        if injected_reminder {
+            let _ = history.pop();
+        }
 
         let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
             Ok(v) => v,
@@ -1129,6 +1316,12 @@ pub async fn send_user_message(
 
         match orchestrator::parse_master_reply(&reply_text) {
             orchestrator::MasterReply::Text(text) => {
+                crate::logger::log(
+                    &task_id,
+                    "orchestrator",
+                    &format!("Master output plain text (no directive, len={}): {}", text.len(), text.chars().take(120).collect::<String>()),
+                );
+
                 let mut assistant_message = new_message(
                     &task_id,
                     "assistant",
@@ -1141,8 +1334,37 @@ pub async fn send_user_message(
                 persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
                 history.push(ChatMessage {
                     role: "assistant".into(),
-                    content: text,
+                    content: text.clone(),
                 });
+
+                // If this plain text occurred in the middle of a multi-step execution run (iteration > 0),
+                // didn't ask a question (no '?'), and we haven't already nudged, give the model an auto-continuation nudge
+                // so an in-flight plan does not abruptly halt without executing remaining steps.
+                if iteration > 0 && plain_text_nudges == 0 && !text.contains('?') {
+                    plain_text_nudges += 1;
+                    crate::logger::log(
+                        &task_id,
+                        "orchestrator",
+                        "Intermediate narration without directive detected. Triggering auto-continuation nudge.",
+                    );
+                    let nudge_msg = "[SYSTEM AUTO-CONTINUATION]: You provided intermediate narration without a ```zeus-directive block. If you have more steps to execute (reading files, listing directories, delegating, running actions), emit the ```zeus-directive block now. If all work for this task is completely finished, emit the `final_answer` directive or summarize the completion.".to_string();
+                    let mut hidden_result = new_message(
+                        &task_id,
+                        "user",
+                        "directive_result",
+                        nudge_msg.clone(),
+                        None,
+                        None,
+                        false,
+                    );
+                    persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                    history.push(ChatMessage {
+                        role: "user".into(),
+                        content: nudge_msg,
+                    });
+                    continue;
+                }
+
                 produced_final = true;
                 break;
             }
@@ -1193,6 +1415,14 @@ pub async fn send_user_message(
                     &format!("directive parsed: {:?}", &directive),
                 );
                 
+                plain_text_nudges = 0;
+
+                if matches!(directive, Directive::UpdateActionPlan { .. }) {
+                    steps_since_action_plan = 0;
+                } else {
+                    steps_since_action_plan += 1;
+                }
+
                 let preamble_trimmed = preamble.trim();
                 if !preamble_trimmed.is_empty() {
                     let mut preamble_msg = new_message(
@@ -1941,6 +2171,86 @@ pub async fn send_user_message(
                             &mut history,
                         ).await?;
                     }
+                    Directive::RecallMessages { query, limit } => {
+                        let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::RecallMessages { query, limit }).await {
+                            Ok(text) => text,
+                            Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
+                        };
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: feedback });
+                    }
+                    Directive::AskUserChoice { prompt, options, allow_custom_input, custom_placeholder } => {
+                        let blocked_dir = Directive::AskUserChoice {
+                            prompt: prompt.clone(),
+                            options: options.clone(),
+                            allow_custom_input,
+                            custom_placeholder: custom_placeholder.clone(),
+                        };
+                        let mut choice_message = new_message(
+                            &task_id, "event", "choice",
+                            serde_json::json!({
+                                "prompt": prompt,
+                                "options": options,
+                                "allow_custom_input": allow_custom_input,
+                                "custom_placeholder": custom_placeholder,
+                                "status": "pending",
+                                "blocked_directive": blocked_dir,
+                            }).to_string(),
+                            None, None, true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut choice_message)?;
+                        let mut assistant_message = new_message(
+                            &task_id, "assistant", "chat",
+                            "Please select an option above to proceed.".into(),
+                            Some(units), Some(model_name.clone()), true,
+                        );
+                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                        apply_resolved_approval(
+                            &state,
+                            &app_handle,
+                            &task_id,
+                            &run_id,
+                            &cancellation_token,
+                            &choice_message.id,
+                            blocked_dir,
+                            &mut history,
+                        ).await?;
+                    }
+                    Directive::ConfigureBrowser { permissions: _, viewport: _ } => {
+                        let res_json = serde_json::json!({
+                            "configure_browser_result": "Browser configuration applied successfully."
+                        });
+                        let feedback = orchestrator::directive_result_message(&res_json);
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: feedback });
+                    }
+                    Directive::InstallBrowserExtension { extension_path } => {
+                        let path_exists = std::path::Path::new(&extension_path).exists();
+                        let res_json = if path_exists {
+                            serde_json::json!({
+                                "install_browser_extension_result": format!("Browser extension at '{}' will be loaded on next browser launch.", extension_path)
+                            })
+                        } else {
+                            serde_json::json!({
+                                "error": format!("Extension path does not exist: {}", extension_path)
+                            })
+                        };
+                        let feedback = orchestrator::directive_result_message(&res_json);
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: feedback });
+                    }
+                    Directive::ManageBrowserExtension { extension_id, action } => {
+                        let res_json = serde_json::json!({
+                            "manage_browser_extension_result": format!("Extension '{}' action '{}' processed.", extension_id, action)
+                        });
+                        let feedback = orchestrator::directive_result_message(&res_json);
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: feedback });
+                    }
             }
         }
     }
@@ -2107,6 +2417,7 @@ pub(crate) async fn execute_gated_native_directive(
             }
             v
         }
+        Directive::RecallMessages { .. } => crate::gatekeeper::PermissionVerdict::Allow,
         _ => return Err("Not a gated native directive".into()),
     };
 
@@ -2223,6 +2534,30 @@ async fn apply_resolved_approval(
 
     let feedback = if approved {
         match blocked {
+            Directive::AskUserChoice { .. } => {
+                let (opt, custom) = {
+                    let conn = state.db.lock().unwrap();
+                    let content: String = conn.query_row(
+                        "SELECT content FROM messages WHERE id = ?1",
+                        rusqlite::params![approval_id],
+                        |row| row.get(0),
+                    ).unwrap_or_default();
+                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&content) {
+                        (
+                            data.get("selected_option").and_then(|s| s.as_str()).unwrap_or("").to_string(),
+                            data.get("custom_input").and_then(|s| s.as_str()).unwrap_or("").to_string(),
+                        )
+                    } else {
+                        (String::new(), String::new())
+                    }
+                };
+                let result_text = if !custom.is_empty() {
+                    format!("User selected option: {} (custom input: '{}')", opt, custom)
+                } else {
+                    format!("User selected option: {}", opt)
+                };
+                orchestrator::directive_result_message(&serde_json::json!({ "choice_result": result_text }))
+            }
             Directive::AskUserForLogin { .. } => {
                 orchestrator::directive_result_message(&serde_json::json!({
                     "login_result": if note.is_empty() { "User completed the requested login.".to_string() } else { note.clone() }
@@ -2274,7 +2609,7 @@ pub async fn wait_for_approval(
         };
         if let Ok(data) = serde_json::from_str::<serde_json::Value>(&msg.content) {
             if let Some(status) = data.get("status").and_then(|s| s.as_str()) {
-                if status == "approved" {
+                if status == "approved" || status == "resolved" {
                     let note = data.get("note").and_then(|n| n.as_str()).unwrap_or("").to_string();
                     return Ok((true, note));
                 } else if status == "denied" {
@@ -2367,5 +2702,41 @@ mod tests {
             ).unwrap();
             assert_eq!(count_pending_approvals(&conn, "t1").unwrap(), 1);
         }
+    }
+
+    #[test]
+    fn compact_master_history_keeps_small_history_unaltered() {
+        let history = vec![
+            ChatMessage { role: "system".into(), content: "system".into() },
+            ChatMessage { role: "user".into(), content: "do task".into() },
+            ChatMessage { role: "assistant".into(), content: "ok".into() },
+        ];
+        let compacted = compact_master_history(history.clone());
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(compacted[1].content, "do task");
+    }
+
+    #[test]
+    fn compact_master_history_compacts_large_history() {
+        let mut history = vec![
+            ChatMessage { role: "system".into(), content: "system prompt with memory".into() },
+            ChatMessage { role: "user".into(), content: "original initial task request".into() },
+        ];
+        // Add 20 intermediate turns
+        for i in 0..20 {
+            history.push(ChatMessage {
+                role: if i % 2 == 0 { "assistant".into() } else { "user".into() },
+                content: format!("Step {} action or tool output with lots of details", i),
+            });
+        }
+        assert_eq!(history.len(), 22);
+        let compacted = compact_master_history(history);
+        // Should keep system (0), initial user (1), compacted summary (2), and last 6 recent turns (3..9) = 9 total
+        assert_eq!(compacted.len(), 9);
+        assert_eq!(compacted[0].content, "system prompt with memory");
+        assert_eq!(compacted[1].content, "original initial task request");
+        assert!(compacted[2].content.contains("[CONVERSATION MILESTONES (COMPACTED)]"));
+        assert!(compacted[2].content.contains("recall_messages"));
+        assert_eq!(compacted.last().unwrap().content, "Step 19 action or tool output with lots of details");
     }
 }

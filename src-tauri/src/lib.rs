@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod chat;
+pub mod cookie_vault;
 pub mod db;
+pub mod chat;
 pub mod browser_manager;
 pub mod gatekeeper;
 pub mod gateway;
@@ -41,6 +42,7 @@ pub fn run() {
             chat::send_user_message,
             chat::resolve_pending_approvals,
             chat::resolve_handoff,
+            chat::resolve_choice,
             chat::rename_task,
             chat::update_task_settings,
             chat::delete_task,
@@ -62,6 +64,10 @@ pub fn run() {
             browser_manager::start_browser_handoff,
             browser_manager::finish_browser_handoff,
             browser_manager::get_browser_history,
+            cookie_vault::get_vault_accounts,
+            cookie_vault::get_vault_account,
+            cookie_vault::save_vault_account,
+            cookie_vault::delete_vault_account,
         ])
         .run(generate_context!())
         .expect("error while running tauri application");

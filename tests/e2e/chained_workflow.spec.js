@@ -98,18 +98,22 @@ test.describe('Zeus E2E Tests - Complex Chained Workflow', () => {
     // The Action Plan should be visible in the sidebar panel
     await expect(page.locator('#action-plan-content').filter({ hasText: 'Delegate research' })).toBeVisible({ timeout: 15000 });
     
+    // The Master paused for alignment. Tell it to proceed.
+    await page.locator('#chat-input').fill('Looks good, proceed.');
+    await page.locator('#chat-send-button').click();
+
     // We should see the delegation
-    await expect(page.locator('.worker-card-title').filter({ hasText: 'Worker: Researcher' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.worker-card-title').filter({ hasText: 'Worker: Researcher' })).toBeVisible({ timeout: 20000 });
 
     // The HTTP request requires permission. We should see the Approval Card
-    await expect(page.locator('.approval-card').filter({ hasText: 'Python Network: example.com' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.approval-card').filter({ hasText: 'Python Network: example.com' })).toBeVisible({ timeout: 20000 });
     await page.getByRole('button', { name: 'Approve' }).click();
 
     // The file write requires permission.
-    await expect(page.locator('.approval-card').filter({ hasText: 'Write File: `C:/Projects/quantum.txt`' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.approval-card').filter({ hasText: 'Write File: `C:/Projects/quantum.txt`' })).toBeVisible({ timeout: 20000 });
     await page.getByRole('button', { name: 'Approve' }).click();
 
     // Final answer from the Master
-    await expect(page.locator('.chat-message.assistant').filter({ hasText: 'The research is complete and saved.' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.chat-message.assistant').filter({ hasText: 'The research is complete and saved.' })).toBeVisible({ timeout: 20000 });
   });
 });

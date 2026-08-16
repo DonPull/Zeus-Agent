@@ -197,11 +197,39 @@ try:
         
     _zeus_original_goto = playwright.sync_api.Page.goto
     _zeus_original_close = playwright.sync_api.Page.close
+    _zeus_original_connect = playwright.sync_api.BrowserType.connect_over_cdp
+
+    def _zeus_stealth_init(page):
+        stealth_js = """
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        if (!window.chrome) {
+            window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+        }
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5]
+        });
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en']
+        });
+        """
+        try:
+            page.add_init_script(stealth_js)
+        except Exception:
+            pass
+
+    def _zeus_patched_connect(self, endpoint_url, **kwargs):
+        browser = _zeus_original_connect(self, endpoint_url, **kwargs)
+        for context in browser.contexts:
+            for page in context.pages:
+                _zeus_stealth_init(page)
+            context.on("page", lambda p: _zeus_stealth_init(p))
+        return browser
 
     def _zeus_patched_goto(self, url, **kwargs):
         req = {"type": "browser", "action": "goto", "url": url}
         if not _ask_gatekeeper(req):
             raise PermissionError(f'Zeus Gatekeeper DENIED browser navigation to {url}')
+        _zeus_stealth_init(self)
         return _zeus_original_goto(self, url, **kwargs)
         
     def _zeus_patched_close(self, **kwargs):
@@ -214,7 +242,30 @@ try:
     playwright.sync_api.Page.fill = _zeus_patched_fill
     playwright.sync_api.Page.goto = _zeus_patched_goto
     playwright.sync_api.Page.close = _zeus_patched_close
-except ImportError:
+    playwright.sync_api.BrowserType.connect_over_cdp = _zeus_patched_connect
+
+    import random
+    def human_type(page, selector, text):
+        page.focus(selector)
+        for char in text:
+            page.keyboard.type(char)
+            time.sleep(random.uniform(0.04, 0.12))
+
+    def human_click(page, selector):
+        _zeus_screenshot_before_action(page, "click")
+        box = page.locator(selector).bounding_box()
+        if box:
+            x = box['x'] + box['width'] * random.uniform(0.3, 0.7)
+            y = box['y'] + box['height'] * random.uniform(0.3, 0.7)
+            page.mouse.move(x, y, steps=random.randint(5, 12))
+            time.sleep(random.uniform(0.05, 0.15))
+            page.mouse.down()
+            time.sleep(random.uniform(0.04, 0.09))
+            page.mouse.up()
+        else:
+            page.click(selector)
+
+except Exception:
     pass
 "#;
 
@@ -412,9 +463,8 @@ async fn handle_ipc_connection(
                 } else {
                     let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut approval_message);
                 }
-                let approval_timestamp = approval_message.created_at.clone();
+                let _approval_timestamp = approval_message.created_at.clone();
 
-                let mut decision = "deny".to_string();
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     let conn = match state.db.lock() {
@@ -430,15 +480,12 @@ async fn handle_ipc_connection(
 
                     if let Some(s) = status {
                         if s == "approved" {
-                            decision = "allow".to_string();
-                            break;
+                            break "allow".to_string();
                         } else if s == "denied" {
-                            decision = "deny".to_string();
-                            break;
+                            break "deny".to_string();
                         }
                     }
                 }
-                decision
             }
         };
 

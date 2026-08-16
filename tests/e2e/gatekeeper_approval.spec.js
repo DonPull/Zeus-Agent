@@ -48,17 +48,8 @@ test.describe('Zeus E2E Tests - Gatekeeper Approvals', () => {
     await expect(approvalCard).toBeVisible({ timeout: 10000 });
     await expect(approvalCard.locator('.approval-card-status')).toHaveText('needs approval');
     
-    // 5. When we click Approve, the app should save a rule and the model should retry.
-    // We queue the mock response for the retry first!
-    queueMockResponse({
-      choices: [{
-        delta: {
-          content: "```zeus-directive\n{\"type\":\"run_command\",\"command\":\"ls -la\"}\n```"
-        }
-      }]
-    });
-
-    // We also need to queue the result after the command runs successfully!
+    // 5. Open dropdown and save rule: "Always Allow Exact 'ls -la'"
+    // We queue the final answer model response that will be requested after the command runs.
     queueMockResponse({
         choices: [{
           delta: {
@@ -67,14 +58,15 @@ test.describe('Zeus E2E Tests - Gatekeeper Approvals', () => {
         }]
     });
 
-    // 6. Click Approve
-    await approvalCard.getByRole('button', { name: 'Approve' }).click();
+    // 6. Click dropdown and save rule
+    await approvalCard.getByTitle('More options').click();
+    await page.locator('.approval-dropdown').getByText('Always Allow Exact').click();
 
     // 7. Verify the toast appears indicating permission was saved
-    const toast = page.locator('.toast.success');
+    const toast = page.locator('.toast-notification');
     await expect(toast).toContainText('Permission saved for: ls -la', { timeout: 10000 });
     
-    // 8. Verify the final answer appears indicating the gatekeeper allowed it
+    // 8. Verify the final answer appears indicating the gatekeeper allowed and executed it
     await expect(page.getByText('Command succeeded.')).toBeVisible({ timeout: 15000 });
   });
 });

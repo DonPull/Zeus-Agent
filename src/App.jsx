@@ -254,19 +254,36 @@ function App() {
         }
     };
 
-    const handleHandoffDecision = async (approved, note) => {
+    const handleHandoffDecision = async (approved, note, permData) => {
         const verb = approved ? "COMPLETED" : "CANCELLED";
         const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
         const instruction = approved ? " You may now continue." : " Please abort the task or find an alternative approach.";
         
         try {
-            await bridge.resolveHandoff(activeTaskIdRef.current, approved, note || "");
+            await bridge.resolveHandoff(activeTaskIdRef.current, approved, note || "", permData && permData.messageId);
             await reconcileMessages(activeTaskIdRef.current);
         } catch (err) {
             console.error("Failed to resolve handoff", err);
         }
 
-        handleSend(`[HANDOFF ${verb}]${extra}${instruction}`);
+        if (!sendLockRef.current && !sending) {
+            handleSend(`[HANDOFF ${verb}]${extra}${instruction}`);
+        }
+    };
+
+    const handleChoiceDecision = async (choiceId, customText, extraArgs) => {
+        const messageId = extraArgs?.messageId;
+        try {
+            await bridge.resolveChoice(activeTaskIdRef.current, choiceId, customText, messageId);
+            await reconcileMessages(activeTaskIdRef.current);
+        } catch (err) {
+            console.error("Failed to resolve choice", err);
+        }
+
+        if (!sendLockRef.current && !sending) {
+            const textPayload = customText ? `"${customText}"` : `choice '${choiceId}'`;
+            handleSend(`[CHOICE DECISION] Selected: ${textPayload}. Please proceed with this option.`);
+        }
     };
 
     const handleSend = async (overrideContent) => {
@@ -387,6 +404,7 @@ function App() {
     const handleInputKeyDown = (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
+            if (activeTaskIsSending || sending || sendLockRef.current) return;
             handleSend();
         }
     };
@@ -466,10 +484,62 @@ function App() {
         };
     }, []);
 
+function playNotificationChime(type = "complete") {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+
+        if (type === "complete") {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.15);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        } else if (type === "attention") {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.setValueAtTime(659.25, now + 0.12);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.45);
+        }
+    } catch {
+        // Ignore audio errors if context is blocked
+    }
+}
+
     useEffect(() => {
         let unlistenPromise = bridge.onTaskMessage((payload) => {
             if (!payload || payload.task_id !== activeTaskIdRef.current) return;
-            setMessages((prev) => mergeMessages(prev, payload.message));
+            const msg = payload.message;
+            if (msg && (msg.role === "assistant" || msg.kind === "approval" || msg.kind === "handoff" || msg.kind === "choice" || msg.kind === "action_plan")) {
+                // Clear the in-flight stream buffer immediately so the newly arrived durable message
+                // does not appear duplicated by the streaming bubble!
+                streamTextRef.current = "";
+                reasoningTextRef.current = "";
+                setStreamText("");
+                setReasoningText("");
+                streamFlushedRef.current = false;
+                directiveModeRef.current = false;
+                setDirectiveMode(false);
+            }
+            if (msg && (msg.kind === "approval" || msg.kind === "handoff" || msg.kind === "choice")) {
+                playNotificationChime("attention");
+            }
+            setMessages((prev) => mergeMessages(prev, msg));
         });
         return () => {
             unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
@@ -485,6 +555,9 @@ function App() {
 
             if (payload.task_id === activeTaskIdRef.current) {
                 applyRunState(payload.task_id, payload.run);
+                if (payload.run && payload.run.status === "completed") {
+                    playNotificationChime("complete");
+                }
             }
         });
 
@@ -504,7 +577,7 @@ function App() {
             container.scrollTop -
             container.clientHeight;
 
-        const pinned = distanceFromBottom <= 80;
+        const pinned = distanceFromBottom <= 120;
         scrollPinnedRef.current = pinned;
         setShowJumpToLatest(!pinned);
     };
@@ -525,7 +598,11 @@ function App() {
         const container = messagesContainerRef.current;
         if (!container || !scrollPinnedRef.current) return;
 
-        container.scrollTop = container.scrollHeight;
+        requestAnimationFrame(() => {
+            if (container && scrollPinnedRef.current) {
+                container.scrollTop = container.scrollHeight;
+            }
+        });
     }, [
         messages,
         activeTaskIsSending,
@@ -671,7 +748,7 @@ function App() {
 
                         <div ref={messagesContainerRef} id="chat-messages" className="column gap-15" onScroll={handleMessagesScroll}>
                             {visibleMessages.map((message) => (
-                                <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} onHandoffDecision={handleHandoffDecision} />
+                                <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} onHandoffDecision={handleHandoffDecision} onChoiceDecision={handleChoiceDecision} />
                             ))}
                             {activeTaskIsSending && (
                                 <div className="chat-message assistant">

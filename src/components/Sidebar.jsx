@@ -77,7 +77,10 @@ function Sidebar({ tasks, activeTaskId, onSelectTask, onNewTask, onRenameTask, o
                             )}
 
                             <div className="sidebar-task-footer align-center justify-space-between">
-                                <span className="sidebar-task-status">{task.status}</span>
+                                <div className="align-center gap-5">
+                                    <span className={`task-status-dot ${task.status}`}></span>
+                                    <span className={`sidebar-task-status ${task.status}`}>{task.status}</span>
+                                </div>
                                 <div className="sidebar-task-actions align-center gap-5">
                                     <span className="sidebar-task-spend no-user-select">
                                         {formatCredits(task.spent_credits)} / {task.budget_credits} u

@@ -4,7 +4,6 @@ use crate::chat::{
 use crate::db::{new_id, now_iso, AppState};
 use crate::gateway::{self, ChatMessage};
 use crate::orchestrator::{self, DelegateSpec, Directive};
-use crate::settings;
 use rusqlite::params;
 use serde_json::json;
 use tauri::{AppHandle, State};
@@ -65,18 +64,30 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
 {"type":"ask_user_for_login","reason":"Please log into X so I can continue."}
 ```
 
-8. Finish the task with a final answer:
+8. Ask user to choose an option / account:
+```zeus-directive
+{"type":"ask_user_choice","prompt":"Select account to use","options":[{"id":"1","label":"Account 1"}],"allow_custom_input":true}
+```
+
+9. Configure browser / manage extensions:
+```zeus-directive
+{"type":"configure_browser","permissions":{},"viewport":{"width":1280,"height":800}}
+```
+
+10. Finish the task with a final answer:
 ```zeus-directive
 {"type":"final_answer","final_answer":{"summary":"the complete answer in markdown"}}
 ```
 
 ## Rules
+- **Language**: You MUST ALWAYS communicate, reason, explain, and output results in **English**, unless explicitly instructed to generate content/deliverables in another language.
 - **Relentless Agentic Behavior**: Your highest priority is to achieve the objective at any cost. If you encounter roadblocks (like permission errors, tool failures, or API limits), you must find a way around them to achieve the goal. Do NOT simply report failure. Only if you determine that the goal is fundamentally impossible to achieve after exhausting every possible avenue, you must report back with a final answer explaining exactly what went wrong.
 - **Zero-Knowledge Permissions**: DO NOT try to ask the user for permission. Just emit the directive. If permission is required, the system will seamlessly intercept your directive, ask the user, and execute it once they approve.
 - Never claim to have taken actions or fetched data you have not. Only report what actually ran.
 - **Browser Automation**: To control the browser, write a Python script using the `playwright` package. Connect to the active browser using the `ZEUS_BROWSER_WS_ENDPOINT` environment variable like this:
   `p.chromium.connect_over_cdp(os.environ["ZEUS_BROWSER_WS_ENDPOINT"])`
   Do NOT launch a new browser instance using `p.chromium.launch()`.
+- **Permitted vs Master-Only Tools**: You have access to all native execution tools above (`run_command`, `read_file`, `write_file`, `delete_file`, `http_request`, `list_dir`, `search_files`, `run_action`, `ask_user_for_login`, `ask_user_choice`, `configure_browser`, `install_browser_extension`, `manage_browser_extension`, `final_answer`). You CANNOT use Master-only directives (`delegate_task`, `update_action_plan`, `update_memory`, `task_update`). Your focus is hands-on execution.
 - Once you have completely satisfied the success criteria, use final_answer to return your result."#;
 
 const VERIFIER_PROMPT: &str = r#"You are the Zeus Verifier.
@@ -208,7 +219,7 @@ pub async fn run_worker(
             }
 
             // Stream response
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
             let model_clone = worker_model.clone();
             let history_clone = history.clone();
 
@@ -220,11 +231,6 @@ pub async fn run_worker(
             });
             tokio::pin!(stream_future);
 
-            let mut reply_text = String::new();
-            let mut usage = gateway::UsageInfo::default();
-            let mut usage_json = String::new();
-            let mut model_used = None;
-
             let stream_result = tokio::select! {
                 res = &mut stream_future => res,
                 _ = cancellation_token.cancelled() => {
@@ -234,17 +240,12 @@ pub async fn run_worker(
                 }
             };
 
-            match stream_result {
-                Ok((t, u, uj, m)) => {
-                    reply_text = t;
-                    usage = u;
-                    usage_json = uj;
-                    model_used = m;
-                }
+            let (reply_text, usage, usage_json, model_used) = match stream_result {
+                Ok(tuple) => tuple,
                 Err(e) => {
                     break Err(format!("Worker model error: {}", e));
                 }
-            }
+            };
 
             let actual_model = model_used.unwrap_or_else(|| worker_model.clone());
             let units = {
@@ -295,7 +296,7 @@ pub async fn run_worker(
                     history.push(ChatMessage { role: "assistant".into(), content: raw });
                     history.push(ChatMessage { role: "user".into(), content: feedback });
                 }
-                orchestrator::MasterReply::Directive(preamble, directive, raw) => {
+                orchestrator::MasterReply::Directive(_preamble, directive, raw) => {
                     let preamble = if let Some(idx) = raw.find("```zeus-directive") {
                         raw[..idx].trim().to_string()
                     } else if let Some(idx) = raw.find('{') {
@@ -325,7 +326,7 @@ pub async fn run_worker(
                             history.push(ChatMessage { role: "assistant".into(), content: final_answer.summary.clone() });
                             break Ok(final_answer.summary);
                         }
-                        Directive::RunAction { action, success_criteria } => {
+                        Directive::RunAction { action, success_criteria: _ } => {
                             let workspace = crate::utils::task_workspace(task_id)?;
                             let task_data = crate::chat::load_task(&state.db.lock().unwrap(), task_id).map_err(|e| e.to_string())?;
                             let browser_port = state.browser_manager.ensure_browser(task_id, &task_data.browser_mode, &task_data.browser_executable_path).ok();
@@ -390,7 +391,12 @@ pub async fn run_worker(
                         | Directive::RunCommand { .. }
                         | Directive::HttpRequest { .. }
                         | Directive::ListDir { .. }
-                        | Directive::SearchFiles { .. } => {
+                        | Directive::SearchFiles { .. }
+                        | Directive::RecallMessages { .. }
+                        | Directive::AskUserChoice { .. }
+                        | Directive::ConfigureBrowser { .. }
+                        | Directive::InstallBrowserExtension { .. }
+                        | Directive::ManageBrowserExtension { .. } => {
                             let msg = crate::chat::execute_gated_native_directive(
                                 state,
                                 app_handle,
@@ -452,7 +458,7 @@ pub async fn run_worker(
 
         let verifier_output = match verification_response {
             Ok((text, u, uj, m)) => {
-                let actual_model = m.unwrap_or_else(|| verifier_model.clone());
+                let actual_model = m.unwrap_or_else(|| verifier_model.to_string());
                 let units = {
                     let conn = state.db.lock().unwrap();
                     record_spend(&conn, task_id, &actual_model, &u, &uj).unwrap_or(0.0)
