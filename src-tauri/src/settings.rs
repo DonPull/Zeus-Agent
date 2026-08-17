@@ -19,6 +19,13 @@ pub struct AppSettings {
     pub default_budget_credits: i64,
     pub browser_mode: String,
     pub browser_executable_path: Option<String>,
+    #[serde(default = "default_local_base_url")]
+    pub local_base_url: Option<String>,
+    pub local_api_key: Option<String>,
+}
+
+fn default_local_base_url() -> Option<String> {
+    Some("http://localhost:11434/v1".into())
 }
 
 impl Default for AppSettings {
@@ -31,6 +38,8 @@ impl Default for AppSettings {
             default_budget_credits: 40000,
             browser_mode: "sandboxed".into(),
             browser_executable_path: None,
+            local_base_url: Some("http://localhost:11434/v1".into()),
+            local_api_key: None,
         }
     }
 }
@@ -69,6 +78,8 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
             .unwrap_or(defaults.default_budget_credits),
         browser_mode: get_setting(connection, "browser_mode")?.unwrap_or_else(|| defaults.browser_mode),
         browser_executable_path: get_setting(connection, "browser_executable_path")?,
+        local_base_url: get_setting(connection, "local_base_url")?.or_else(|| defaults.local_base_url),
+        local_api_key: get_setting(connection, "local_api_key")?,
     })
 }
 
@@ -101,6 +112,16 @@ pub fn save_settings(state: State<AppState>, settings: AppSettings) -> Result<()
         set_setting(&connection, "browser_executable_path", path)?;
     } else {
         let _ = connection.execute("DELETE FROM settings WHERE key = 'browser_executable_path'", []);
+    }
+    if let Some(url) = &settings.local_base_url {
+        set_setting(&connection, "local_base_url", url)?;
+    } else {
+        let _ = connection.execute("DELETE FROM settings WHERE key = 'local_base_url'", []);
+    }
+    if let Some(key) = &settings.local_api_key {
+        set_setting(&connection, "local_api_key", key)?;
+    } else {
+        let _ = connection.execute("DELETE FROM settings WHERE key = 'local_api_key'", []);
     }
     Ok(())
 }

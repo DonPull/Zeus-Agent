@@ -7,6 +7,8 @@ export const CompanyIcon = ({ company }) => {
         case "Google": return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>;
         case "Anthropic": return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.541z" /></svg>;
         case "Meta": return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.962-2.58-1.536-4.08-1.65a10.82 10.82 0 0 0-1.745.021l-.01.002c-1.391.31-2.709.855-3.896 1.616-.494.316-.967.665-1.411 1.045-.05.042-.1.085-.15.127a9.385 9.385 0 0 0 8.902-4.192zM12 24C5.373 24 0 18.627 0 12S5.373 0 12 0s12 5.373 12 12-5.373 12-12 12z" fill="#0668E1" /></svg>;
+        case "Qwen": return <svg width="16" height="16" viewBox="0 0 24 24" fill="#a855f7"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l-8-4v6l8 4 8-4v-6l-8 4zm0 6l-8-4v6l8 4 8-4v-6l-8 4z"/></svg>;
+        case "Local": return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>;
         default: return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><path d="M8 16h.01" /><path d="M16 16h.01" /></svg>;
     }
 };
@@ -14,10 +16,12 @@ export const CompanyIcon = ({ company }) => {
 export const getCompany = (model) => {
     if (!model) return "Other";
     const lower = model.toLowerCase();
+    if (lower.includes("qwen")) return "Qwen";
     if (lower.includes("gpt") || lower.includes("o1") || lower.includes("openai")) return "OpenAI";
     if (lower.includes("claude") || lower.includes("anthropic")) return "Anthropic";
     if (lower.includes("gemini") || lower.includes("google")) return "Google";
     if (lower.includes("llama") || lower.includes("meta")) return "Meta";
+    if (lower.includes("local") || lower.includes("ik_llama")) return "Local";
     return "Other";
 };
 
@@ -126,6 +130,9 @@ function SettingsModal({ onToast, onClose }) {
     const [newPermAction, setNewPermAction] = useState("allow");
     const [newPermType, setNewPermType] = useState("read");
 
+    const [localStatus, setLocalStatus] = useState(null);
+    const [testingLocal, setTestingLocal] = useState(false);
+
     // Watcher Policies
     const [watcherPolicies, setWatcherPolicies] = useState([]);
     const [negotiatePrompt, setNegotiatePrompt] = useState("");
@@ -146,6 +153,22 @@ function SettingsModal({ onToast, onClose }) {
             }
         })();
     }, []);
+
+    const handleTestLocalEndpoint = async () => {
+        setTestingLocal(true);
+        const endpoint = (settings?.local_base_url || "http://localhost:11434/v1").trim();
+        try {
+            const models = await bridge.testLocalEndpoint(endpoint);
+            setLocalStatus({ ok: true, models });
+            onToast(`Connected to local server! Found ${models.length} model(s): ${models.join(", ")}`, "success", 4000);
+            handleLoadModels(true);
+        } catch (err) {
+            setLocalStatus({ ok: false, error: String(err) });
+            onToast(`Local connection failed: ${err}`, "error", 6000);
+        } finally {
+            setTestingLocal(false);
+        }
+    };
 
     const handleSaveApiKey = async () => {
         try {
@@ -186,7 +209,7 @@ function SettingsModal({ onToast, onClose }) {
         try {
             const models = await bridge.fetchAvailableModels();
             setAvailableModels(models);
-            if (!silent) onToast(`Loaded ${models.length} models from RouteLLM.`, "success", 3000);
+            if (!silent) onToast(`Loaded ${models.length} available model(s).`, "success", 3000);
         } catch (err) {
             if (!silent) onToast(String(err), "error", 8000);
         } finally {
@@ -321,6 +344,34 @@ function SettingsModal({ onToast, onClose }) {
                         <span className={`key-status-pill ${geminiKeyIsSet ? "set" : "missing"}`}>{geminiKeyIsSet ? "Key set" : "No key"}</span>
                     </div>
                     <label className="settings-hint">Used automatically when the model name starts with "gemini".</label>
+                </div>
+
+                <div className="settings-section column gap-10">
+                    <label className="settings-section-label">Local Model Server (llama.cpp / Ollama / LM Studio)</label>
+                    <div className="align-center gap-10">
+                        <input
+                            type="text"
+                            className="settings-input width-fill-available"
+                            placeholder="e.g. http://localhost:11434/v1 or http://localhost:1234/v1"
+                            value={settings.local_base_url || ""}
+                            onChange={(e) => updateSetting("local_base_url", e.target.value)}
+                        />
+                        <button
+                            className={`settings-button ${testingLocal ? "is-loading" : ""}`}
+                            onClick={handleTestLocalEndpoint}
+                            disabled={testingLocal}
+                        >
+                            <label>{testingLocal ? "Testing..." : "Test Local"}</label>
+                        </button>
+                        {localStatus && (
+                            <span className={`key-status-pill ${localStatus.ok ? "set" : "missing"}`}>
+                                {localStatus.ok ? `Connected (${localStatus.models.length} model)` : "Offline"}
+                            </span>
+                        )}
+                    </div>
+                    <label className="settings-hint">
+                        OpenAI-compatible local endpoint (e.g. <code>ik_llama.cpp</code>, Ollama, LM Studio). Zero API keys required.
+                    </label>
                 </div>
             </div>
 

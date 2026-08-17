@@ -958,25 +958,53 @@ pub async fn send_user_message(
     emit_run_state(&app_handle, &durable_run);
     let run_id = durable_run.id.clone();
 
+    let turn_result = execute_user_turn(&state, &app_handle, &task_id, &run_id, &content, cancellation_token).await;
+
+    match turn_result {
+        Ok(res) => Ok(res),
+        Err(err) => {
+            if err == "RUN_CANCELLED" {
+                let _ = finish_cancelled_run(&state, &app_handle, &task_id, &run_id);
+            } else {
+                crate::logger::log(&task_id, "orchestrator", &format!("Turn failed: {}", err));
+                if let Ok(connection) = state.db.lock() {
+                    let _ = finish_durable_run(&connection, &run_id, &task_id, "failed", Some(&err)).map(|failed_run| {
+                        emit_run_state(&app_handle, &failed_run);
+                    });
+                }
+            }
+            Err(err)
+        }
+    }
+}
+
+async fn execute_user_turn(
+    state: &State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    run_id: &str,
+    content: &str,
+    cancellation_token: tokio_util::sync::CancellationToken,
+) -> Result<SendResultDto, String> {
     // 1) Lock the DB only for local reads/writes, never across network calls.
     let (history, user_message, task, master_model, mut current_spend, updated_approval) = {
         let connection = state
             .db
             .lock()
             .map_err(|e| format!("Database lock error: {}", e))?;
-        let mut task = load_task(&connection, &task_id)?;
+        let mut task = load_task(&connection, task_id)?;
 
         if task.spent_credits >= task.budget_credits as f64 {
             let mut warning = new_message(
-                &task_id, "assistant", "chat",
+                task_id, "assistant", "chat",
                 "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
                 None, None, true,
             );
             insert_message(&connection, &mut warning)?;
-            emit_message(&app_handle, &task_id, &warning);
+            emit_message(app_handle, task_id, &warning);
             
-            let completed_run = finish_durable_run(&connection, &run_id, &task_id, "completed", None)?;
-            emit_run_state(&app_handle, &completed_run);
+            let completed_run = finish_durable_run(&connection, run_id, task_id, "completed", None)?;
+            emit_run_state(app_handle, &completed_run);
             
             return Ok(SendResultDto {
                 spent_credits: task.spent_credits,
@@ -986,10 +1014,10 @@ pub async fn send_user_message(
 
         let now = now_iso();
         let mut user_message =
-            new_message(&task_id, "user", "chat", content.clone(), None, None, true);
+            new_message(task_id, "user", "chat", content.to_string(), None, None, true);
         insert_message(&connection, &mut user_message)?;
 
-        attach_user_message_to_run(&connection, &run_id, &user_message.id)?;
+        attach_user_message_to_run(&connection, run_id, &user_message.id)?;
 
         // If this message carries an approval decision, stamp the latest pending
         // approval card so it deactivates and the decision survives reloads.
@@ -1083,7 +1111,7 @@ pub async fn send_user_message(
             task.title = title;
         }
 
-        let history = load_master_history(&connection, &task_id)?;
+        let history = load_master_history(&connection, task_id)?;
         let current_spend = task.spent_credits;
         let master_model = task.master_model.clone();
         (
@@ -1097,9 +1125,9 @@ pub async fn send_user_message(
     };
 
     // P0: the user message reaches the UI the same way as everything else.
-    emit_message(&app_handle, &task_id, &user_message);
+    emit_message(app_handle, task_id, &user_message);
     if let Some(msg) = &updated_approval {
-        emit_message(&app_handle, &task_id, msg);
+        emit_message(app_handle, task_id, msg);
     }
 
     let budget_units = task.budget_credits;
@@ -1206,12 +1234,12 @@ pub async fn send_user_message(
         // assistant or directive-result messages to the history.
         let stream_result = {
             let stream_handle = app_handle.clone();
-            let stream_task_id = task_id.clone();
+            let stream_task_id = task_id.to_string();
             let partial_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
             let partial_text_clone = partial_text.clone();
 
             let payload_size = serde_json::to_string(&history).map(|s| s.len()).unwrap_or(0);
-            crate::logger::log(&task_id, "orchestrator", &format!("Sending payload to master model ({} messages, ~{} bytes)", history.len(), payload_size));
+            crate::logger::log(task_id, "orchestrator", &format!("Sending payload to master model '{}' ({} messages, ~{} bytes)", master_model, history.len(), payload_size));
 
             let stream_future =
                 gateway::stream_model_reply(&master_model, &history, move |event| {
@@ -1539,10 +1567,10 @@ pub async fn send_user_message(
                         action,
                         success_criteria,
                     } => {
-                        let workspace = crate::utils::task_workspace(&task_id)?;
+                        let workspace = crate::utils::task_workspace(task_id)?;
                         let action_future = crate::python_runner::run_python_action(
                             Some(app_handle.clone()),
-                            Some(task_id.clone()),
+                            Some(task_id.to_string()),
                             &workspace,
                             &action.code,
                             action.timeout_secs,

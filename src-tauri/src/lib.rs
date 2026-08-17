@@ -26,6 +26,12 @@ pub fn run() {
     let connection =
         db::init(&app_data_dir.join("zeus.db")).expect("Failed to initialize database");
 
+    if let Ok(settings) = settings::read_settings(&connection) {
+        if let Some(url) = settings.local_base_url {
+            gateway::set_cached_local_url(url);
+        }
+    }
+
     tauri::Builder::default()
         .manage(db::AppState {
             db: std::sync::Mutex::new(connection),
@@ -53,6 +59,7 @@ pub fn run() {
             settings::set_gemini_api_key,
             settings::has_gemini_api_key,
             gateway::fetch_available_models,
+            gateway::test_local_endpoint,
             logger::get_debug_log,
             gatekeeper::get_file_permissions,
             gatekeeper::add_file_permission,

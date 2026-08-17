@@ -240,7 +240,7 @@ pub async fn run_worker(
                 }
             };
 
-            let (reply_text, usage, usage_json, model_used) = match stream_result {
+            let (reply_text, _reasoning_text, usage, usage_json, model_used) = match stream_result {
                 Ok(tuple) => tuple,
                 Err(e) => {
                     break Err(format!("Worker model error: {}", e));

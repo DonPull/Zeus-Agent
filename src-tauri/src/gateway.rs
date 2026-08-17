@@ -3,19 +3,81 @@ use serde_json::json;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use tauri::State;
+use crate::db::AppState;
 
 pub const ROUTELLM_BASE_URL: &str = "https://routellm.abacus.ai/v1";
 pub const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+
+static LOCAL_MODELS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static LOCAL_BASE_URL: OnceLock<Mutex<String>> = OnceLock::new();
+
+pub fn set_cached_local_url(url: String) {
+    if let Ok(mut lock) = LOCAL_BASE_URL.get_or_init(|| Mutex::new("http://localhost:11434/v1".to_string())).lock() {
+        *lock = url;
+    }
+}
+
+pub fn get_cached_local_url() -> String {
+    LOCAL_BASE_URL.get_or_init(|| Mutex::new("http://localhost:11434/v1".to_string()))
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_else(|_| "http://localhost:11434/v1".to_string())
+}
+
+fn local_models() -> &'static Mutex<HashSet<String>> {
+    LOCAL_MODELS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+pub fn register_local_models(models: &[String]) {
+    if let Ok(mut set) = local_models().lock() {
+        for m in models {
+            set.insert(m.clone());
+        }
+    }
+}
+
+pub fn is_local_model(model: &str) -> bool {
+    if model.starts_with("local/") || model.starts_with("local:") {
+        return true;
+    }
+    if let Ok(set) = local_models().lock() {
+        if set.contains(model) {
+            return true;
+        }
+    }
+    // Heuristic: if RouteLLM key is not set, common local names are treated as local
+    let m = model.to_lowercase();
+    if m.contains("qwen") || m.contains("llama") || m.contains("mistral") || m.contains("gemma") {
+        if crate::settings::load_api_key().is_err() {
+            return true;
+        }
+    }
+    false
+}
 
 fn get_api_config(model: &str) -> Result<(String, String), String> {
     if let Ok(mock_url) = std::env::var("ZEUS_API_BASE_URL") {
         return Ok((mock_url, "test_key".to_string()));
     }
 
+    if is_local_model(model) {
+        let local_url = std::env::var("ZEUS_LOCAL_BASE_URL")
+            .unwrap_or_else(|_| get_cached_local_url());
+        return Ok((local_url, "local".to_string()));
+    }
+
     if model.starts_with("gemini") {
         Ok((GEMINI_BASE_URL.to_string(), crate::settings::load_gemini_api_key()?))
     } else {
-        Ok((ROUTELLM_BASE_URL.to_string(), crate::settings::load_api_key()?))
+        match crate::settings::load_api_key() {
+            Ok(key) => Ok((ROUTELLM_BASE_URL.to_string(), key)),
+            Err(_) => {
+                // If cloud RouteLLM key is missing, fall back to local endpoint
+                let local_url = get_cached_local_url();
+                Ok((local_url, "local".to_string()))
+            }
+        }
     }
 }
 
@@ -159,6 +221,9 @@ pub enum ApiKind {
 }
 
 pub fn api_kind_for_model(model: &str) -> ApiKind {
+    if is_local_model(model) || model.starts_with("gemini") {
+        return ApiKind::ChatCompletions;
+    }
     let m = model.to_lowercase();
     let responses_markers = ["gpt-5", "o1", "o3", "o4"];
     if responses_markers.iter().any(|k| m.contains(k)) {
@@ -168,13 +233,242 @@ pub fn api_kind_for_model(model: &str) -> ApiKind {
     }
 }
 
+pub fn normalize_chat_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> {
+    if messages.is_empty() {
+        return Vec::new();
+    }
+
+    let mut result: Vec<ChatMessage> = Vec::new();
+    let mut initial_system: Option<String> = None;
+    let mut saw_non_system = false;
+
+    for m in messages {
+        if m.role == "system" {
+            if !saw_non_system {
+                // Merge consecutive leading system messages into a single system message at index 0
+                if let Some(ref mut sys) = initial_system {
+                    sys.push_str("\n\n");
+                    sys.push_str(&m.content);
+                } else {
+                    initial_system = Some(m.content.clone());
+                }
+            } else {
+                // System message appearing AFTER user/assistant messages:
+                // Convert to user message with [System Note] prefix so strict Jinja chat templates (e.g. Qwen, Llama 3) don't crash
+                result.push(ChatMessage {
+                    role: "user".into(),
+                    content: format!("[System Note]: {}", m.content),
+                });
+            }
+        } else {
+            saw_non_system = true;
+            result.push(m.clone());
+        }
+    }
+
+    if let Some(sys) = initial_system {
+        result.insert(0, ChatMessage {
+            role: "system".into(),
+            content: sys,
+        });
+    }
+
+    result
+}
+
+pub fn strip_think_tags(text: &str) -> (String, String) {
+    if !text.contains("<think>") {
+        return (text.to_string(), String::new());
+    }
+
+    let mut clean = String::new();
+    let mut reasoning = String::new();
+    let mut cursor = 0;
+
+    while let Some(start_idx) = text[cursor..].find("<think>") {
+        let abs_start = cursor + start_idx;
+        clean.push_str(&text[cursor..abs_start]);
+        let after_tag = abs_start + 7;
+        if let Some(end_idx) = text[after_tag..].find("</think>") {
+            let abs_end = after_tag + end_idx;
+            reasoning.push_str(&text[after_tag..abs_end]);
+            cursor = abs_end + 8;
+        } else {
+            // Unclosed <think> tag: treat the remainder as reasoning
+            reasoning.push_str(&text[after_tag..]);
+            cursor = text.len();
+            break;
+        }
+    }
+
+    if cursor < text.len() {
+        clean.push_str(&text[cursor..]);
+    }
+
+    (clean.trim_start_matches(|c| c == '\r' || c == '\n').to_string(), reasoning)
+}
+
+struct ThinkFilter {
+    in_think: bool,
+    buffer: String,
+    full_text: String,
+    reasoning_text: String,
+    saw_reasoning: bool,
+    saw_generating: bool,
+}
+
+impl ThinkFilter {
+    fn new() -> Self {
+        Self {
+            in_think: false,
+            buffer: String::new(),
+            full_text: String::new(),
+            reasoning_text: String::new(),
+            saw_reasoning: false,
+            saw_generating: false,
+        }
+    }
+
+    fn push_delta<F>(&mut self, delta: &str, on_event: &mut F)
+    where
+        F: FnMut(StreamEventPayload),
+    {
+        self.buffer.push_str(delta);
+
+        loop {
+            if !self.in_think {
+                // Look for "<think>" in buffer
+                if let Some(idx) = self.buffer.find("<think>") {
+                    let before = self.buffer[..idx].to_string();
+                    if !before.is_empty() {
+                        if !self.saw_generating {
+                            self.saw_generating = true;
+                            on_event(StreamEventPayload::Status { stage: "generating".into() });
+                        }
+                        self.full_text.push_str(&before);
+                        on_event(StreamEventPayload::Delta { text: before });
+                    }
+                    self.in_think = true;
+                    if !self.saw_reasoning {
+                        self.saw_reasoning = true;
+                        on_event(StreamEventPayload::Status { stage: "reasoning".into() });
+                    }
+                    self.buffer = self.buffer[idx + 7..].to_string();
+                } else {
+                    // Check if the end of buffer might be an incomplete prefix of "<think>"
+                    let potential_tags = ["<", "<t", "<th", "<thi", "<thin", "<think"];
+                    let mut ends_with_prefix = false;
+                    for tag in potential_tags {
+                        if self.buffer.ends_with(tag) {
+                            let safe_len = self.buffer.len() - tag.len();
+                            let safe_part = self.buffer[..safe_len].to_string();
+                            if !safe_part.is_empty() {
+                                if !self.saw_generating {
+                                    self.saw_generating = true;
+                                    on_event(StreamEventPayload::Status { stage: "generating".into() });
+                                }
+                                self.full_text.push_str(&safe_part);
+                                on_event(StreamEventPayload::Delta { text: safe_part });
+                                self.buffer = self.buffer[safe_len..].to_string();
+                            }
+                            ends_with_prefix = true;
+                            break;
+                        }
+                    }
+                    if !ends_with_prefix && !self.buffer.is_empty() {
+                        let text = std::mem::take(&mut self.buffer);
+                        if !self.saw_generating {
+                            self.saw_generating = true;
+                            on_event(StreamEventPayload::Status { stage: "generating".into() });
+                        }
+                        self.full_text.push_str(&text);
+                        on_event(StreamEventPayload::Delta { text });
+                    }
+                    break;
+                }
+            } else {
+                // In think block: look for "</think>" in buffer
+                if let Some(idx) = self.buffer.find("</think>") {
+                    let before = self.buffer[..idx].to_string();
+                    if !before.is_empty() {
+                        self.reasoning_text.push_str(&before);
+                        on_event(StreamEventPayload::ReasoningDelta { text: before });
+                    }
+                    self.in_think = false;
+                    // Skip "</think>" and any immediately following newlines
+                    let after = &self.buffer[idx + 8..];
+                    let trimmed_after = after.trim_start_matches(|c| c == '\r' || c == '\n');
+                    self.buffer = trimmed_after.to_string();
+                } else {
+                    // Check if the end of buffer might be an incomplete prefix of "</think>"
+                    let potential_tags = ["<", "</", "</t", "</th", "</thi", "</thin", "</think"];
+                    let mut ends_with_prefix = false;
+                    for tag in potential_tags {
+                        if self.buffer.ends_with(tag) {
+                            let safe_len = self.buffer.len() - tag.len();
+                            let safe_part = self.buffer[..safe_len].to_string();
+                            if !safe_part.is_empty() {
+                                self.reasoning_text.push_str(&safe_part);
+                                on_event(StreamEventPayload::ReasoningDelta { text: safe_part });
+                                self.buffer = self.buffer[safe_len..].to_string();
+                            }
+                            ends_with_prefix = true;
+                            break;
+                        }
+                    }
+                    if !ends_with_prefix && !self.buffer.is_empty() {
+                        let text = std::mem::take(&mut self.buffer);
+                        self.reasoning_text.push_str(&text);
+                        on_event(StreamEventPayload::ReasoningDelta { text });
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    fn finish<F>(mut self, on_event: &mut F) -> (String, String)
+    where
+        F: FnMut(StreamEventPayload),
+    {
+        if !self.buffer.is_empty() {
+            let leftover = std::mem::take(&mut self.buffer);
+            if self.in_think {
+                self.reasoning_text.push_str(&leftover);
+                on_event(StreamEventPayload::ReasoningDelta { text: leftover });
+            } else {
+                if !self.saw_generating {
+                    self.saw_generating = true;
+                    on_event(StreamEventPayload::Status { stage: "generating".into() });
+                }
+                self.full_text.push_str(&leftover);
+                on_event(StreamEventPayload::Delta { text: leftover });
+            }
+        }
+
+        // Final sanitation check for any unparsed <think> blocks
+        let (clean_text, extra_reasoning) = strip_think_tags(&self.full_text);
+        if !extra_reasoning.is_empty() {
+            if self.reasoning_text.is_empty() {
+                self.reasoning_text = extra_reasoning;
+            } else {
+                self.reasoning_text.push_str("\n\n");
+                self.reasoning_text.push_str(&extra_reasoning);
+            }
+        }
+
+        (clean_text, self.reasoning_text)
+    }
+}
+
 /// Non-streaming call, kept for simple internal uses later (M1b verifier).
 pub async fn chat_completion(
     model: &str,
     messages: &[ChatMessage],
 ) -> Result<(String, UsageInfo, String, Option<String>), String> {
     let (base_url, api_key) = get_api_config(model)?;
-    let body = json!({ "model": model, "messages": messages });
+    let normalized = normalize_chat_messages(messages);
+    let body = json!({ "model": model, "messages": normalized });
 
     let client = http_client();
     let response = tokio::time::timeout(
@@ -201,14 +495,15 @@ pub async fn chat_completion(
     let json: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| format!("Failed to parse the API response: {}", e))?;
 
-    let content = json["choices"][0]["message"]["content"]
+    let raw_content = json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
         .to_string();
-    if content.is_empty() {
+    if raw_content.is_empty() {
         return Err(format!("API returned no message content: {}", text));
     }
 
+    let (content, _extracted_reasoning) = strip_think_tags(&raw_content);
     let (usage, usage_json) = parse_usage_value(&json["usage"], &content);
     let model_used = json["model"].as_str().map(|s| s.to_string());
     Ok((content, usage, usage_json, model_used))
@@ -219,12 +514,13 @@ pub async fn chat_completion_stream<F>(
     model: &str,
     messages: &[ChatMessage],
     mut on_event: F,
-) -> Result<(String, UsageInfo, String, Option<String>), String>
+) -> Result<(String, String, UsageInfo, String, Option<String>), String>
 where
     F: FnMut(StreamEventPayload) + Send,
 {
     let (base_url, api_key) = get_api_config(model)?;
-    let body = json!({ "model": model, "messages": messages, "stream": true });
+    let normalized = normalize_chat_messages(messages);
+    let body = json!({ "model": model, "messages": normalized, "stream": true });
 
     let client = http_client();
     let response = tokio::time::timeout(
@@ -242,19 +538,26 @@ where
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
+        let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|v| {
+                v["error"]["message"].as_str().map(|s| s.to_string())
+                    .or_else(|| v["error"].as_str().map(|s| s.to_string()))
+                    .or_else(|| v["message"].as_str().map(|s| s.to_string()))
+            })
+            .unwrap_or_else(|| text.clone());
+        return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
     }
 
     on_event(StreamEventPayload::Status {
         stage: "connected".into(),
     });
 
-    let mut full_text = String::new();
+    let mut think_filter = ThinkFilter::new();
     let mut usage = UsageInfo::default();
     let mut usage_json = String::new();
     let mut model_used: Option<String> = None;
-    let mut saw_first_delta = false;
-    let mut saw_reasoning = false;
+    let mut saw_reasoning_field = false;
 
     use futures_util::StreamExt;
     let mut byte_stream = response.bytes_stream();
@@ -284,7 +587,8 @@ where
             let payload = line.trim_start_matches("data:").trim();
             if payload == "[DONE]" {
                 on_event(StreamEventPayload::Done);
-                return Ok((full_text, usage, usage_json, model_used));
+                let (full_text, reasoning_text) = think_filter.finish(&mut on_event);
+                return Ok((full_text, reasoning_text, usage, usage_json, model_used));
             }
 
             let json: serde_json::Value = match serde_json::from_str(payload) {
@@ -296,7 +600,7 @@ where
                 model_used = json["model"].as_str().map(|s| s.to_string());
             }
             if !json["usage"].is_null() {
-                let (u, uj) = parse_usage_value(&json["usage"], &full_text);
+                let (u, uj) = parse_usage_value(&json["usage"], &think_filter.full_text);
                 usage = u;
                 usage_json = uj;
             }
@@ -306,12 +610,13 @@ where
                 .or_else(|| json["choices"][0]["delta"]["reasoning"].as_str())
                 .unwrap_or("");
             if !reasoning_piece.is_empty() {
-                if !saw_reasoning && !saw_first_delta {
-                    saw_reasoning = true;
+                if !saw_reasoning_field && !think_filter.saw_reasoning {
+                    saw_reasoning_field = true;
                     on_event(StreamEventPayload::Status {
                         stage: "reasoning".into(),
                     });
                 }
+                think_filter.reasoning_text.push_str(reasoning_piece);
                 on_event(StreamEventPayload::ReasoningDelta {
                     text: reasoning_piece.to_string(),
                 });
@@ -319,26 +624,18 @@ where
 
             if let Some(delta) = json["choices"][0]["delta"]["content"].as_str() {
                 if !delta.is_empty() {
-                    if !saw_first_delta {
-                        saw_first_delta = true;
-                        on_event(StreamEventPayload::Status {
-                            stage: "generating".into(),
-                        });
-                    }
-                    full_text.push_str(delta);
-                    on_event(StreamEventPayload::Delta {
-                        text: delta.to_string(),
-                    });
+                    think_filter.push_delta(delta, &mut on_event);
                 }
             }
         }
     }
 
     on_event(StreamEventPayload::Done);
-    if full_text.is_empty() {
+    let (full_text, reasoning_text) = think_filter.finish(&mut on_event);
+    if full_text.is_empty() && reasoning_text.is_empty() {
         return Err("RouteLLM stream ended without any content.".into());
     }
-    Ok((full_text, usage, usage_json, model_used))
+    Ok((full_text, reasoning_text, usage, usage_json, model_used))
 }
 
 /// Responses API streaming call. Converts the chat-style message list into
@@ -354,12 +651,13 @@ where
     F: FnMut(StreamEventPayload) + Send,
 {
     let (base_url, api_key) = get_api_config(model)?;
+    let normalized = normalize_chat_messages(messages);
 
     // Convert chat messages -> Responses input items. The system prompt becomes
     // `instructions`; the rest become input items with content parts.
     let mut instructions = String::new();
     let mut input_items: Vec<serde_json::Value> = Vec::new();
-    for m in messages {
+    for m in &normalized {
         if m.role == "system" {
             if !instructions.is_empty() {
                 instructions.push_str("\n\n");
@@ -398,7 +696,15 @@ where
     let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("API error ({}): {}", status.as_u16(), text));
+        let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|v| {
+                v["error"]["message"].as_str().map(|s| s.to_string())
+                    .or_else(|| v["error"].as_str().map(|s| s.to_string()))
+                    .or_else(|| v["message"].as_str().map(|s| s.to_string()))
+            })
+            .unwrap_or_else(|| text.clone());
+        return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
     }
 
     on_event(StreamEventPayload::Status {
@@ -615,35 +921,41 @@ where
         }
     }
 
-    let (text, usage, usage_json, model_used) =
+    let (text, reasoning, usage, usage_json, model_used) =
         chat_completion_stream(model, messages, &mut on_event).await?;
-    Ok((text, String::new(), usage, usage_json, model_used))
+    Ok((text, reasoning, usage, usage_json, model_used))
 }
 
 #[tauri::command]
-pub async fn fetch_available_models() -> Result<Vec<String>, String> {
-    let api_key = crate::settings::load_api_key()?;
+pub async fn test_local_endpoint(endpoint: String) -> Result<Vec<String>, String> {
+    let endpoint = endpoint.trim().trim_end_matches('/').to_string();
+    if endpoint.is_empty() {
+        return Err("Endpoint URL cannot be empty.".into());
+    }
+    let url = if endpoint.ends_with("/v1") {
+        format!("{}/models", endpoint)
+    } else {
+        format!("{}/v1/models", endpoint)
+    };
+
     let client = http_client();
     let response = client
-        .get(format!("{}/models", ROUTELLM_BASE_URL))
-        .bearer_auth(api_key)
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch the RouteLLM model list: {}", e))?;
+        .map_err(|e| format!("Could not connect to {}: {}", url, e))?;
 
     let status = response.status();
-    let text = response
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read the model list response: {}", e))?;
+    let text = response.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(format!("RouteLLM error ({}): {}", status.as_u16(), text));
+        return Err(format!("Local server returned error {}: {}", status.as_u16(), text));
     }
 
     let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse the model list: {}", e))?;
+        .map_err(|e| format!("Failed to parse local server models JSON: {}", e))?;
 
-    let mut models: Vec<String> = json["data"]
+    let models: Vec<String> = json["data"]
         .as_array()
         .map(|arr| {
             arr.iter()
@@ -651,6 +963,97 @@ pub async fn fetch_available_models() -> Result<Vec<String>, String> {
                 .collect()
         })
         .unwrap_or_default();
+
+    if models.is_empty() {
+        return Err("Local server responded, but no models were found in data list.".into());
+    }
+
+    set_cached_local_url(endpoint);
+    register_local_models(&models);
+    Ok(models)
+}
+
+#[tauri::command]
+pub async fn fetch_available_models(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let mut models: Vec<String> = Vec::new();
+
+    // 1) Query local endpoint if accessible
+    let local_url = {
+        if let Ok(conn) = state.db.lock() {
+            crate::settings::read_settings(&conn)
+                .map(|s| s.local_base_url.unwrap_or_else(get_cached_local_url))
+                .unwrap_or_else(|_| get_cached_local_url())
+        } else {
+            get_cached_local_url()
+        }
+    };
+
+    let endpoint = local_url.trim().trim_end_matches('/');
+    if !endpoint.is_empty() {
+        let url = if endpoint.ends_with("/v1") {
+            format!("{}/models", endpoint)
+        } else {
+            format!("{}/v1/models", endpoint)
+        };
+        let client = http_client();
+        if let Ok(response) = client.get(&url).timeout(std::time::Duration::from_secs(3)).send().await {
+            if response.status().is_success() {
+                if let Ok(text) = response.text().await {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(arr) = json["data"].as_array() {
+                            let local_ids: Vec<String> = arr
+                                .iter()
+                                .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                                .collect();
+                            register_local_models(&local_ids);
+                            models.extend(local_ids);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2) Query RouteLLM if API key is set
+    if let Ok(api_key) = crate::settings::load_api_key() {
+        let client = http_client();
+        if let Ok(response) = client
+            .get(format!("{}/models", ROUTELLM_BASE_URL))
+            .bearer_auth(api_key)
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                if let Ok(text) = response.text().await {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(arr) = json["data"].as_array() {
+                            for m in arr {
+                                if let Some(id) = m["id"].as_str() {
+                                    models.push(id.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3) Include default Google Gemini models
+    let gemini_defaults = [
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    ];
+    for m in gemini_defaults {
+        if !models.contains(&m.to_string()) {
+            models.push(m.to_string());
+        }
+    }
+
     models.sort();
+    models.dedup();
     Ok(models)
 }

@@ -366,12 +366,12 @@ function App() {
                 if (activeTaskIdRef.current === taskAtSend) await reconcileMessages(taskAtSend);
             }
         } finally {
+            sendLockRef.current = false;
+            setSending(false);
+            setSendingTaskId(null);
+            setStopping(false);
             if (activeTaskIdRef.current === taskAtSend) {
                 await reconcileRunState(taskAtSend);
-            } else {
-                sendLockRef.current = false;
-                setSending(false);
-                setSendingTaskId(null);
             }
         }
     };
