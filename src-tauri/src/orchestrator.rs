@@ -9,10 +9,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub const MAX_ORCHESTRATION_ITERATIONS: usize = 40;
+pub const MAX_ORCHESTRATION_ITERATIONS: usize = 300;
 
 pub fn max_orchestration_iterations() -> usize {
-    if std::env::var("ZEUS_UNLIMITED_ITERATIONS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false) {
+    if std::env::var("ZEUS_UNLIMITED_ITERATIONS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+        || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+    {
         return usize::MAX;
     }
     if let Ok(val) = std::env::var("ZEUS_MAX_ITERATIONS") {

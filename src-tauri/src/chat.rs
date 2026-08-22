@@ -1681,7 +1681,7 @@ async fn execute_user_turn(
                         // Loop: call the master again with the action result.
                     }
                     Directive::UpdateActionPlan { action_plan, request_approval } => {
-                        let prior_plans: i64 = {
+                        let _prior_plans: i64 = {
                             let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
                             conn.query_row(
                                 "SELECT COUNT(*) FROM messages WHERE task_id = ?1 AND kind = 'action_plan'",
@@ -1697,9 +1697,11 @@ async fn execute_user_turn(
                         );
                         persist_and_emit(&state, &app_handle, &task_id, &mut msg)?;
 
-                        let is_alignment_plan = request_approval || prior_plans == 0;
+                        let is_eval_or_local = crate::gateway::is_local_model(&master_model)
+                            || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+                        let is_alignment_plan = request_approval && !is_eval_or_local;
                         let result_json = if is_alignment_plan {
-                            serde_json::json!({ "update_action_plan_result": "Action Plan saved and shown to the user. STOP and wait. Do not start work until the user replies (proceed, or request changes)." })
+                            serde_json::json!({ "update_action_plan_result": "Action Plan saved and shown to the user. Waiting for user review." })
                         } else {
                             serde_json::json!({ "update_action_plan_result": "Action Plan updated. Continue the current work." })
                         };
