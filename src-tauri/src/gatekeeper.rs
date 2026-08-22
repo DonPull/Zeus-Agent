@@ -459,14 +459,21 @@ pub fn evaluate_command_action(
             "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help", "cargo",
             "npm run", "npm test", "npm build", "npm exec", "npx playwright test", "npx playwright", "npx", "npm --version", "npx --version", "npm",
             "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version", "git",
-            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat", "cd", "pushd", "popd"
+            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat", "cd", "pushd", "popd", "cmd", "cmd /c"
         ];
         
-        let parts: Vec<&str> = command.split("&&").flat_map(|s| s.split(';')).collect();
+        let normalized = command.trim_start_matches("cmd /c").trim_start_matches("cmd.exe /c").trim();
+        let stripped_quotes = normalized.trim_matches('"').trim_matches('\'').trim();
+        let target_command = if !stripped_quotes.is_empty() { stripped_quotes } else { command };
+
+        let parts: Vec<&str> = target_command.split("&&").flat_map(|s| s.split(';')).collect();
         let mut all_parts_safe = !parts.is_empty();
         
         for part in &parts {
-            let clean_part = part.split('>').next().unwrap_or(part).trim();
+            let mut clean_part = part.split('>').next().unwrap_or(part).trim();
+            if clean_part.starts_with("cd /d") {
+                clean_part = "cd";
+            }
             if clean_part.is_empty() {
                 continue;
             }

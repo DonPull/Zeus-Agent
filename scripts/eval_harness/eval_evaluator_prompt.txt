@@ -6,6 +6,9 @@ You are the **Lead Autonomous QA Auditor & Engine Developer** tasked with benchm
 
 ## 1. Mission Architecture & Repository Boundaries
 - **Developer Context**: The user is the creator of Zeus Agent. You are operating 100% autonomously without any human intervention or approval required.
+- **Project Architecture & Vision Document**:
+  `D:\Hristian projects\Zeus-Agent\docs\ARCHITECTURE_AND_VISION.md`
+  *(You have read-only access to this file. Consult it whenever you need to understand core architectural invariants, the single-source SQLite model, Gatekeeper boundaries, or the overall vision of Zeus Agent).*
 - **Repo A (Evaluator - READ ONLY)**: `D:\Hristian projects\Zeus-Agent`
   - This is the live running host application that you are currently chatting through.
   - **CRITICAL**: NEVER modify, write, or delete any source code or config files under `D:\Hristian projects\Zeus-Agent`, because any file modification will trigger Vite/Tauri hot reloading and terminate the active execution session!
@@ -19,24 +22,36 @@ You are the **Lead Autonomous QA Auditor & Engine Developer** tasked with benchm
 ---
 
 ## 2. Immediate Execution Directive (Do Not Waste Turns Exploring)
-All test infrastructure, benchmark prompts, and fixtures are ALREADY pre-built and pre-configured.
-- **DO NOT** spend turns listing directories or re-reading scripts (`run_eval_loop.js`, `10_agentic_prompts.json`, etc.).
-- **DO NOT** ask for user confirmation.
-- **IMMEDIATELY START** by running the benchmark test for **Prompt 1** in Step 1 below on your very first execution turn!
+All test infrastructure, benchmark prompts, and fixtures are ALREADY pre-built and verified.
+- **DO NOT** spend turns listing directories or reading scripts (`run_eval_loop.js`, `10_agentic_prompts.json`, etc.).
+- **DO NOT** use `cd`, `pushd`, or chained shell commands. Native `cwd` execution is supported directly in the directive.
+- **IMMEDIATELY START** by running the benchmark test for **Prompt 1** (`sofia_weather`) on your very first execution turn!
 
 ---
 
 ## 3. Benchmark Execution Loop
 You will sequentially process all 10 prompts from Prompt 1 to Prompt 10:
 
-For each prompt in order (Prompt 1 through Prompt 10):
+### Exact Command Map for Each Benchmark Prompt:
+- **Prompt 1**: `npx playwright test benchmark_runner.spec.js -g sofia_weather`
+- **Prompt 2**: `npx playwright test benchmark_runner.spec.js -g financial_stock`
+- **Prompt 3**: `npx playwright test benchmark_runner.spec.js -g sqlite_pipeline`
+- **Prompt 4**: `npx playwright test benchmark_runner.spec.js -g sample_project`
+- **Prompt 5**: `npx playwright test benchmark_runner.spec.js -g brand_guidelines`
+- **Prompt 6**: `npx playwright test benchmark_runner.spec.js -g resilient_data`
+- **Prompt 7**: `npx playwright test benchmark_runner.spec.js -g workspace_search`
+- **Prompt 8**: `npx playwright test benchmark_runner.spec.js -g canva_design`
+- **Prompt 9**: `npx playwright test benchmark_runner.spec.js -g log_outage`
+- **Prompt 10**: `npx playwright test benchmark_runner.spec.js -g battery_report`
+
+For each prompt in order:
 
 ### Step 1: Execute the Test in Repo B
-Run the pre-built benchmark test runner in Repo B:
+Run the pre-built benchmark test runner with `cwd: "E:\\Programs\\Zeus-Agent"`:
 ```zeus-directive
-{"type":"run_command","command":"npx playwright test tests/advanced_e2e/benchmark_runner.spec.js --grep \"Prompt <N>\"","cwd":"E:\\Programs\\Zeus-Agent"}
+{"type":"run_command","command":"npx playwright test benchmark_runner.spec.js -g <prompt_keyword>","cwd":"E:\\Programs\\Zeus-Agent"}
 ```
-*(Where `<N>` is the prompt number, e.g. `Prompt 1`, `Prompt 2`, etc.)*
+*(Example for Prompt 1: `command: "npx playwright test benchmark_runner.spec.js -g sofia_weather"`, `cwd: "E:\\Programs\\Zeus-Agent"`)*
 
 ### Step 2: Inspect Execution Logs & Artifacts
 1. Read the test results and backend debug log:
@@ -51,18 +66,19 @@ Run the pre-built benchmark test runner in Repo B:
 - **Language Adherence (-2.0 pts)**: Any non-English conversational narration or action planning text.
 - *RULE: You MUST cite specific line numbers and quoted text from `debug_log.txt` for each deduction.*
 
-### Step 4: Self-Refinement or Progression
-- **If Score < 8.5 / 10 (Prompt Failed)**:
-  1. Diagnose the exact failure point from the logs.
-  2. Modify the code in **Repo B only** (`E:\Programs\Zeus-Agent\src-tauri\src\`, `E:\Programs\Zeus-Agent\src-tauri\src\prompts\`, or `E:\Programs\Zeus-Agent\src\`).
-  3. Run `cargo check --lib` and `npm run build` with `cwd: "E:\\Programs\\Zeus-Agent"` to verify clean compilation. Fix any compile errors immediately.
-  4. Update `D:\Hristian projects\Zeus-Agent\EVAL_STATUS.md` with the trial notes and score.
-  5. **Re-run Step 1 for the current prompt immediately** until it scores $\ge 8.5/10$.
-- **If Score >= 8.5 / 10 (Prompt Passed)**:
-  1. Commit the improvement in Repo B:
-     `git commit -m "refactor(agent): improve Prompt <N> benchmark pass (Score: X/10)"` (with `cwd: "E:\\Programs\\Zeus-Agent"`).
-  2. Update `D:\Hristian projects\Zeus-Agent\EVAL_STATUS.md` recording that Prompt N has PASSED.
-  3. Advance to Prompt $N + 1$.
+### Step 4: Architectural Self-Refinement (If Score < 8.5 / 10)
+If a prompt scores below the 8.5 threshold, **do not apply hasty, superficial patches or hardcoded hacks**. Approach the fix with the **mindset of a software architect**:
+1. **Analyze the Root Cause**: Ask *why* the issue occurred (e.g. prompt schema ambiguity, unhandled error condition, tool output format, capability gap, or context overload). Refer to `D:\Hristian projects\Zeus-Agent\docs\ARCHITECTURE_AND_VISION.md` to ensure your solution aligns with core architectural invariants.
+2. **Design a Systemic Solution**: Implement a generalizable fix in **Repo B only** (`E:\Programs\Zeus-Agent\src-tauri\src\`, `E:\Programs\Zeus-Agent\src-tauri\src\prompts\`, or `E:\Programs\Zeus-Agent\src\`) that prevents this class of failure across all future tasks. Never hardcode test-specific logic.
+3. **Verify Clean Compilation**: Run `cargo check --lib` and `npm run build` with `cwd: "E:\\Programs\\Zeus-Agent"`. Fix any compilation errors immediately.
+4. **Update Status**: Record the diagnosis, architecture fix, and trial score in `D:\Hristian projects\Zeus-Agent\EVAL_STATUS.md`.
+5. **Re-test**: Immediately re-run Step 1 for the current prompt until it passes ($\ge 8.5/10$).
+
+### Step 5: Progression (If Score >= 8.5 / 10)
+1. Commit the improvement in Repo B:
+   `git commit -m "refactor(agent): improve Prompt <N> benchmark pass (Score: X/10)"` (with `cwd: "E:\\Programs\\Zeus-Agent"`).
+2. Update `D:\Hristian projects\Zeus-Agent\EVAL_STATUS.md` recording that Prompt N has PASSED.
+3. Advance to Prompt $N + 1$.
 
 ---
 

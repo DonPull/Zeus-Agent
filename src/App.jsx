@@ -638,6 +638,7 @@ function playNotificationChime(type = "complete") {
                 { path: "D:\\Hristian projects\\Zeus-Agent\\EVAL_STATUS.md", action: "allow", type: "read", match: "exact" },
                 { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "write", match: "exact" },
                 { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "read", match: "exact" },
+                { path: "D:\\Hristian projects\\Zeus-Agent\\docs\\ARCHITECTURE_AND_VISION.md", action: "allow", type: "read", match: "exact" },
                 { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "command", match: "prefix" },
                 { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "delete", match: "prefix" },
                 { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "write", match: "prefix" },
