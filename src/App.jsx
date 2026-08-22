@@ -624,13 +624,41 @@ function playNotificationChime(type = "complete") {
     const actionPlanMessage = messages.filter((m) => m.kind === "action_plan").pop();
     const actionPlanMarkdown = actionPlanMessage ? actionPlanMessage.content : "";
 
-    useEffect(() => {
-        if (actionPlanMessage) {
-            setIsActionPlanOpen(true);
-        } else {
-            setIsActionPlanOpen(false);
+    const handleStartBenchmarkMode = async () => {
+        if (!activeTaskId) return;
+        try {
+            const scope = `task:${activeTaskId}`;
+            
+            // Configure exact requested permissions
+            const perms = [
+                { path: "D:\\Hristian projects\\Zeus-Agent", action: "allow", type: "read", match: "prefix" },
+                { path: "D:\\Hristian projects\\Zeus-Agent", action: "deny", type: "delete", match: "prefix" },
+                { path: "D:\\Hristian projects\\Zeus-Agent", action: "deny", type: "write", match: "prefix" },
+                { path: "D:\\Hristian projects\\Zeus-Agent\\EVAL_STATUS.md", action: "allow", type: "write", match: "exact" },
+                { path: "D:\\Hristian projects\\Zeus-Agent\\EVAL_STATUS.md", action: "allow", type: "read", match: "exact" },
+                { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "write", match: "exact" },
+                { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "read", match: "exact" },
+                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "command", match: "prefix" },
+                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "delete", match: "prefix" },
+                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "write", match: "prefix" },
+                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "read", match: "prefix" },
+            ];
+
+            for (const p of perms) {
+                await bridge.addFilePermission(scope, p.path, p.action, p.type, p.match);
+            }
+
+            const promptText = `I am giving you a complex and very time consuming agentic task. Check out this file for all details and instructions and follow them exactly: "D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\eval_evaluator_prompt.txt"`;
+            setInputValue(promptText);
+
+            await bridge.renameTask(activeTaskId, "⚡ Autonomous Benchmark & Self-Refine");
+            setTasks((prev) => prev.map((t) => t.id === activeTaskId ? { ...t, title: "⚡ Autonomous Benchmark & Self-Refine" } : t));
+            showToast("Benchmark permissions configured and prompt loaded!", "success", 4000);
+        } catch (err) {
+            console.error("Failed to setup benchmark mode:", err);
+            showToast(`Failed to setup benchmark: ${err.message || err}`, "error", 4000);
         }
-    }, [actionPlanMessage?.id]);
+    };
 
     return (
         <main id="app-container">
@@ -736,6 +764,15 @@ function playNotificationChime(type = "complete") {
                                 </button>
                                 <button className={`settings-button ${isActionPlanOpen ? 'active' : ''}`} title="Toggle Action Plan" onClick={() => setIsActionPlanOpen(!isActionPlanOpen)}>
                                     <label>Action Plan</label>
+                                </button>
+                                <button
+                                    id="benchmark-mode-button"
+                                    className="settings-button"
+                                    style={{ color: "#f59e0b", borderColor: "rgba(245, 158, 11, 0.5)", fontWeight: "bold", background: "rgba(245, 158, 11, 0.1)" }}
+                                    title="Auto-configure permissions & load benchmark mission prompt"
+                                    onClick={handleStartBenchmarkMode}
+                                >
+                                    <label>⚡ Start Benchmark</label>
                                 </button>
                             </div>
                         </div>

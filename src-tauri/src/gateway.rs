@@ -532,8 +532,9 @@ where
     let body = json!({ "model": model, "messages": normalized, "stream": true });
 
     let client = http_client();
+    let timeout_secs = if is_local_model(model) { 1800 } else { 300 };
     let response = tokio::time::timeout(
-        std::time::Duration::from_secs(180),
+        std::time::Duration::from_secs(timeout_secs),
         client
             .post(format!("{}/chat/completions", base_url))
             .bearer_auth(api_key)
@@ -541,7 +542,7 @@ where
             .send(),
     )
     .await
-    .map_err(|_| "API connection timed out after 180 seconds.".to_string())?
+    .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
     .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
@@ -690,8 +691,9 @@ where
     });
 
     let client = http_client();
+    let timeout_secs = if is_local_model(model) { 1800 } else { 300 };
     let response = tokio::time::timeout(
-        std::time::Duration::from_secs(180),
+        std::time::Duration::from_secs(timeout_secs),
         client
             .post(format!("{}/responses", base_url))
             .bearer_auth(api_key)
@@ -699,7 +701,7 @@ where
             .send(),
     )
     .await
-    .map_err(|_| "API connection timed out after 180 seconds.".to_string())?
+    .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
     .map_err(|e| format!("API request failed: {}", e))?;
 
     let status = response.status();
