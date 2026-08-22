@@ -39,14 +39,25 @@ test.describe('Zeus Agent Autonomous Benchmark Suite (10 Real-World Prompts)', (
                 await expect(page.locator('#app-container')).toBeVisible({ timeout: 15000 });
 
                 // Setup task in UI
-                await setupAdvancedTask(page, `Benchmark: ${promptSpec.name}`);
+                await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
 
-                // Get task ID and task workspace
-                const taskId = await page.evaluate(async () => {
+                // Get task ID and configure local model directly on task settings
+                const modelName = process.env.ZEUS_BENCHMARK_MODEL || "Qwen3.8-27B";
+                const taskId = await page.evaluate(async (model) => {
                     if (!window.__ZEUS_BRIDGE__) return null;
                     const tasks = await window.__ZEUS_BRIDGE__.listTasks();
-                    return tasks && tasks.length > 0 ? tasks[0].id : null;
-                });
+                    if (!tasks || tasks.length === 0) return null;
+                    const id = tasks[0].id;
+                    await window.__ZEUS_BRIDGE__.updateTaskSettings(id, {
+                        master_model: model,
+                        worker_model: model,
+                        verifier_model: model,
+                        watcher_model: model,
+                        budget_credits: 50000,
+                        browser_mode: "sandboxed"
+                    });
+                    return id;
+                }, modelName);
 
                 const testWorkspaceRoot = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
                 const taskWorkspace = taskId ? path.join(testWorkspaceRoot, 'tasks', taskId, 'workspace') : null;

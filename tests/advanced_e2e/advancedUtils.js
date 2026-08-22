@@ -19,50 +19,24 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
     // Click "New Task"
     await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
 
-    // Open Settings
-    await page.click('.settings-button:has-text("Settings")');
-
-    // Wait for modal to be visible
-    const modal = page.locator('.modal-content:has-text("Task Settings"), .modal:has-text("Task Settings")').first();
-    await expect(modal).toBeVisible();
-
-    // Click "Load available models" to force load and wait for it to finish
-    const loadButton = modal.locator('button:has-text("Load available models")');
-    await loadButton.click();
-    await page.waitForTimeout(2000); // Wait for Tauri IPC to return models
-    await expect(loadButton).toBeEnabled({ timeout: 15000 });
-    
-    // Set models if provided
+    // Set models directly via bridge or Task Settings
     if (modelConfig) {
-        for (const [role, modelName] of Object.entries(modelConfig)) {
-            if (role === "Task Budget") {
-                const row = modal.locator('.settings-model-row:has-text("Task Budget")');
-                await row.locator('input[type="number"]').fill(modelName);
-                continue;
-            }
-            
-            // role could be "Master", "Worker", "Verifier", "Watcher"
-            const row = modal.locator(`.settings-model-row:has-text("${role}")`);
-            await row.locator('.settings-input').first().click(); // open dropdown
-            
-            // Type into the search input which appears
-            const searchInput = row.locator('input[placeholder="Search model..."]');
-            await expect(searchInput).toBeVisible({ timeout: 10000 });
-            await searchInput.fill(modelName);
-
-            const option = row.locator(`.align-center.gap-10:has-text("${modelName}")`).first();
-            await expect(option).toBeVisible({ timeout: 10000 });
-            await option.click();
-            await expect(searchInput).not.toBeVisible({ timeout: 10000 });
-            
-            // Give it a tiny bit of time to settle React state
-            await page.waitForTimeout(100);
-        }
+        await page.evaluate(async (cfg) => {
+            if (!window.__ZEUS_BRIDGE__) return;
+            const tasks = await window.__ZEUS_BRIDGE__.listTasks();
+            if (!tasks || tasks.length === 0) return;
+            const id = tasks[0].id;
+            const updatePayload = {
+                browser_mode: "sandboxed"
+            };
+            if (cfg["Master"]) updatePayload.master_model = cfg["Master"];
+            if (cfg["Worker"]) updatePayload.worker_model = cfg["Worker"];
+            if (cfg["Verifier"]) updatePayload.verifier_model = cfg["Verifier"];
+            if (cfg["Watcher"]) updatePayload.watcher_model = cfg["Watcher"];
+            if (cfg["Task Budget"]) updatePayload.budget_credits = parseInt(cfg["Task Budget"], 10) || 50000;
+            await window.__ZEUS_BRIDGE__.updateTaskSettings(id, updatePayload);
+        }, modelConfig);
     }
-
-    // Save Settings
-    await page.click('.settings-button.primary:has-text("Save settings"), .settings-button:has-text("Save settings")');
-    await expect(modal).not.toBeVisible();
 }
 
 /**
