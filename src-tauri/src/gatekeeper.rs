@@ -2,6 +2,25 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use crate::db::AppState;
+use std::collections::HashSet;
+use std::sync::{Mutex, OnceLock};
+
+static SESSION_CREATED_PATHS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+pub fn register_session_created_path(path: &str) {
+    let norm = path.replace("\\", "/").trim().to_lowercase();
+    if let Ok(mut set) = SESSION_CREATED_PATHS.get_or_init(|| Mutex::new(HashSet::new())).lock() {
+        set.insert(norm);
+    }
+}
+
+pub fn is_session_created_path(path: &str) -> bool {
+    let norm = path.replace("\\", "/").trim().to_lowercase();
+    if let Ok(set) = SESSION_CREATED_PATHS.get_or_init(|| Mutex::new(HashSet::new())).lock() {
+        return set.contains(&norm);
+    }
+    false
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FilePermission {
@@ -238,6 +257,41 @@ pub fn evaluate_file_permission(
         }
     }
 
+    let is_local = conn.query_row(
+        "SELECT master_model FROM tasks WHERE id = ?1",
+        rusqlite::params![task_id],
+        |row| row.get::<_, String>(0)
+    ).map(|m| crate::gateway::is_local_model(&m)).unwrap_or(false);
+
+    let auto_allow_mode = is_local
+        || std::env::var("ZEUS_AUTO_ALLOW_NEW_FILES").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+        || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+
+    if auto_allow_mode {
+        // Check if file was created by the agent in this session
+        if is_session_created_path(target_path) {
+            return Ok(PermissionVerdict::Allow);
+        }
+
+        // Check read permissions (open across normal user drives, protected for system files)
+        if permission_type == "read" {
+            let norm = target_path.replace("\\", "/").to_lowercase();
+            let is_sensitive_os = norm.starts_with("c:/windows") || norm.starts_with("c:/program files") || norm.starts_with("c:/programdata");
+            if !is_sensitive_os {
+                return Ok(PermissionVerdict::Allow);
+            }
+        }
+
+        // Check write permissions for brand new files (auto-allow creation & track path when in eval mode)
+        if permission_type == "write" {
+            let p = std::path::Path::new(target_path);
+            if !p.exists() {
+                register_session_created_path(target_path);
+                return Ok(PermissionVerdict::Allow);
+            }
+        }
+    }
+
     let mut stmt = conn
         .prepare("SELECT scope, path as rule_path, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = ?2")
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
@@ -387,6 +441,33 @@ pub fn evaluate_command_action(
     if let Some((verdict, spec, is_task, rule, act)) = best_match {
         crate::logger::log(task_id, "gatekeeper", &format!("Final decision for `{}`: {} via rule `{}` (specificity: {}, task_scope: {})", command, act, rule, spec, is_task));
         return Ok(verdict);
+    }
+
+    // Fallback: Safe developer command prefixes in eval/benchmark mode or local model mode
+    let is_local = conn.query_row(
+        "SELECT master_model FROM tasks WHERE id = ?1",
+        rusqlite::params![task_id],
+        |row| row.get::<_, String>(0)
+    ).map(|m| crate::gateway::is_local_model(&m)).unwrap_or(false);
+
+    let auto_allow_commands = is_local
+        || std::env::var("ZEUS_AUTO_ALLOW_COMMANDS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+        || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+
+    if auto_allow_commands && !is_composite {
+        let safe_prefixes = [
+            "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help",
+            "npm run", "npm test", "npm build", "npm exec", "npx playwright test", "npm --version", "npx --version",
+            "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version",
+            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat"
+        ];
+        let trimmed_cmd = command.trim();
+        for prefix in safe_prefixes {
+            if trimmed_cmd.starts_with(prefix) {
+                crate::logger::log(task_id, "gatekeeper", &format!("Auto-allowing safe developer command `{}` via prefix `{}`", command, prefix));
+                return Ok(PermissionVerdict::Allow);
+            }
+        }
     }
 
     crate::logger::log(task_id, "gatekeeper", &format!("No rules matched for `{}`. Defaulting to Ask.", command));

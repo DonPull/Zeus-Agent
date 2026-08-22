@@ -1,0 +1,53 @@
+# Zeus Autonomous Benchmark Evaluator & Self-Refinement Instructions
+
+You are the **Lead Autonomous QA Auditor & Engine Developer** tasked with benchmarking and self-refining the Zeus Agent desktop runtime codebase.
+
+## Target Repository Under Test
+- **Target Repository Path**: The inactive copy of the Zeus Agent repository specified by the user (referred to as `<TARGET_REPO>`).
+- **Benchmark Prompts File**: `scripts/eval_harness/prompts/10_agentic_prompts.json`
+
+---
+
+## High-Level Execution Loop
+For each benchmark prompt in order (Prompt 1 through 10):
+
+1. **Craft the Advanced E2E Test & Deploy Fixtures**:
+   - Read the prompt specification from `scripts/eval_harness/prompts/10_agentic_prompts.json`.
+   - If the prompt requires pre-existing files (e.g. Prompt 4 `sample_validator/`, Prompt 7 `data_dumps/`, Prompt 9 `logs/server_outage.log`), copy them from `scripts/eval_harness/fixtures/` into the test task workspace using `node scripts/eval_harness/deploy_fixtures.js --dest <TASK_WORKSPACE>`.
+   - Write a Playwright E2E test file in `<TARGET_REPO>/tests/advanced_e2e/<prompt_name>.spec.js`.
+   - **For Multi-Turn Prompts**: The test must send Turn 1, wait for completion (`toBeVisible` on final assistant response or inactive state), send Turn 2 within the same conversation, and wait for completion.
+   - The test must preserve all execution logs (`<TARGET_REPO>/debug-log.txt`, SQLite messages, generated files).
+2. **Execute the Test**:
+   - Run: `run_command` -> `npx playwright test tests/advanced_e2e/<prompt_name>.spec.js` (with Cwd = `<TARGET_REPO>`).
+3. **Inspect Generated Artifacts & Run Programmatic Checks**:
+   - Read `<TARGET_REPO>/debug-log.txt`.
+   - Run the specified `python_check` script for the prompt (e.g. validating image dimensions via PIL, checking JSON/CSV schemas, verifying SQLite database tables).
+4. **Apply Deduction-Based Scoring (Base = 10.0)**:
+   - **Hard Failure (-10.0 pts, Score = 0)**: Goal was not achieved, required artifacts are missing, or python verification assertions failed.
+   - **Engine / Stability Errors (-3.0 pts each)**: Any `MALFORMED directive`, JSON parsing retry, unhandled crash, or HTTP 500 in `debug-log.txt`.
+   - **Security / Gatekeeper Refusals (-2.5 pts each)**: Infinite loops on security boundaries or unhandled `GATEKEEPER_DENIED`.
+   - **Tool Discipline & Context Clutter (-1.5 pts each)**: Redundant file reads, duplicate tool executions, intermediate conversational narration without a directive block, or overwriting unrelated files.
+   - **Language Adherence (-2.0 pts)**: Any non-English conversational narration or action planning text (even if final output artifacts are localized).
+   - *RULE: You MUST cite specific line numbers and quoted text from `debug-log.txt` for each deduction.*
+5. **Decide Action Based on Score**:
+   - **If Score < 8.5 / 10 (Prompt Failed)**:
+     - Analyze the exact failure point in the logs.
+     - Modify the engine code in `<TARGET_REPO>` (`src-tauri/src/`, `src-tauri/src/prompts/`, or `src/`).
+     - Run `cargo check --lib` and `npm run build` in `<TARGET_REPO>` to verify clean compilation. If any build error occurs, fix it immediately.
+     - **Re-run the current prompt test immediately** (do NOT advance to the next prompt until the current prompt achieves >= 8.5/10).
+   - **If Score >= 8.5 / 10 (Prompt Passed)**:
+     - Commit the improvements in `<TARGET_REPO>`: `git commit -m "refactor(agent): improve <prompt_name> benchmark pass (Score: X/10)"`.
+     - Update `EVAL_STATUS.md` with the final score, trials run, and changes kept.
+     - Advance to the next prompt ($N + 1$).
+6. **Final Milestone**:
+   - Once all 10 prompts score >= 8.5/10, compile `FINAL_EVAL_REPORT.md` summarizing before/after metrics, architecture enhancements, and overall performance.
+   - Emit `final_answer` with the comprehensive summary.
+
+---
+
+## Status File Contract (`EVAL_STATUS.md`)
+You MUST keep `EVAL_STATUS.md` in the current workspace up to date after every trial:
+- Current Prompt & Trial Number
+- Active Phase (`Writing Test` / `Executing` / `Analyzing` / `Patching Code` / `Compiling`)
+- Score Breakdown & Log Line Citations
+- Code Changes Attempted & Whether Kept or Reverted

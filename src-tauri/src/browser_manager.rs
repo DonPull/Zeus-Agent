@@ -22,6 +22,102 @@ fn find_free_port() -> u16 {
         .unwrap_or(9222)
 }
 
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        std::fs::create_dir_all(dst)?;
+    }
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dst_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst_path)?;
+        } else {
+            let name = entry.file_name().to_string_lossy().to_lowercase();
+            if !name.contains("lock") && !name.contains(".tmp") {
+                let _ = std::fs::copy(entry.path(), dst_path);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn get_parent_profile_dir() -> Option<PathBuf> {
+    // 1. Check current directory / project root .zeus/parent_browser_profile
+    if let Ok(cur) = std::env::current_dir() {
+        let p = cur.join(".zeus").join("parent_browser_profile");
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    // 2. Check APPDATA workspace root
+    if let Ok(root) = crate::utils::workspace_root() {
+        let p1 = root.join(".zeus").join("parent_browser_profile");
+        if p1.exists() {
+            return Some(p1);
+        }
+        let p2 = root.join("parent_browser_profile");
+        if p2.exists() {
+            return Some(p2);
+        }
+    }
+    None
+}
+
+pub fn get_installed_extensions() -> Vec<PathBuf> {
+    let mut exts = Vec::new();
+    let mut search_dirs = Vec::new();
+
+    if let Ok(cur) = std::env::current_dir() {
+        search_dirs.push(cur.join(".zeus").join("extensions"));
+    }
+    if let Ok(root) = crate::utils::workspace_root() {
+        search_dirs.push(root.join(".zeus").join("extensions"));
+        search_dirs.push(root.join("extensions"));
+    }
+
+    // 1. Direct extensions directories
+    for ext_dir in search_dirs {
+        if ext_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(ext_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    if entry.path().is_dir() {
+                        if entry.path().join("manifest.json").exists() {
+                            if !exts.contains(&entry.path()) {
+                                exts.push(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Extensions installed via Store inside parent_browser_profile
+    if let Some(parent_profile) = get_parent_profile_dir() {
+        let parent_ext_dir = parent_profile.join("Default").join("Extensions");
+        if parent_ext_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(parent_ext_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    if entry.path().is_dir() {
+                        if let Ok(sub_entries) = std::fs::read_dir(entry.path()) {
+                            for sub_entry in sub_entries.filter_map(Result::ok) {
+                                if sub_entry.path().is_dir() && sub_entry.path().join("manifest.json").exists() {
+                                    if !exts.contains(&sub_entry.path()) {
+                                        exts.push(sub_entry.path());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    exts
+}
+
 impl BrowserManager {
     pub fn new() -> Self {
         Self {
@@ -64,7 +160,17 @@ impl BrowserManager {
             // Main browser takeover uses default profile (omit --user-data-dir).
         } else {
             let dir = workspace.join(".zeus").join("browser_profiles").join(task_id);
+            let is_new = !dir.exists();
             std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create user data dir: {}", e))?;
+            
+            // If newly created, seed from parent_browser_profile if present
+            if is_new {
+                if let Some(parent_profile) = get_parent_profile_dir() {
+                    let _ = copy_dir_all(&parent_profile, &dir);
+                    crate::logger::log(task_id, "browser", &format!("Seeded task browser profile from {}", parent_profile.display()));
+                }
+            }
+
             state_user_data_dir = dir.clone();
             actual_user_data_dir = Some(state_user_data_dir.clone());
         };
@@ -154,7 +260,21 @@ pub fn spawn_browser(executable: &Path, port: u16, user_data_dir: Option<&Path>,
         dir_arg.push(dir.as_os_str());
         cmd.arg(dir_arg);
     }
+
+    let extensions = get_installed_extensions();
+    if !extensions.is_empty() {
+        let ext_paths: Vec<String> = extensions
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+        let ext_arg = ext_paths.join(",");
+        cmd.arg(format!("--load-extension={}", ext_arg));
+        cmd.arg(format!("--disable-extensions-except={}", ext_arg));
+    }
     
+    // Stealth & Anti-Bot flags
+    cmd.arg("--disable-blink-features=AutomationControlled");
+    cmd.arg("--disable-infobars");
     cmd.arg("--no-first-run");
     cmd.arg("--no-default-browser-check");
     cmd.arg("--disable-sync");

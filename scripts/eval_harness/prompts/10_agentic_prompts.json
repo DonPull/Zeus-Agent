@@ -1,0 +1,187 @@
+[
+  {
+    "id": 1,
+    "name": "sofia_weather_flyer_campaign",
+    "title": "Marketing Campaign Asset Generation & Localized Weather Integration",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Can you check yesterday's hourly weather in Sofia (specifically around 4:00 PM), and write a Python script using Pillow to generate a professional promotional banner image (1200x630 px) for 'Zeus Tech Repairs'. The banner text must be in Bulgarian (advertising fast diagnostics and discount deals) with yesterday's 4 PM temperature shown in the top corner. Save the banner as 'sofia_promo_banner.png'.",
+        "expected_artifacts": ["sofia_promo_banner.png"],
+        "python_check": "from PIL import Image\nimg = Image.open('sofia_promo_banner.png')\nassert img.size == (1200, 630)"
+      },
+      {
+        "turn": 2,
+        "user_prompt": "Great, now without modifying the original banner design, generate a localized social media copy file 'campaign_posts.md' containing 3 ready-to-post announcements in Bulgarian (Facebook, Instagram, Twitter) tailored to that exact weather condition, plus a JSON manifest 'banner_metadata.json' with dimensions and color palette info.",
+        "expected_artifacts": ["campaign_posts.md", "banner_metadata.json"],
+        "python_check": "import json, os\nassert os.path.exists('campaign_posts.md') and os.path.exists('banner_metadata.json')\nmeta = json.load(open('banner_metadata.json'))\nassert 'dimensions' in meta or 'width' in meta or 'size' in meta"
+      }
+    ],
+    "criteria": {
+      "language_requirement": "Banner text and social posts in Bulgarian; agent reasoning/narration in English",
+      "no_clobbering": "Turn 2 must not overwrite or delete sofia_promo_banner.png"
+    }
+  },
+  {
+    "id": 2,
+    "name": "financial_stock_dossier",
+    "title": "Financial Due Diligence & Quantitative Stock Analysis",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+        "expected_artifacts": ["tech_stock_dossier.md", "stock_metrics.csv"],
+        "python_check": "import csv, os\nassert os.path.exists('tech_stock_dossier.md') and os.path.exists('stock_metrics.csv')\nwith open('stock_metrics.csv', newline='', encoding='utf-8') as f:\n    rows = list(csv.reader(f))\n    assert len(rows) >= 3"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Must perform web research, run python numerical calculations, and output both markdown memo and clean CSV."
+    }
+  },
+  {
+    "id": 3,
+    "name": "sqlite_pipeline_migration",
+    "title": "Standalone ETL Pipeline Scaffolding & Schema Evolution",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "I need an ETL data pipeline for processing customer feedback. In a new folder called 'feedback_pipeline/', create a Python SQLite pipeline with a script 'ingest.py' that reads dummy feedback data from 'raw_feedback.json', computes sentiment scores (using a simple lexicon heuristic or text scoring), and saves processed rows into 'feedback.db'. Test run it and make sure 10 sample records are inserted.",
+        "expected_artifacts": ["feedback_pipeline/ingest.py", "feedback_pipeline/raw_feedback.json", "feedback_pipeline/feedback.db"],
+        "python_check": "import sqlite3, os\nassert os.path.exists('feedback_pipeline/feedback.db')\nconn = sqlite3.connect('feedback_pipeline/feedback.db')\ncount = conn.execute('SELECT COUNT(*) FROM feedback').fetchone()[0]\nassert count >= 10"
+      },
+      {
+        "turn": 2,
+        "user_prompt": "We need to evolve the database schema. Add a new 'category' column to the SQLite table in 'feedback.db' without wiping existing data, update 'ingest.py' to classify records into categories ('Billing', 'Technical', 'General'), re-run the pipeline on an expanded dataset, and write 'pipeline_summary.json' showing category distribution.",
+        "expected_artifacts": ["feedback_pipeline/pipeline_summary.json"],
+        "python_check": "import sqlite3, json\nconn = sqlite3.connect('feedback_pipeline/feedback.db')\ncols = [col[1] for col in conn.execute('PRAGMA table_info(feedback)').fetchall()]\nassert 'category' in cols\nsummary = json.load(open('feedback_pipeline/pipeline_summary.json'))\nassert isinstance(summary, dict) and len(summary) > 0"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Creates standalone files, preserves SQLite state during migration, and avoids wiping original rows."
+    }
+  },
+  {
+    "id": 4,
+    "name": "sample_project_bug_repair",
+    "title": "External Codebase Bug Localization & Test Repair",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "There is a standalone sample data validator project in 'workspace/sample_validator/'. Run the test suite with python pytest, locate the failing test assertions in the source code, fix the calculation bug in 'src/validator.py' without breaking existing tests or deleting comments, and verify all tests pass. Document your fix in 'bug_fix_report.md'.",
+        "expected_artifacts": ["bug_fix_report.md"],
+        "python_check": "import os\nassert os.path.exists('bug_fix_report.md')\ncontent = open('bug_fix_report.md', encoding='utf-8').read()\nassert len(content) > 100"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Targeted debugging in workspace project only; never modifies Zeus Agent source code."
+    }
+  },
+  {
+    "id": 5,
+    "name": "brand_guidelines_memory_recall",
+    "title": "Brand Guidelines Memory Anchoring & Contextual Design",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "I am setting up a localized outdoor brand called 'Vitosha Gear'. Our brand guidelines are: Primary Color '#1E3A8A' (Deep Blue), Secondary Color '#F59E0B' (Amber), target audience: hikers and outdoor enthusiasts in the Balkans, currency: BGN (Bulgarian Lev). Please record these specifications into your memory and acknowledge with a brief confirmation.",
+        "expected_artifacts": [],
+        "python_check": "assert True"
+      },
+      {
+        "turn": 2,
+        "user_prompt": "Using our established brand guidelines and specifications from our previous conversation, generate a complete pricing catalog in 'vitosha_catalog.json' with 5 realistic outdoor products (with prices in BGN and color hex codes), plus an HTML product showcase page 'showcase.html' styled with our exact brand colors.",
+        "expected_artifacts": ["vitosha_catalog.json", "showcase.html"],
+        "python_check": "import json, os\nassert os.path.exists('vitosha_catalog.json') and os.path.exists('showcase.html')\ncatalog = json.load(open('vitosha_catalog.json'))\nassert len(catalog) >= 5\nhtml = open('showcase.html', encoding='utf-8').read()\nassert '#1E3A8A' in html.upper() or '#1e3a8a' in html.lower()"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Must recall specific brand constraints across turns without the user repeating them."
+    }
+  },
+  {
+    "id": 6,
+    "name": "resilient_data_scraper_heatmap",
+    "title": "Public Data Scraping, Statistical Aggregation & Heatmap",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Fetch recent technological benchmark data (or top trending open-source AI projects from public APIs), parse metrics like star counts and fork ratios, install any needed python libraries, generate a styled comparison bar chart or heatmap saved as 'benchmark_visualization.png', and output a structured JSON dataset in 'benchmarks_data.json'.",
+        "expected_artifacts": ["benchmark_visualization.png", "benchmarks_data.json"],
+        "python_check": "import json, os; from PIL import Image\nassert os.path.exists('benchmark_visualization.png') and os.path.exists('benchmarks_data.json')\nimg = Image.open('benchmark_visualization.png'); assert img.size[0] >= 300\ndata = json.load(open('benchmarks_data.json')); assert len(data) > 0"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Must handle dynamic python package installation and generate both image and valid JSON."
+    }
+  },
+  {
+    "id": 7,
+    "name": "workspace_search_and_reconciliation",
+    "title": "Deep File Search, Parsing & Fuzzy Financial Reconciliation",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "There are several legacy transaction and user activity logs scattered in subfolders under 'workspace/data_dumps/' with different formats (some CSV, some JSON). Scan and search through all subdirectories, find all logs containing transactions from '2026', reconcile customer IDs with their total spend, and generate a deduplicated clean ledger in 'reconciled_2026_ledger.csv' and an anomaly summary in 'reconciliation_summary.txt'.",
+        "expected_artifacts": ["reconciled_2026_ledger.csv", "reconciliation_summary.txt"],
+        "python_check": "import csv, os\nassert os.path.exists('reconciled_2026_ledger.csv') and os.path.exists('reconciliation_summary.txt')\nwith open('reconciled_2026_ledger.csv', newline='', encoding='utf-8') as f:\n    rows = list(csv.reader(f))\n    assert len(rows) >= 2"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Traverses nested directories, extracts heterogeneous formats without modifying source dumps."
+    }
+  },
+  {
+    "id": 8,
+    "name": "canva_design_to_code",
+    "title": "Canva Creative Research & Programmatic Asset Generation",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+        "expected_artifacts": ["canva_design_spec.md"],
+        "python_check": "import os\nassert os.path.exists('canva_design_spec.md')\ncontent = open('canva_design_spec.md', encoding='utf-8').read()\nassert len(content) > 150"
+      },
+      {
+        "turn": 2,
+        "user_prompt": "Based on the design specifications you just compiled in 'canva_design_spec.md', generate a Python script that renders a high-res mockup image 'product_mockup.png' following those exact aspect ratios and font hierarchies, and output a deployment checklist in 'launch_checklist.md'.",
+        "expected_artifacts": ["product_mockup.png", "launch_checklist.md"],
+        "python_check": "import os; from PIL import Image\nassert os.path.exists('product_mockup.png') and os.path.exists('launch_checklist.md')\nimg = Image.open('product_mockup.png')\nassert img.size[0] >= 500"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Integrates browser research with multi-turn Python image rendering."
+    }
+  },
+  {
+    "id": 9,
+    "name": "log_outage_diagnostic_script",
+    "title": "Large Server Log Clustering & Incident Remediation Script",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "We simulated a service disruption, and the server produced an error log file in 'workspace/logs/server_outage.log'. Parse the log file efficiently without running out of context memory (using python or shell utilities), group the errors into primary root causes, and create an automated Python remediation script 'fix_service.py' along with an incident postmortem in 'incident_postmortem.md'.",
+        "expected_artifacts": ["fix_service.py", "incident_postmortem.md"],
+        "python_check": "import os\nassert os.path.exists('fix_service.py') and os.path.exists('incident_postmortem.md')\ncode = open('fix_service.py', encoding='utf-8').read()\nassert len(code) > 50"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Must process logs efficiently without loading entire huge files into context memory; produces executable script."
+    }
+  },
+  {
+    "id": 10,
+    "name": "multi_source_battery_report",
+    "title": "Multi-Source Scientific Fact Verification & Executive Report",
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+        "expected_artifacts": ["battery_benchmarks.json", "solid_state_battery_report.md"],
+        "python_check": "import json, os\nassert os.path.exists('battery_benchmarks.json') and os.path.exists('solid_state_battery_report.md')\ndata = json.load(open('battery_benchmarks.json'))\nassert isinstance(data, (dict, list)) and len(data) > 0\nreport = open('solid_state_battery_report.md', encoding='utf-8').read()\nassert len(report) > 300"
+      }
+    ],
+    "criteria": {
+      "required_behavior": "Cross-references multiple web sources, resolves conflicting figures into structured JSON and detailed Markdown."
+    }
+  }
+]

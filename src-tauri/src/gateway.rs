@@ -46,12 +46,21 @@ pub fn is_local_model(model: &str) -> bool {
             return true;
         }
     }
-    // Heuristic: if RouteLLM key is not set, common local names are treated as local
     let m = model.to_lowercase();
-    if m.contains("qwen") || m.contains("llama") || m.contains("mistral") || m.contains("gemma") {
-        if crate::settings::load_api_key().is_err() {
-            return true;
-        }
+    if m.contains("qwen")
+        || m.contains("llama")
+        || m.contains("mistral")
+        || m.contains("gemma")
+        || m.contains("deepseek-r1")
+        || m.contains(".gguf")
+        || m.contains(".bin")
+        || m.contains(":latest")
+        || m.contains("localhost")
+    {
+        return true;
+    }
+    if !model.starts_with("gemini") && crate::settings::load_api_key().is_err() {
+        return true;
     }
     false
 }

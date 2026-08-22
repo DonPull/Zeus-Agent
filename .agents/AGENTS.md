@@ -41,3 +41,10 @@ Zeus Agent is a desktop autonomous-agent runtime (not merely a chatbot) capable 
 - Respect strict transaction boundaries.
 - For new features, always include unit tests for state transitions and DB migrations.
 - When creating schemas, define clear parent/child relationships (like `tasks` -> `runs` -> `workers`).
+
+## 6. Autonomous Benchmark & Self-Improvement Harness
+- Complete specification is documented in [`.agents/SELF_IMPROVEMENT_HARNESS.md`](file:///d:/Hristian%20projects/Zeus-Agent/.agents/SELF_IMPROVEMENT_HARNESS.md).
+- **Two-Repo Architecture**: Repo A (Evaluator) executes advanced E2E tests, grades outputs, and refines Repo B (Target) code.
+- **Single-Agent Local System Prompt**: `src-tauri/src/prompts/local_master.txt` provides direct host tool execution for local models without worker overhead.
+- **Pre-Authorized Commands & Session Files**: Evaluator commands (`node`, `npx playwright test`, `cargo`, `npm`, `git`, `python`) and newly created session files are auto-allowed in eval and local mode.
+- **Parent Profile Cloning**: Clones `.zeus/parent_browser_profile` into task workspaces with extension auto-loading and anti-bot stealth.

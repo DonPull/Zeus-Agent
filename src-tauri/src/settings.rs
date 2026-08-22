@@ -192,6 +192,9 @@ pub const PROMPT_FILE_NAME: &str = "master.txt";
 /// The default master prompt, embedded at compile time from this crate.
 pub const DEFAULT_MASTER_PROMPT: &str = include_str!("prompts/default_master.txt");
 
+/// The local unified master prompt, optimized for high-speed local models.
+pub const LOCAL_MASTER_PROMPT: &str = include_str!("prompts/local_master.txt");
+
 fn app_data_dir() -> Result<std::path::PathBuf, String> {
     crate::utils::workspace_root()
 }
@@ -232,4 +235,13 @@ pub fn load_master_prompt() -> Result<String, String> {
         return Ok(DEFAULT_MASTER_PROMPT.to_string());
     }
     Ok(trimmed.to_string())
+}
+
+pub fn load_master_prompt_for_model(model: &str) -> Result<String, String> {
+    if std::env::var("ZEUS_PROMPT_MODE").map(|v| v.eq_ignore_ascii_case("local")).unwrap_or(false)
+        || crate::gateway::is_local_model(model)
+    {
+        return Ok(LOCAL_MASTER_PROMPT.to_string());
+    }
+    load_master_prompt()
 }

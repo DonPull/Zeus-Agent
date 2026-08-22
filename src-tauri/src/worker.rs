@@ -214,7 +214,7 @@ pub async fn run_worker(
         let mut loop_iterations = 0;
         let worker_result = loop {
             loop_iterations += 1;
-            if loop_iterations > orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+            if loop_iterations > orchestrator::max_orchestration_iterations() {
                 break Err("Worker hit iteration cap without a final answer.".to_string());
             }
 

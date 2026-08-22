@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "eval:benchmark": "node scripts/eval_harness/run_eval_loop.js",
+    "test:browser-profile": "node scripts/manual_test_browser_profile.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

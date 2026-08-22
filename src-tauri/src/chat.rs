@@ -504,8 +504,8 @@ pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
     compacted
 }
 
-fn load_master_history(connection: &Connection, task_id: &str) -> Result<Vec<ChatMessage>, String> {
-    let mut system_prompt = settings::load_master_prompt()?;
+fn load_master_history(connection: &Connection, task_id: &str, model: &str) -> Result<Vec<ChatMessage>, String> {
+    let mut system_prompt = settings::load_master_prompt_for_model(model)?;
     if let Ok(Some(memory)) = crate::db::get_chat_memory(connection, task_id) {
         system_prompt.push_str("\n\n[TASK MEMORY - PRESERVE THIS CONTEXT]\n");
         system_prompt.push_str(&memory);
@@ -1111,7 +1111,7 @@ async fn execute_user_turn(
             task.title = title;
         }
 
-        let history = load_master_history(&connection, task_id)?;
+        let history = load_master_history(&connection, task_id, &task.master_model)?;
         let current_spend = task.spent_credits;
         let master_model = task.master_model.clone();
         (
@@ -1134,6 +1134,7 @@ async fn execute_user_turn(
     let mut history = history;
     let mut produced_final = false;
     let mut steps_since_action_plan: usize = 0;
+    let mut steps_since_status_update: usize = 0;
     let mut plain_text_nudges: usize = 0;
 
     if let Some(msg) = &updated_approval {
@@ -1177,15 +1178,19 @@ async fn execute_user_turn(
         }
     }
 
+    let is_unlimited_budget = budget_units <= 0
+        || std::env::var("ZEUS_UNLIMITED_BUDGET").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+        || gateway::is_local_model(&master_model);
+
     // 2) Orchestration loop. Each iteration may add directive-result messages
     //    to `history` (and persist them) before re-calling the master.
-    for iteration in 0..orchestrator::MAX_ORCHESTRATION_ITERATIONS {
+    for iteration in 0..orchestrator::max_orchestration_iterations() {
         if cancellation_token.is_cancelled() {
             finish_cancelled_run(&state, &app_handle, &task_id, &run_id)?;
             return Err("RUN_CANCELLED".into());
         }
 
-        if current_spend >= budget_units as f64 {
+        if !is_unlimited_budget && current_spend >= budget_units as f64 {
             let mut note = new_message(
                 &task_id, "event", "chat",
                 "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
@@ -1211,6 +1216,16 @@ async fn execute_user_turn(
                 content: "[SYSTEM REMINDER]: You have performed 4 consecutive actions without updating the Action Plan. If milestones were completed or tasks adjusted, call `update_action_plan` to keep the plan current for the user.".into(),
             });
             injected_reminder = true;
+        }
+
+        let is_eval_mode = std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+        let mut injected_status_reminder = false;
+        if is_eval_mode && steps_since_status_update >= 5 {
+            history.push(ChatMessage {
+                role: "system".into(),
+                content: "[SYSTEM REMINDER]: You have performed 5 actions since last updating EVAL_STATUS.md. Update EVAL_STATUS.md now with your current prompt progress, trial score breakdown, issues identified, and code patches applied.".into(),
+            });
+            injected_status_reminder = true;
         }
 
         // Re-anchor this model call on the latest action plan without growing durable history.
@@ -1287,6 +1302,9 @@ async fn execute_user_turn(
             }
         };
         if injected_plan.is_some() {
+            let _ = history.pop();
+        }
+        if injected_status_reminder {
             let _ = history.pop();
         }
         if injected_reminder {
@@ -1449,6 +1467,16 @@ async fn execute_user_turn(
                     steps_since_action_plan = 0;
                 } else {
                     steps_since_action_plan += 1;
+                }
+
+                if let Directive::WriteFile { path, .. } = &directive {
+                    if path.to_lowercase().contains("eval_status") {
+                        steps_since_status_update = 0;
+                    } else {
+                        steps_since_status_update += 1;
+                    }
+                } else {
+                    steps_since_status_update += 1;
                 }
 
                 let preamble_trimmed = preamble.trim();

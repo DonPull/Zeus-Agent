@@ -11,6 +11,21 @@ use serde_json::json;
 
 pub const MAX_ORCHESTRATION_ITERATIONS: usize = 40;
 
+pub fn max_orchestration_iterations() -> usize {
+    if std::env::var("ZEUS_UNLIMITED_ITERATIONS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false) {
+        return usize::MAX;
+    }
+    if let Ok(val) = std::env::var("ZEUS_MAX_ITERATIONS") {
+        if let Ok(n) = val.parse::<usize>() {
+            if n == 0 {
+                return usize::MAX;
+            }
+            return n;
+        }
+    }
+    MAX_ORCHESTRATION_ITERATIONS
+}
+
 /// A parsed directive from the master's reply.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
