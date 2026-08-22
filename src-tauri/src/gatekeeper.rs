@@ -454,19 +454,34 @@ pub fn evaluate_command_action(
         || std::env::var("ZEUS_AUTO_ALLOW_COMMANDS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
         || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
 
-    if auto_allow_commands && !is_composite {
+    if auto_allow_commands {
         let safe_prefixes = [
-            "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help",
-            "npm run", "npm test", "npm build", "npm exec", "npx playwright test", "npm --version", "npx --version",
-            "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version",
-            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat"
+            "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help", "cargo",
+            "npm run", "npm test", "npm build", "npm exec", "npx playwright test", "npx playwright", "npx", "npm --version", "npx --version", "npm",
+            "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version", "git",
+            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat", "cd", "pushd", "popd"
         ];
-        let trimmed_cmd = command.trim();
-        for prefix in safe_prefixes {
-            if trimmed_cmd.starts_with(prefix) {
-                crate::logger::log(task_id, "gatekeeper", &format!("Auto-allowing safe developer command `{}` via prefix `{}`", command, prefix));
-                return Ok(PermissionVerdict::Allow);
+        
+        let parts: Vec<&str> = command.split("&&").flat_map(|s| s.split(';')).collect();
+        let mut all_parts_safe = !parts.is_empty();
+        
+        for part in &parts {
+            let clean_part = part.split('>').next().unwrap_or(part).trim();
+            if clean_part.is_empty() {
+                continue;
             }
+            let is_safe = safe_prefixes.iter().any(|prefix| {
+                clean_part.starts_with(prefix)
+            });
+            if !is_safe {
+                all_parts_safe = false;
+                break;
+            }
+        }
+        
+        if all_parts_safe {
+            crate::logger::log(task_id, "gatekeeper", &format!("Auto-allowing safe developer command `{}`", command));
+            return Ok(PermissionVerdict::Allow);
         }
     }
 

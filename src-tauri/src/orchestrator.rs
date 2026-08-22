@@ -64,6 +64,8 @@ pub enum Directive {
     },
     RunCommand {
         command: String,
+        #[serde(default)]
+        cwd: Option<String>,
     },
     ListDir {
         path: String,
@@ -304,15 +306,18 @@ pub async fn execute_directive_bypass_gatekeeper(
             let result_json = serde_json::json!({ "http_result": res });
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
-        Directive::RunCommand { command } => {
-            let workspace = crate::utils::task_workspace(task_id)?;
+        Directive::RunCommand { command, cwd } => {
+            let execution_dir = match &cwd {
+                Some(custom_dir) if !custom_dir.trim().is_empty() => std::path::PathBuf::from(custom_dir),
+                _ => crate::utils::task_workspace(task_id)?,
+            };
             let output_future = tokio::process::Command::new("cmd")
                 .args(&["/c", &command])
-                .current_dir(workspace)
+                .current_dir(execution_dir)
                 .output();
             
             let output_result = tokio::time::timeout(
-                std::time::Duration::from_secs(300),
+                std::time::Duration::from_secs(1800),
                 output_future
             ).await;
 
@@ -323,7 +328,7 @@ pub async fn execute_directive_bypass_gatekeeper(
                     format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
                 }
                 Ok(Err(e)) => format!("Failed to execute command: {}", e),
-                Err(_) => "Command timed out after 300 seconds.".to_string(),
+                Err(_) => "Command timed out after 1800 seconds.".to_string(),
             };
             let result_json = serde_json::json!({ "command_result": res });
             Ok(crate::orchestrator::directive_result_message(&result_json))

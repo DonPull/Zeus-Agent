@@ -1859,7 +1859,7 @@ async fn execute_user_turn(
                             }
                         }
                     }
-                    Directive::RunCommand { command } => {
+                    Directive::RunCommand { command, cwd } => {
                         let verdict = {
                             let conn = state.db.lock().map_err(|e| e.to_string())?;
                             match crate::gatekeeper::evaluate_command_action(&conn, &task_id, &command) {
@@ -1872,14 +1872,17 @@ async fn execute_user_turn(
                         };
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
-                                let workspace = crate::utils::task_workspace(&task_id)?;
+                                let execution_dir = match &cwd {
+                                    Some(custom_dir) if !custom_dir.trim().is_empty() => std::path::PathBuf::from(custom_dir),
+                                    _ => crate::utils::task_workspace(&task_id)?,
+                                };
                                 let output_future = tokio::process::Command::new("cmd")
                                     .args(&["/c", &command])
-                                    .current_dir(workspace)
+                                    .current_dir(execution_dir)
                                     .output();
                                 
                                 let output_result = tokio::time::timeout(
-                                    std::time::Duration::from_secs(300),
+                                    std::time::Duration::from_secs(1800),
                                     output_future
                                 ).await;
 
@@ -1890,7 +1893,7 @@ async fn execute_user_turn(
                                         format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
                                     }
                                     Ok(Err(e)) => format!("Failed to execute command: {}", e),
-                                    Err(_) => "Command timed out after 300 seconds.".to_string(),
+                                    Err(_) => "Command timed out after 1800 seconds.".to_string(),
                                 };
                                 let result_json = serde_json::json!({ "command_result": res });
                                 let msg = orchestrator::directive_result_message(&result_json);
@@ -1908,7 +1911,7 @@ async fn execute_user_turn(
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
                                 let summary = format!("Run Command: `{}`", command);
-                                let blocked_dir = Directive::RunCommand { command: command.clone() };
+                                let blocked_dir = Directive::RunCommand { command: command.clone(), cwd: cwd.clone() };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
                                     serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
@@ -2444,7 +2447,7 @@ pub(crate) async fn execute_gated_native_directive(
                 .await
                 .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
         }
-        Directive::RunCommand { command } => {
+        Directive::RunCommand { command, .. } => {
             let conn = state.db.lock().map_err(|e| e.to_string())?;
             crate::gatekeeper::evaluate_command_action(&conn, task_id, command)
                 .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
@@ -2489,7 +2492,7 @@ pub(crate) async fn execute_gated_native_directive(
         crate::gatekeeper::PermissionVerdict::Ask => {
             let summary = match &directive {
                 Directive::HttpRequest { url, method, .. } => format!("Run Network Request: {} {}", method, url),
-                Directive::RunCommand { command } => format!("Run Command: `{}`", command),
+                Directive::RunCommand { command, .. } => format!("Run Command: `{}`", command),
                 Directive::ReadFile { path } => format!("Read File: `{}`", path),
                 Directive::WriteFile { path, .. } => format!("Write File: `{}`", path),
                 Directive::DeleteFile { path } => format!("Delete File: `{}`", path),

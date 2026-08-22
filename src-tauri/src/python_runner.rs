@@ -432,7 +432,7 @@ async fn handle_ipc_connection(
                 let blocked_dir = if req_type == "network" {
                     crate::orchestrator::Directive::HttpRequest { url: req["url"].as_str().unwrap_or("").to_string(), method: "GET".to_string(), body: None }
                 } else if req_type == "command" {
-                    crate::orchestrator::Directive::RunCommand { command: req["command"].as_str().unwrap_or("").to_string() }
+                    crate::orchestrator::Directive::RunCommand { command: req["command"].as_str().unwrap_or("").to_string(), cwd: None }
                 } else {
                     crate::orchestrator::Directive::ReadFile { path: req["path"].as_str().unwrap_or("").to_string() }
                 };
