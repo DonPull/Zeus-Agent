@@ -456,24 +456,40 @@ pub fn evaluate_command_action(
 
     if auto_allow_commands {
         let safe_prefixes = [
-            "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help", "cargo",
-            "npm run", "npm test", "npm build", "npm exec", "npx playwright test", "npx playwright", "npx", "npm --version", "npx --version", "npm",
-            "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version", "git",
-            "python", "python3", "node", "pytest", "where", "dir", "echo", "type", "cat", "cd", "pushd", "popd", "cmd", "cmd /c"
+            "cargo", "cargo check", "cargo test", "cargo build", "cargo run", "cargo clippy", "cargo fmt", "cargo --version", "cargo --help",
+            "npm", "npm run", "npm test", "npm build", "npm exec", "npx", "npx playwright test", "npx playwright", "npm --version", "npx --version",
+            "git", "git status", "git diff", "git checkout", "git stash", "git commit", "git add", "git branch", "git log", "git reset", "git revert", "git --version",
+            "python", "python3", "node", "pytest",
+            "findstr", "grep", "rg", "ripgrep", "find",
+            "where", "which", "dir", "echo", "type", "cat", "cd", "pushd", "popd",
+            "powershell", "powershell.exe", "pwsh", "cmd", "cmd /c", "cmd.exe /c",
+            "curl", "tar", "tree", "head", "tail", "sort", "uniq", "wc", "awk", "sed", "set", "cls", "clear"
         ];
         
         let normalized = command.trim_start_matches("cmd /c").trim_start_matches("cmd.exe /c").trim();
         let stripped_quotes = normalized.trim_matches('"').trim_matches('\'').trim();
         let target_command = if !stripped_quotes.is_empty() { stripped_quotes } else { command };
 
-        let parts: Vec<&str> = target_command.split("&&").flat_map(|s| s.split(';')).collect();
+        let parts: Vec<&str> = target_command
+            .split("&&")
+            .flat_map(|s| s.split("||"))
+            .flat_map(|s| s.split(';'))
+            .flat_map(|s| s.split('|'))
+            .collect();
         let mut all_parts_safe = !parts.is_empty();
         
         for part in &parts {
-            let mut clean_part = part.split('>').next().unwrap_or(part).trim();
+            let mut clean_part = part.split('>').next().unwrap_or(part);
+            clean_part = clean_part.split('<').next().unwrap_or(clean_part).trim();
             if clean_part.starts_with("cd /d") {
                 clean_part = "cd";
             }
+            if clean_part.starts_with("cmd /c") {
+                clean_part = clean_part.trim_start_matches("cmd /c").trim();
+            } else if clean_part.starts_with("cmd.exe /c") {
+                clean_part = clean_part.trim_start_matches("cmd.exe /c").trim();
+            }
+            clean_part = clean_part.trim_matches('"').trim_matches('\'').trim();
             if clean_part.is_empty() {
                 continue;
             }

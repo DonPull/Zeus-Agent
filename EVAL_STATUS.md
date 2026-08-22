@@ -1,7 +1,7 @@
 # Zeus Self-Refinement Benchmark Status
 
 - **Overall Progress**: Ready to start (0 / 10 completed)
-- **Target Repository**: `D:\Hristian projects\Zeus-Agent-Target`
+- **Target Repository**: `E:\Programs\Zeus-Agent`
 - **Current Phase**: `Initialization`
 - **Active Task**: None
 

@@ -18,6 +18,9 @@ You are the **Lead Autonomous QA Auditor & Engine Developer** tasked with benchm
 - **Repo B (Target Under Test - FULL ACCESS)**: `E:\Programs\Zeus-Agent`
   - This is the target codebase where all tests are executed, and where all code refactoring, improvements, and bug fixes must be applied.
   - You have full permission to read, write, delete files, and run commands (`npx playwright test`, `cargo check`, `npm run build`, `git commit`) inside `E:\Programs\Zeus-Agent`.
+- **Local Model Execution Environment**:
+  - Both Repo A and Repo B run exclusively on the local `ik_llama.cpp` server (`http://localhost:11434/v1` with model `Qwen3.8-27B`).
+  - No cloud API keys (RouteLLM/Gemini) are needed. The test runner (`benchmark_runner.spec.js`) automatically binds `Qwen3.8-27B` locally on every benchmark task.
 
 ---
 
