@@ -700,6 +700,7 @@ pub async fn resolve_pending_approvals(
     task_id: String,
     approved: bool,
     message_id: Option<String>,
+    note: Option<String>,
 ) -> Result<(), String> {
     let connection = state
         .db
@@ -707,15 +708,16 @@ pub async fn resolve_pending_approvals(
         .map_err(|e| format!("Database lock error: {}", e))?;
 
     let status = if approved { "approved" } else { "denied" };
+    let note_val = note.unwrap_or_default();
 
     if let Some(id) = message_id.filter(|s| !s.trim().is_empty()) {
         connection
             .execute(
                 "UPDATE messages
-                 SET content = json_set(content, '$.status', ?1)
-                 WHERE id = ?2 AND task_id = ?3 AND kind = 'approval'
+                 SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2)
+                 WHERE id = ?3 AND task_id = ?4 AND kind = 'approval'
                    AND json_extract(content, '$.status') = 'pending'",
-                rusqlite::params![status, id, task_id],
+                rusqlite::params![status, note_val, id, task_id],
             )
             .map_err(|e| format!("Failed to update approval: {}", e))?;
     } else {

@@ -235,7 +235,7 @@ function App() {
         }
         
         try {
-            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved, permData && permData.messageId);
+            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved, permData && permData.messageId, note);
             await reconcileMessages(activeTaskIdRef.current);
         } catch (err) {
             console.error("Failed to resolve pending approvals", err);

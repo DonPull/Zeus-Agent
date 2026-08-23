@@ -15,7 +15,7 @@ export const getTaskSpend = (taskId) => invoke("get_task_spend", { taskId });
 export const getTaskRunState = (taskId) => invoke("get_task_run_state", { taskId });
 export const cancelTaskRun = (taskId) => invoke("cancel_task_run", { taskId });
 export const sendUserMessage = (taskId, content, requestId) => invoke("send_user_message", { taskId, content, requestId });
-export const resolvePendingApprovals = (taskId, approved, messageId) => invoke("resolve_pending_approvals", { taskId, approved, messageId });
+export const resolvePendingApprovals = (taskId, approved, messageId, note = null) => invoke("resolve_pending_approvals", { taskId, approved, messageId, note });
 export const resolveHandoff = (taskId, approved, note, messageId) => invoke("resolve_handoff", { taskId, approved, note, messageId });
 export const resolveChoice = (taskId, choiceId, customText, messageId) => invoke("resolve_choice", { taskId, choiceId, customText, messageId });
 export const renameTask  = (taskId, title)  => invoke("rename_task",        { taskId, newTitle: title });

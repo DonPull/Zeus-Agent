@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { launchTauri, stopTauri, cleanupTasks } from '../e2e/testUtils.js';
-import { setupAdvancedTask, submitPromptAndWait, captureArtifacts, pruneResults } from './advancedUtils.js';
+import { setupAdvancedTask, submitPromptAndWait, captureArtifacts, pruneResults, cleanIpcDir } from './advancedUtils.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -21,6 +21,7 @@ test.describe('Zeus Agent Autonomous Benchmark Suite (10 Real-World Prompts)', (
 
     test.beforeAll(async () => {
         pruneResults();
+        cleanIpcDir();
     });
 
     for (const promptSpec of prompts) {

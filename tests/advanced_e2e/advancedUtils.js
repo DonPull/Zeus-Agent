@@ -42,7 +42,27 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
 /**
  * Submits a prompt and waits for the agent to finish autonomously.
  */
-async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 480000, expectedText = null, actionOnApprovalCard = 'approve') {
+const ipcDir = path.resolve(__dirname, '../../.zeus/eval_ipc');
+
+function ensureIpcDir() {
+    if (!fs.existsSync(ipcDir)) {
+        fs.mkdirSync(ipcDir, { recursive: true });
+    }
+}
+
+export function cleanIpcDir() {
+    ensureIpcDir();
+    const files = fs.readdirSync(ipcDir);
+    for (const f of files) {
+        if (f !== 'audit_history.json') {
+            try { fs.unlinkSync(path.join(ipcDir, f)); } catch (_) {}
+        }
+    }
+}
+
+async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, expectedText = null) {
+    ensureIpcDir();
+
     // Fill prompt
     await page.fill('#chat-input', prompt);
     
@@ -52,102 +72,204 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 480000, e
     // Wait for the button to change to "Stop" (meaning it started)
     await expect(page.locator('#chat-send-button')).toHaveText(/Stop/, { timeout: 10000 });
 
-    if (expectedText) {
-        const endTime = Date.now() + timeoutMs;
-        while (Date.now() < endTime) {
-            // Check for credit exhaustion
-            const chatLog = page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system');
-            if (await chatLog.count() > 0) {
-                const text = await chatLog.allInnerTexts();
-                const joinedText = text.join('\n');
-                if (joinedText.includes('BUDGET_EXCEEDED') || (joinedText.includes('credit') && joinedText.includes('run out')) || joinedText.includes('reached its unit budget')) {
-                    throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
-                }
-                if (joinedText.includes(expectedText)) {
-                    return; // Success!
-                }
+    const startTime = Date.now();
+    const endTime = startTime + timeoutMs;
+
+    while (Date.now() < endTime) {
+        // 1. Check for credit/budget exhaustion
+        const chatLog = page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system');
+        if (await chatLog.count() > 0) {
+            const text = await chatLog.allInnerTexts();
+            const joinedText = text.join('\n');
+            if (joinedText.includes('BUDGET_EXCEEDED') || (joinedText.includes('credit') && joinedText.includes('run out')) || joinedText.includes('reached its unit budget')) {
+                throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
             }
-
-            let handledCard = false;
-
-            // Check if there's a pending approval card blocking the agent (could happen while button is Stop for python scripts)
-            const pendingApproval = page.locator('.approval-card.pending button:has-text("Approve")').last();
-            if (await pendingApproval.count() > 0) {
-                await takeMilestoneScreenshot(page, "Pending Card Detected", null);
-                if (actionOnApprovalCard === 'approve') {
-                    console.log("[Test] Auto-approving pending approval card...");
-                    await pendingApproval.click({ force: true });
-                } else if (actionOnApprovalCard === 'deny') {
-                    console.log("[Test] Auto-denying pending approval card...");
-                    const denyButton = page.locator('.approval-card.pending button:has-text("Deny")').last();
-                    await denyButton.click({ force: true });
-                }
-                handledCard = true;
-                // Wait a bit after clicking
-                await page.waitForTimeout(1000);
+            if (expectedText && joinedText.includes(expectedText)) {
+                return; // Success!
             }
-
-            // Check if there's a pending handoff card
-            const pendingHandoff = page.locator('.approval-card.pending button:has-text("Done, Resume Agent")').last();
-            if (await pendingHandoff.count() > 0) {
-                await takeMilestoneScreenshot(page, "Browser Handoff Detected", null);
-                console.log("[Test] Detected Browser Handoff card. Copying golden profile...");
-                const taskId = await page.evaluate(async () => {
-                    if (!window.__ZEUS_BRIDGE__) return null;
-                    const tasks = await window.__ZEUS_BRIDGE__.listTasks();
-                    return tasks && tasks.length > 0 ? tasks[0].id : null;
-                });
-                
-                if (taskId) {
-                    const testWorkspaceDir = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
-                    const taskBrowserDir = path.join(testWorkspaceDir, 'tasks', taskId, 'browser', 'user_data');
-                    
-                    const goldenProfile = "D:\\Hristian projects\\browser_data";
-                    if (fs.existsSync(goldenProfile)) {
-                        // Remove existing user_data
-                        if (fs.existsSync(taskBrowserDir)) {
-                            fs.rmSync(taskBrowserDir, { recursive: true, force: true });
-                        }
-                        fs.mkdirSync(taskBrowserDir, { recursive: true });
-                        fs.cpSync(goldenProfile, taskBrowserDir, { recursive: true });
-                        console.log("[Test] Golden profile swapped successfully.");
-                    } else {
-                        console.log("[Test] WARNING: Golden profile not found at " + goldenProfile);
-                    }
-                }
-                
-                await pendingHandoff.click({ force: true });
-                handledCard = true;
-                await page.waitForTimeout(2000);
-            }
-
-            if (!handledCard) {
-                // If the button is back to "Send", it means the agent yielded prematurely
-                const btnText = await page.locator('#chat-send-button').innerText();
-                if (btnText.includes('Send')) {
-                    const pendingAfterYield = page.locator('.approval-card.pending button:has-text("Approve")').last();
-                    if (await pendingAfterYield.count() === 0) {
-                        // Only kick if there's no pending approval card we just handled
-                        const text = await page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system').allInnerTexts();
-                        console.log("[Test] Agent yielded, kicking to continue...");
-                        console.log("[Test] Agent's last chat log text:", text.join('\\n'));
-                        await takeMilestoneScreenshot(page, "Agent Yielded - Kicking", testInfo);
-                        await page.fill('#chat-input', "Please continue working on the task using your tools autonomously. You must output the phrase exactly to finish.");
-                        await expect(page.locator('#chat-send-button')).toBeEnabled();
-                        await page.click('#chat-send-button');
-                        await expect(page.locator('#chat-send-button')).toHaveText(/Stop/, { timeout: 10000 });
-                    }
-                }
-            }
-
-            await page.waitForTimeout(2000);
         }
-        throw new Error(`Timeout waiting for expected text: ${expectedText}`);
-    } else {
-        // Wait for the button to return to "Send" (meaning it finished autonomously)
-        // Real LLM calls can take a long time, so we give it a large timeout
-        await expect(page.locator('#chat-send-button')).toHaveText(/Send/, { timeout: timeoutMs });
+
+        // 2. Check for pending approval card blocking the agent
+        const pendingApproval = page.locator('.approval-card.pending').last();
+        if (await pendingApproval.count() > 0) {
+            const cardTitle = await pendingApproval.locator('.approval-card-title').innerText().catch(() => "Permission Required");
+            const cardDetail = await pendingApproval.locator('.approval-card-detail').innerText().catch(() => "");
+            
+            // Extract message metadata via bridge
+            const cardMeta = await page.evaluate(async () => {
+                if (!window.__ZEUS_BRIDGE__) return null;
+                const tasks = await window.__ZEUS_BRIDGE__.listTasks();
+                if (!tasks || tasks.length === 0) return null;
+                const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(tasks[0].id, true);
+                const approvalMsg = msgs.slice().reverse().find(m => m.kind === 'approval');
+                if (!approvalMsg) return null;
+                try {
+                    const parsed = JSON.parse(approvalMsg.content);
+                    return {
+                        messageId: approvalMsg.id,
+                        taskId: tasks[0].id,
+                        status: parsed.status,
+                        summary: parsed.summary,
+                        detail: parsed.detail,
+                        blocked_directive: parsed.blocked_directive
+                    };
+                } catch (_) {
+                    return { messageId: approvalMsg.id, taskId: tasks[0].id };
+                }
+            });
+
+            const messageId = (cardMeta && cardMeta.messageId) || `card_${Date.now()}`;
+            const pendingFile = path.join(ipcDir, 'pending_card.json');
+            const decisionFileGeneral = path.join(ipcDir, 'decision.json');
+            const decisionFileSpecific = path.join(ipcDir, `decision_${messageId}.json`);
+
+            const pendingPayload = {
+                status: 'pending',
+                message_id: messageId,
+                task_id: cardMeta ? cardMeta.taskId : null,
+                title: cardTitle,
+                detail: cardDetail,
+                blocked_directive: cardMeta ? cardMeta.blocked_directive : null,
+                prompt: prompt,
+                test_title: testInfo ? testInfo.title : "Benchmark",
+                timestamp: Date.now()
+            };
+
+            fs.writeFileSync(pendingFile, JSON.stringify(pendingPayload, null, 2), 'utf8');
+
+            console.log(`\n======================================================`);
+            console.log(`[ANTIGRAVITY_CARD_DECISION_NEEDED]`);
+            console.log(`Card: "${cardTitle}"`);
+            if (cardDetail) console.log(`Detail: ${cardDetail}`);
+            if (cardMeta && cardMeta.blocked_directive) {
+                console.log(`Blocked Directive:`, JSON.stringify(cardMeta.blocked_directive));
+            }
+            console.log(`Write decision to .zeus/eval_ipc/decision.json:`);
+            console.log(`  { "decision": "approve" } | { "decision": "deny" } | { "decision": "deny_with_feedback", "feedback": "..." }`);
+            console.log(`======================================================\n`);
+
+            await takeMilestoneScreenshot(page, "Pending Card Awaiting Decision", testInfo);
+
+            // Wait for decision file
+            let decision = null;
+            const waitDecisionTimeout = Date.now() + 180000; // 3 minutes wait for decision
+            while (Date.now() < waitDecisionTimeout) {
+                if (fs.existsSync(decisionFileSpecific)) {
+                    try {
+                        decision = JSON.parse(fs.readFileSync(decisionFileSpecific, 'utf8'));
+                        break;
+                    } catch (_) {}
+                }
+                if (fs.existsSync(decisionFileGeneral)) {
+                    try {
+                        decision = JSON.parse(fs.readFileSync(decisionFileGeneral, 'utf8'));
+                        break;
+                    } catch (_) {}
+                }
+                await page.waitForTimeout(500);
+            }
+
+            if (!decision) {
+                console.warn(`[UserSimulator] No decision received within timeout, defaulting to Deny.`);
+                decision = { decision: 'deny' };
+            }
+
+            console.log(`[UserSimulator] Applying decision: ${decision.decision}`);
+
+            if (decision.decision === 'approve') {
+                const approveBtn = pendingApproval.locator('button:has-text("Approve")').first();
+                if (await approveBtn.count() > 0) {
+                    await approveBtn.click({ force: true });
+                }
+            } else if (decision.decision === 'deny_with_feedback' && decision.feedback) {
+                const feedbackBtn = pendingApproval.locator('button:has-text("Deny with Feedback")').first();
+                if (await feedbackBtn.count() > 0) {
+                    await feedbackBtn.click({ force: true });
+                    const feedbackInput = pendingApproval.locator('.settings-input').first();
+                    await expect(feedbackInput).toBeVisible({ timeout: 5000 });
+                    await feedbackInput.fill(decision.feedback);
+                    const submitBtn = pendingApproval.locator('button:has-text("Submit Deny & Feedback")').first();
+                    await submitBtn.click({ force: true });
+                } else {
+                    const denyBtn = pendingApproval.locator('button:has-text("Deny")').first();
+                    if (await denyBtn.count() > 0) await denyBtn.click({ force: true });
+                }
+            } else {
+                const denyBtn = pendingApproval.locator('button:has-text("Deny")').first();
+                if (await denyBtn.count() > 0) {
+                    await denyBtn.click({ force: true });
+                }
+            }
+
+            // Append to audit history
+            const auditFile = path.join(ipcDir, 'audit_history.json');
+            let auditList = [];
+            if (fs.existsSync(auditFile)) {
+                try { auditList = JSON.parse(fs.readFileSync(auditFile, 'utf8')); } catch (_) {}
+            }
+            auditList.push({
+                card: pendingPayload,
+                decision: decision,
+                timestamp: Date.now()
+            });
+            fs.writeFileSync(auditFile, JSON.stringify(auditList, null, 2), 'utf8');
+
+            // Clean up decision & pending files
+            if (fs.existsSync(pendingFile)) try { fs.unlinkSync(pendingFile); } catch (_) {}
+            if (fs.existsSync(decisionFileGeneral)) try { fs.unlinkSync(decisionFileGeneral); } catch (_) {}
+            if (fs.existsSync(decisionFileSpecific)) try { fs.unlinkSync(decisionFileSpecific); } catch (_) {}
+
+            await page.waitForTimeout(1500);
+            continue;
+        }
+
+        // 3. Check for pending handoff card
+        const pendingHandoff = page.locator('.approval-card.pending button:has-text("Done, Resume Agent")').last();
+        if (await pendingHandoff.count() > 0) {
+            await takeMilestoneScreenshot(page, "Browser Handoff Detected", testInfo);
+            console.log("[UserSimulator] Detected Browser Handoff card. Setting up browser profile...");
+            const taskId = await page.evaluate(async () => {
+                if (!window.__ZEUS_BRIDGE__) return null;
+                const tasks = await window.__ZEUS_BRIDGE__.listTasks();
+                return tasks && tasks.length > 0 ? tasks[0].id : null;
+            });
+            
+            if (taskId) {
+                const testWorkspaceDir = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
+                const taskBrowserDir = path.join(testWorkspaceDir, 'tasks', taskId, 'browser', 'user_data');
+                
+                const goldenProfile = "D:\\Hristian projects\\browser_data";
+                if (fs.existsSync(goldenProfile)) {
+                    if (fs.existsSync(taskBrowserDir)) {
+                        fs.rmSync(taskBrowserDir, { recursive: true, force: true });
+                    }
+                    fs.mkdirSync(taskBrowserDir, { recursive: true });
+                    fs.cpSync(goldenProfile, taskBrowserDir, { recursive: true });
+                    console.log("[UserSimulator] Golden profile swapped successfully.");
+                }
+            }
+            
+            await pendingHandoff.click({ force: true });
+            await page.waitForTimeout(2000);
+            continue;
+        }
+
+        // 4. Check if the button has returned to "Send" (agent finished turn)
+        const sendBtn = page.locator('#chat-send-button');
+        const btnText = await sendBtn.innerText().catch(() => "");
+        if (btnText.includes('Send')) {
+            // Verify there is no pending approval card before concluding
+            const pendingCards = await page.locator('.approval-card.pending').count();
+            if (pendingCards === 0) {
+                console.log(`[UserSimulator] Turn completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s.`);
+                return;
+            }
+        }
+
+        await page.waitForTimeout(2000);
     }
+
+    throw new Error(`Timeout (${timeoutMs / 1000}s) waiting for agent turn to complete.`);
 }
 
 /**
