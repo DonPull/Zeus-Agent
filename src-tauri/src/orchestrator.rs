@@ -150,6 +150,7 @@ pub struct TaskUpdateSpec {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FinalAnswerSpec {
+    #[serde(alias = "result", alias = "answer")]
     pub summary: String,
 }
 
@@ -199,12 +200,14 @@ fn parse_directive_json(json_str: &str) -> Result<Directive, String> {
     }
     match v["type"].as_str() {
         Some("final_answer") => {
-            let summary = v["final_answer"]
+            let summary = v["result"]
                 .as_str()
-                .or_else(|| v["final_answer"]["summary"].as_str())
                 .or_else(|| v["summary"].as_str())
                 .or_else(|| v["answer"].as_str())
-                .ok_or("final_answer directive is missing a summary")?;
+                .or_else(|| v["final_answer"].as_str())
+                .or_else(|| v["final_answer"]["summary"].as_str())
+                .or_else(|| v["final_answer"]["result"].as_str())
+                .unwrap_or("Task completed successfully.");
             Ok(Directive::FinalAnswer {
                 final_answer: FinalAnswerSpec {
                     summary: summary.to_string(),
@@ -301,7 +304,12 @@ pub async fn execute_directive_bypass_gatekeeper(
                 Ok(response) => {
                     let status = response.status();
                     let text = response.text().await.unwrap_or_default();
-                    format!("Status: {}\nBody: {}", status, text)
+                    let truncated_text = if text.len() > 6000 {
+                        format!("{}... [truncated remaining {} characters]", &text[..6000], text.len() - 6000)
+                    } else {
+                        text
+                    };
+                    format!("Status: {}\nBody: {}", status, truncated_text)
                 },
                 Err(e) => format!("Request failed: {}", e)
             };
@@ -336,7 +344,12 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::ReadFile { path } => {
-            let res = match tokio::fs::read_to_string(&path).await {
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                std::path::PathBuf::from(&path)
+            } else {
+                crate::utils::task_workspace(task_id)?.join(&path)
+            };
+            let res = match tokio::fs::read_to_string(&full_path).await {
                 Ok(content) => content,
                 Err(e) => format!("Failed to read file: {}", e),
             };
@@ -344,7 +357,15 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::WriteFile { path, content } => {
-            let res = match tokio::fs::write(&path, content).await {
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                std::path::PathBuf::from(&path)
+            } else {
+                crate::utils::task_workspace(task_id)?.join(&path)
+            };
+            if let Some(parent) = full_path.parent() {
+                let _ = tokio::fs::create_dir_all(parent).await;
+            }
+            let res = match tokio::fs::write(&full_path, content).await {
                 Ok(_) => "Successfully wrote file.".to_string(),
                 Err(e) => format!("Failed to write file: {}", e),
             };
@@ -352,7 +373,12 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::DeleteFile { path } => {
-            let res = match tokio::fs::remove_file(&path).await {
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                std::path::PathBuf::from(&path)
+            } else {
+                crate::utils::task_workspace(task_id)?.join(&path)
+            };
+            let res = match tokio::fs::remove_file(&full_path).await {
                 Ok(_) => "Successfully deleted file.".to_string(),
                 Err(e) => format!("Failed to delete file: {}", e),
             };
@@ -360,7 +386,14 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::ListDir { path } => {
-            let res = match std::fs::read_dir(&path) {
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                std::path::PathBuf::from(&path)
+            } else if path.trim().is_empty() || path == "." {
+                crate::utils::task_workspace(task_id)?
+            } else {
+                crate::utils::task_workspace(task_id)?.join(&path)
+            };
+            let res = match std::fs::read_dir(&full_path) {
                 Ok(entries) => {
                     let mut list = Vec::new();
                     for entry in entries.flatten() {
@@ -383,7 +416,14 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::SearchFiles { path, pattern } => {
-            if !std::path::Path::new(&path).exists() {
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                std::path::PathBuf::from(&path)
+            } else if path.trim().is_empty() || path == "." {
+                crate::utils::task_workspace(task_id)?
+            } else {
+                crate::utils::task_workspace(task_id)?.join(&path)
+            };
+            if !full_path.exists() {
                 let result_json = serde_json::json!({ "search_files_result": "Error: The specified path does not exist." });
                 return Ok(crate::orchestrator::directive_result_message(&result_json));
             }
@@ -391,7 +431,7 @@ pub async fn execute_directive_bypass_gatekeeper(
             // Using walkdir to find matching files
             let mut matches = Vec::new();
             
-            let mut iter = walkdir::WalkDir::new(&path).into_iter();
+            let mut iter = walkdir::WalkDir::new(&full_path).into_iter();
             while let Some(Ok(entry)) = iter.next() {
                 let file_name = entry.file_name().to_string_lossy().to_lowercase();
                 

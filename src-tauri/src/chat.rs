@@ -720,6 +720,47 @@ pub async fn resolve_pending_approvals(
                 rusqlite::params![status, note_val, id, task_id],
             )
             .map_err(|e| format!("Failed to update approval: {}", e))?;
+
+        if approved {
+            if let Ok(content_str) = connection.query_row(
+                "SELECT content FROM messages WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get::<_, String>(0),
+            ) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content_str) {
+                    if let Some(directive) = v.get("blocked_directive") {
+                        let dir_type = directive.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                        let cache_id = uuid::Uuid::new_v4().to_string();
+                        let now = chrono::Utc::now().to_rfc3339();
+                        match dir_type {
+                            "http_request" => {
+                                let raw_url = directive.get("url").and_then(|u| u.as_str()).unwrap_or("");
+                                let method = directive.get("method").and_then(|m| m.as_str()).unwrap_or("GET");
+                                let domain = if raw_url.starts_with("http://") || raw_url.starts_with("https://") {
+                                    reqwest::Url::parse(raw_url).ok().and_then(|u| u.host_str().map(|h| h.to_string())).unwrap_or_else(|| raw_url.to_string())
+                                } else {
+                                    raw_url.split('/').next().unwrap_or(raw_url).to_string()
+                                };
+                                let _ = connection.execute(
+                                    "INSERT INTO watcher_cache (id, scope, domain, url, method, verdict, created_at)
+                                     VALUES (?1, ?2, ?3, '', ?4, 'ALLOW', ?5)",
+                                    rusqlite::params![cache_id, task_id, domain, method, now],
+                                );
+                            }
+                            "run_command" => {
+                                let cmd = directive.get("command").and_then(|c| c.as_str()).unwrap_or("");
+                                let _ = connection.execute(
+                                    "INSERT INTO watcher_cache (id, scope, domain, url, method, verdict, created_at)
+                                     VALUES (?1, ?2, '', ?3, 'CMD', 'ALLOW', ?4)",
+                                    rusqlite::params![cache_id, task_id, cmd, now],
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
     } else {
         return Err("message_id is required to resolve an approval card.".into());
     }
@@ -1385,17 +1426,32 @@ async fn execute_user_turn(
                     content: text.clone(),
                 });
 
-                // If this plain text occurred in the middle of a multi-step execution run (iteration > 0),
-                // didn't ask a question (no '?'), and we haven't already nudged, give the model an auto-continuation nudge
-                // so an in-flight plan does not abruptly halt without executing remaining steps.
-                if iteration > 0 && plain_text_nudges == 0 && !text.contains('?') {
+                // If this plain text occurred during an active execution run,
+                // didn't ask a question (no '?'), and looks like intermediate narration or is mid-flight,
+                // give the model an auto-continuation nudge so an in-flight plan does not abruptly halt.
+                let lower = text.to_lowercase();
+                let is_narration = iteration > 0 
+                    || lower.contains("let me")
+                    || lower.contains("i will")
+                    || lower.contains("i'll")
+                    || lower.contains("now i")
+                    || lower.contains("now let")
+                    || lower.contains("now write")
+                    || lower.contains("recreate")
+                    || lower.contains("starting with")
+                    || lower.contains("generating")
+                    || lower.contains("writing")
+                    || lower.contains("i need to")
+                    || lower.contains("next step");
+
+                if plain_text_nudges < 3 && !text.contains('?') && is_narration {
                     plain_text_nudges += 1;
                     crate::logger::log(
                         &task_id,
                         "orchestrator",
                         "Intermediate narration without directive detected. Triggering auto-continuation nudge.",
                     );
-                    let nudge_msg = "[SYSTEM AUTO-CONTINUATION]: You provided intermediate narration without a ```zeus-directive block. If you have more steps to execute (reading files, listing directories, delegating, running actions), emit the ```zeus-directive block now. If all work for this task is completely finished, emit the `final_answer` directive or summarize the completion.".to_string();
+                    let nudge_msg = "[SYSTEM AUTO-CONTINUATION]: You provided narration without an executable ```zeus-directive block. You must emit a ```zeus-directive block NOW (e.g. `write_file` or Python `run_action` with with open(...) as f: f.write(...)) to perform the action and save files to disk. If all files and checks are verified on disk, emit the `final_answer` directive.".to_string();
                     let mut hidden_result = new_message(
                         &task_id,
                         "user",
@@ -1798,7 +1854,12 @@ async fn execute_user_turn(
                                     Ok(response) => {
                                         let status = response.status();
                                         let text = response.text().await.unwrap_or_default();
-                                        format!("Status: {}\nBody: {}", status, text)
+                                        let truncated_text = if text.len() > 6000 {
+                                            format!("{}... [truncated remaining {} characters]", &text[..6000], text.len() - 6000)
+                                        } else {
+                                            text
+                                        };
+                                        format!("Status: {}\nBody: {}", status, truncated_text)
                                     },
                                     Err(e) => format!("Request failed: {}", e)
                                 };
@@ -1948,15 +2009,13 @@ async fn execute_user_turn(
                         };
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
-                                let res = match tokio::fs::read_to_string(&path).await {
-                                    Ok(content) => content,
-                                    Err(e) => format!("Failed to read file: {}", e),
+                                let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::ReadFile { path: path.clone() }).await {
+                                    Ok(text) => text,
+                                    Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
                                 };
-                                let result_json = serde_json::json!({ "read_result": res });
-                                let msg = orchestrator::directive_result_message(&result_json);
-                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
                                 persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
-                                history.push(ChatMessage { role: "user".into(), content: msg });
+                                history.push(ChatMessage { role: "user".into(), content: feedback });
                             }
                             crate::gatekeeper::PermissionVerdict::Deny => {
                                 let msg = "Gatekeeper DENIED read access based on current policies.".to_string();
@@ -2001,15 +2060,13 @@ async fn execute_user_turn(
                         };
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
-                                let res = match tokio::fs::write(&path, content).await {
-                                    Ok(_) => "Successfully wrote file.".to_string(),
-                                    Err(e) => format!("Failed to write file: {}", e),
+                                let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::WriteFile { path: path.clone(), content: content.clone() }).await {
+                                    Ok(text) => text,
+                                    Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
                                 };
-                                let result_json = serde_json::json!({ "write_result": res });
-                                let msg = orchestrator::directive_result_message(&result_json);
-                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
                                 persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
-                                history.push(ChatMessage { role: "user".into(), content: msg });
+                                history.push(ChatMessage { role: "user".into(), content: feedback });
                             }
                             crate::gatekeeper::PermissionVerdict::Deny => {
                                 let msg = "Gatekeeper DENIED write access based on current policies.".to_string();
@@ -2054,15 +2111,13 @@ async fn execute_user_turn(
                         };
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
-                                let res = match tokio::fs::remove_file(&path).await {
-                                    Ok(_) => "Successfully deleted file.".to_string(),
-                                    Err(e) => format!("Failed to delete file: {}", e),
+                                let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::DeleteFile { path: path.clone() }).await {
+                                    Ok(text) => text,
+                                    Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
                                 };
-                                let result_json = serde_json::json!({ "delete_result": res });
-                                let msg = orchestrator::directive_result_message(&result_json);
-                                let mut hidden_result = new_message(&task_id, "user", "directive_result", msg.clone(), None, None, false);
+                                let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
                                 persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
-                                history.push(ChatMessage { role: "user".into(), content: msg });
+                                history.push(ChatMessage { role: "user".into(), content: feedback });
                             }
                             crate::gatekeeper::PermissionVerdict::Deny => {
                                 let msg = "Gatekeeper DENIED delete access based on current policies.".to_string();

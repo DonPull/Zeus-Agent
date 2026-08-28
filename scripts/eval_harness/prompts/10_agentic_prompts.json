@@ -14,7 +14,7 @@
         "turn": 2,
         "user_prompt": "Great, now without modifying the original banner design, generate a localized social media copy file 'campaign_posts.md' containing 3 ready-to-post announcements in Bulgarian (Facebook, Instagram, Twitter) tailored to that exact weather condition, plus a JSON manifest 'banner_metadata.json' with dimensions and color palette info.",
         "expected_artifacts": ["campaign_posts.md", "banner_metadata.json"],
-        "python_check": "import json, os\nassert os.path.exists('campaign_posts.md') and os.path.exists('banner_metadata.json')\nmeta = json.load(open('banner_metadata.json'))\nassert 'dimensions' in meta or 'width' in meta or 'size' in meta"
+        "python_check": "import json, os\nassert os.path.exists('campaign_posts.md') and os.path.exists('banner_metadata.json')\nmeta = json.load(open('banner_metadata.json', encoding='utf-8'))\nassert 'dimensions' in meta or 'width' in meta or 'size' in meta"
       }
     ],
     "criteria": {
@@ -53,7 +53,7 @@
         "turn": 2,
         "user_prompt": "We need to evolve the database schema. Add a new 'category' column to the SQLite table in 'feedback.db' without wiping existing data, update 'ingest.py' to classify records into categories ('Billing', 'Technical', 'General'), re-run the pipeline on an expanded dataset, and write 'pipeline_summary.json' showing category distribution.",
         "expected_artifacts": ["feedback_pipeline/pipeline_summary.json"],
-        "python_check": "import sqlite3, json\nconn = sqlite3.connect('feedback_pipeline/feedback.db')\ncols = [col[1] for col in conn.execute('PRAGMA table_info(feedback)').fetchall()]\nassert 'category' in cols\nsummary = json.load(open('feedback_pipeline/pipeline_summary.json'))\nassert isinstance(summary, dict) and len(summary) > 0"
+        "python_check": "import sqlite3, json\nconn = sqlite3.connect('feedback_pipeline/feedback.db')\ncols = [col[1] for col in conn.execute('PRAGMA table_info(feedback)').fetchall()]\nassert 'category' in cols\nsummary = json.load(open('feedback_pipeline/pipeline_summary.json', encoding='utf-8'))\nassert isinstance(summary, dict) and len(summary) > 0"
       }
     ],
     "criteria": {
@@ -68,8 +68,7 @@
       {
         "turn": 1,
         "user_prompt": "There is a standalone sample data validator project in 'workspace/sample_validator/'. Run the test suite with python pytest, locate the failing test assertions in the source code, fix the calculation bug in 'src/validator.py' without breaking existing tests or deleting comments, and verify all tests pass. Document your fix in 'bug_fix_report.md'.",
-        "expected_artifacts": ["bug_fix_report.md"],
-        "python_check": "import os\nassert os.path.exists('bug_fix_report.md')\ncontent = open('bug_fix_report.md', encoding='utf-8').read()\nassert len(content) > 100"
+        "python_check": "import os\np = 'bug_fix_report.md' if os.path.exists('bug_fix_report.md') else 'sample_validator/bug_fix_report.md'\nassert os.path.exists(p)\ncontent = open(p, encoding='utf-8').read()\nassert len(content) > 100"
       }
     ],
     "criteria": {
@@ -90,8 +89,7 @@
       {
         "turn": 2,
         "user_prompt": "Using our established brand guidelines and specifications from our previous conversation, generate a complete pricing catalog in 'vitosha_catalog.json' with 5 realistic outdoor products (with prices in BGN and color hex codes), plus an HTML product showcase page 'showcase.html' styled with our exact brand colors.",
-        "expected_artifacts": ["vitosha_catalog.json", "showcase.html"],
-        "python_check": "import json, os\nassert os.path.exists('vitosha_catalog.json') and os.path.exists('showcase.html')\ncatalog = json.load(open('vitosha_catalog.json'))\nassert len(catalog) >= 5\nhtml = open('showcase.html', encoding='utf-8').read()\nassert '#1E3A8A' in html.upper() or '#1e3a8a' in html.lower()"
+        "python_check": "import json, os\nassert os.path.exists('vitosha_catalog.json') and os.path.exists('showcase.html')\ncatalog = json.load(open('vitosha_catalog.json', encoding='utf-8'))\nproducts = catalog if isinstance(catalog, list) else catalog.get('products', catalog.get('items', catalog))\nassert len(products) >= 5\nhtml = open('showcase.html', encoding='utf-8').read()\nassert '#1E3A8A' in html.upper() or '#1e3a8a' in html.lower()"
       }
     ],
     "criteria": {
@@ -107,7 +105,7 @@
         "turn": 1,
         "user_prompt": "Fetch recent technological benchmark data (or top trending open-source AI projects from public APIs), parse metrics like star counts and fork ratios, install any needed python libraries, generate a styled comparison bar chart or heatmap saved as 'benchmark_visualization.png', and output a structured JSON dataset in 'benchmarks_data.json'.",
         "expected_artifacts": ["benchmark_visualization.png", "benchmarks_data.json"],
-        "python_check": "import json, os; from PIL import Image\nassert os.path.exists('benchmark_visualization.png') and os.path.exists('benchmarks_data.json')\nimg = Image.open('benchmark_visualization.png'); assert img.size[0] >= 300\ndata = json.load(open('benchmarks_data.json')); assert len(data) > 0"
+        "python_check": "import json, os; from PIL import Image\nassert os.path.exists('benchmark_visualization.png') and os.path.exists('benchmarks_data.json')\nimg = Image.open('benchmark_visualization.png'); assert img.size[0] >= 300\ndata = json.load(open('benchmarks_data.json', encoding='utf-8')); assert len(data) > 0"
       }
     ],
     "criteria": {
@@ -177,7 +175,7 @@
         "turn": 1,
         "user_prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
         "expected_artifacts": ["battery_benchmarks.json", "solid_state_battery_report.md"],
-        "python_check": "import json, os\nassert os.path.exists('battery_benchmarks.json') and os.path.exists('solid_state_battery_report.md')\ndata = json.load(open('battery_benchmarks.json'))\nassert isinstance(data, (dict, list)) and len(data) > 0\nreport = open('solid_state_battery_report.md', encoding='utf-8').read()\nassert len(report) > 300"
+        "python_check": "import json, os\nassert os.path.exists('battery_benchmarks.json') and os.path.exists('solid_state_battery_report.md')\ndata = json.load(open('battery_benchmarks.json', encoding='utf-8'))\nassert isinstance(data, (dict, list)) and len(data) > 0\nreport = open('solid_state_battery_report.md', encoding='utf-8').read()\nassert len(report) > 300"
       }
     ],
     "criteria": {

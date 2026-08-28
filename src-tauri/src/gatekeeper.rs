@@ -548,9 +548,13 @@ pub async fn evaluate_network_action(
 ) -> Result<PermissionVerdict, String> {
     use crate::gateway::{chat_completion, ChatMessage as GatewayMsg};
 
-    let domain = match reqwest::Url::parse(url) {
-        Ok(parsed) => parsed.host_str().unwrap_or("unknown_domain").to_string(),
-        Err(_) => "unknown_domain".to_string(),
+    let domain = if url.starts_with("http://") || url.starts_with("https://") {
+        match reqwest::Url::parse(url) {
+            Ok(parsed) => parsed.host_str().unwrap_or(url).to_string(),
+            Err(_) => url.to_string(),
+        }
+    } else {
+        url.split('/').next().unwrap_or(url).to_string()
     };
 
     let mut policies = Vec::new();

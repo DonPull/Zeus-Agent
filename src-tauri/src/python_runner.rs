@@ -278,6 +278,8 @@ except Exception:
         .arg(&script_path)
         .current_dir(workspace)
         .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
         .env("ZEUS_IPC_PORT", ipc_port.to_string());
         
     if let Some(port) = browser_port {
