@@ -32,3 +32,55 @@ pub fn task_workspace(task_id: &str) -> Result<PathBuf, String> {
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
     Ok(path)
 }
+
+/// Returns a prefix of `s` that is at most `max_bytes` long and ends on a valid UTF-8 char boundary.
+pub fn safe_truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
+/// Truncates `s` safely to at most `max_bytes` with a `\n…[truncated]` suffix.
+pub fn safe_truncate(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        s.to_string()
+    } else {
+        let prefix = safe_truncate_str(s, max_bytes);
+        format!("{}\n…[truncated]", prefix)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_safe_truncate_multibyte_utf8() {
+        // Cyrillic 'т' is 2 bytes (D1 82)
+        let text = "Преди да продължите към Google Търсене";
+        // Slicing at an odd byte inside a multibyte char must not panic
+        for cut in 1..=text.len() {
+            let slice = safe_truncate_str(text, cut);
+            assert!(slice.len() <= cut);
+            assert!(std::str::from_utf8(slice.as_bytes()).is_ok());
+        }
+        let truncated = safe_truncate(text, 10);
+        assert!(truncated.contains("…[truncated]"));
+    }
+
+    #[test]
+    fn test_safe_truncate_emojis() {
+        // Emojis are 4 bytes each
+        let text = "🚀🔥🎉💻🌟";
+        for cut in 1..=text.len() {
+            let slice = safe_truncate_str(text, cut);
+            assert!(slice.len() <= cut);
+            assert!(std::str::from_utf8(slice.as_bytes()).is_ok());
+        }
+    }
+}

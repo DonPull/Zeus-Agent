@@ -21,7 +21,9 @@ export const resolveChoice = (taskId, choiceId, customText, messageId) => invoke
 export const renameTask  = (taskId, title)  => invoke("rename_task",        { taskId, newTitle: title });
 export const updateTaskSettings = (taskId, settings) => invoke("update_task_settings", { taskId, settings });
 export const deleteTask  = (taskId)         => invoke("delete_task",        { taskId });
+export { convertFileSrc } from "@tauri-apps/api/core";
 export const getBrowserHistory = (taskId)   => invoke("get_browser_history", { taskId });
+export const getBrowserSession = (taskId, sessionId) => invoke("get_browser_session", { taskId, sessionId });
 export const getVaultAccounts = (domain)    => invoke("get_vault_accounts", { domain });
 export const getVaultAccount = (id)         => invoke("get_vault_account",  { id });
 export const saveVaultAccount = (entry)     => invoke("save_vault_account", { entry });
@@ -34,8 +36,13 @@ export const setApiKey          = (apiKey)        => invoke("set_api_key",      
 export const hasApiKey          = ()              => invoke("has_api_key");
 export const setGeminiApiKey    = (apiKey)        => invoke("set_gemini_api_key",   { apiKey });
 export const hasGeminiApiKey    = ()              => invoke("has_gemini_api_key");
+export const setXiaomiApiKey    = (apiKey)        => invoke("set_xiaomi_api_key",   { apiKey });
+export const hasXiaomiApiKey    = ()              => invoke("has_xiaomi_api_key");
 export const fetchAvailableModels = ()            => invoke("fetch_available_models");
+export const getLocalModelIds   = ()              => invoke("get_local_model_ids");
 export const testLocalEndpoint  = (endpoint)      => invoke("test_local_endpoint",   { endpoint });
+export const testXiaomiEndpoint = (endpoint)      => invoke("test_xiaomi_endpoint",  { endpoint });
+export const saveTaskAttachment = (taskId, filename, base64Data) => invoke("save_task_attachment", { taskId, filename, base64Data });
 export const getDebugLog       = (taskId)         => invoke("get_debug_log", { taskId });
 
 // ---- Gatekeeper ------------------------------------------------------------
@@ -55,3 +62,10 @@ export const onChatStream  = (callback) => listen("chat-stream",  (event) => cal
 // ---- Live task messages (action cards, approvals) ---------------------------
 export const onTaskMessage = (callback) =>
   listen("task-message", (event) => callback(event.payload));
+
+// ---- Live browser frame events ---------------------------------------------
+export const onBrowserLiveFrame = (callback) =>
+  listen("browser_live_frame", (event) => callback(event.payload));
+
+export const onBrowserSessionCompleted = (callback) =>
+  listen("browser_session_completed", (event) => callback(event.payload));

@@ -1,6 +1,6 @@
 # Zeus Agent — Technical Subsystem Architecture
 
-This document provides detailed specifications of the core subsystems in the Zeus Agent desktop runtime.
+This document provides detailed technical specifications of the core subsystems in the Zeus Agent desktop runtime.
 
 ---
 
@@ -13,15 +13,47 @@ When powered by cloud LLMs (via RouteLLM / Gemini API):
 - **Master Agent**: Analyzes user prompts, creates dynamic Action Plans, and delegates constrained sub-tasks to Workers.
 - **Worker Agents**: Specialized single-purpose sub-agents that run isolated Python scripts, file operations, or web searches without seeing full orchestrator clutter.
 - **Verifier Agent**: Automatically inspects the worker's outputs and code execution results against explicit success criteria before marking the sub-task complete.
+- **Watcher AI**: Cognitive safety monitor overseeing browser actions and detecting execution anomalies.
 
 ### B. Local Model Mode (Unified Single-Agent Master)
 Running 3 to 4 distinct 27B+ parameter models concurrently on a single PC is impractical due to consumer VRAM and compute constraints.
 - **Unified Master (`src-tauri/src/prompts/local_master.txt`)**: All planning, directive execution, verification, and code synthesis collapse into a single, high-efficiency autonomous agent.
 - The Local Master has direct access to host directives (`read_file`, `write_file`, `delete_file`, `list_dir`, `search_files`, `run_command`, `run_action`) and executes them directly in sequence without multi-agent IPC overhead.
+- Includes automatic session file whitelisting and auto-continuation nudge loops.
 
 ---
 
-## 2. Browser Automation, Cookie Vault & The Watcher AI
+## 2. LLM Gateway, Wire Protocols & Reasoning Effort Governance
+
+The Gateway (`src-tauri/src/gateway.rs`) abstracts multi-provider LLM communication, wire protocols, and token accounting.
+
+### A. Dual Wire Protocols
+1. **Responses API (`/v1/responses`)**:
+   - Primary wire protocol for OpenAI reasoning model families (`gpt-5`, `o1`, `o3`, `o3-mini`, `o4`).
+   - Translates chat message history into structured Responses `input` items with `instructions`.
+   - Streams `response.reasoning_summary_text.delta` and `response.output_text.delta` SSE events.
+   - Enables native reasoning summary streaming directly into the user interface.
+2. **Chat Completions API (`/v1/chat/completions`)**:
+   - Universal wire protocol for standard models (DeepSeek, Claude, Llama, Qwen, Gemini).
+   - In-flight `ThinkFilter` parses raw `<think>...</think>` tags for local reasoning models (e.g. DeepSeek-R1, Qwen-Thinking), separating internal reasoning stream events from visible assistant output.
+
+### B. Reasoning Effort Levels & The Intelligence vs. Cost Trade-Off
+Reasoning models spend hidden computational "thinking" tokens before generating visible answers. In Zeus Agent, reasoning effort governs this cognitive budget:
+
+| Effort Level | Chat Completions Parameter | Responses API Parameter | Behavioral Characteristics | Optimal Use Cases | Cost Impact |
+|:---|:---|:---|:---|:---|:---|
+| **Low** | `"reasoning_effort": "low"` | `"reasoning": {"effort": "low"}` | Minimal internal reasoning; swift generation; fast time-to-first-token. | File lookups, simple string formatting, standard CRUD scripts, basic shell commands. | **50% - 80% cheaper** in output tokens. |
+| **Medium** | `"reasoning_effort": "medium"` | `"reasoning": {"effort": "medium"}` | Balanced reasoning chain; verifies logic steps before replying. | General software engineering, data parsing, standard test writing. | Default baseline balance. |
+| **High** | `"reasoning_effort": "high"` | `"reasoning": {"effort": "high"}` | Maximum internal deliberation; exhaustive hypothesis testing and backtracking. | Complex bug localization, architectural refactoring, algorithmic synthesis, deep financial reconciliation. | Highest token spend; maximum intelligence. |
+
+#### Abacus AI RouteLLM Integration:
+- **RouteLLM Chat Completions Endpoint (`https://routellm.abacus.ai/v1/chat/completions`)**: Passes through `reasoning_effort` for supported reasoning models (`o1`, `o3-mini`, etc.).
+- **RouteLLM Responses Endpoint (`https://routellm.abacus.ai/v1/responses`)**: Accepts `"reasoning": { "effort": "...", "summary": "auto" }`.
+- **Dynamic Routing**: RouteLLM can use effort levels to optimize routing between high-tier reasoning models and cheaper, faster models.
+
+---
+
+## 3. Browser Automation, Cookie Vault & The Watcher AI
 
 ### A. Stealth Browser & Profile Isolation
 - **Profile Cloning**: Clones the user's base Chrome/Brave profile from `.zeus/parent_browser_profile` into task-isolated workspaces (`tasks/<task_id>/browser_profile`).
@@ -38,7 +70,7 @@ Standard static URL allowlists are insufficient for modern dynamic web applicati
 
 ---
 
-## 3. Gatekeeper Security & Capability System
+## 4. Gatekeeper Security & Capability System
 
 The Gatekeeper enforces the principle of least privilege across the host computer:
 
@@ -54,11 +86,11 @@ The Gatekeeper enforces the principle of least privilege across the host compute
 ### B. Command Execution & Safe Developer Whitelist
 - Commands are evaluated against pre-approved safe prefixes (`cargo`, `npm`, `npx playwright`, `git`, `python`, `node`, `pytest`, `dir`, etc.).
 - **Composite & Chained Commands**: Commands containing chaining operators (`&&`, `;`, `|`, `>`) are automatically decomposed and validated against safe tools.
-- **Evaluation & Local Mode Auto-Allow**: In benchmark evaluation mode (`ZEUS_EVAL_MODE=1` or local model mode), standard developer tooling is auto-allowed to facilitate autonomous test execution and code self-refinement without prompting permission cards.
+- **Evaluation & Local Mode Auto-Allow**: In benchmark evaluation mode (`ZEUS_EVAL_MODE=1` or local model mode), standard developer tooling and task session files are auto-allowed to facilitate autonomous test execution and code self-refinement without prompting permission cards.
 
 ---
 
-## 4. Settings Architecture: Global vs. Chat-Scoped
+## 5. Settings Architecture: Global vs. Chat-Scoped
 
 Settings are cleanly partitioned between system-level configuration and task-specific overrides:
 
@@ -71,7 +103,8 @@ Settings are cleanly partitioned between system-level configuration and task-spe
 │ • Gemini API Key         │ • Default Worker Model      │
 │ • Local Model Base URL   │ • Default Verifier Model    │
 │ • Windows Credential Mgr │ • Default Credit Budget     │
-│ • Browser Executable Path│ • Default Browser Mode      │
+│ • Browser Executable Path│ • Default Reasoning Effort  │
+│                          │ • Default Browser Mode      │
 └──────────────────────────┴──────────────┬──────────────┘
                                           │ Inherited on task creation
                                           ▼
@@ -79,6 +112,7 @@ Settings are cleanly partitioned between system-level configuration and task-spe
 │ Task-Scoped Settings Modal (TaskSettingsModal.jsx)     │
 ├────────────────────────────────────────────────────────┤
 │ • Task Master Model Override                           │
+│ • Task Reasoning Effort Override (Low/Med/High)        │
 │ • Task Credit Budget Limit Override                    │
 │ • Task Browser Mode (Sandboxed vs. System)             │
 │ • Task-Scoped File & Command Permissions               │
@@ -87,13 +121,14 @@ Settings are cleanly partitioned between system-level configuration and task-spe
 
 1. **True Global Settings**: Stored securely in Windows Credential Manager and system tables (API keys, backend URLs, browser binary paths).
 2. **Chat Defaults**: Configured in Global Settings to define initial values for new tasks.
-3. **Chat-Scoped Settings & Permissions**: Every individual chat/task can independently override models, budgets, and security permissions without altering global system defaults.
+3. **Chat-Scoped Settings & Permissions**: Every individual chat/task can independently override models, effort levels, budgets, and security permissions without altering global system defaults.
 
 ---
 
-## 5. Architectural Self-Refinement Protocol
+## 6. Authoritative SQLite Journal & Durability Invariants
 
-When benchmarking or self-improving the runtime:
-- **Diagnose Root Causes**: Analyze whether failures stem from directive parsing, missing host capabilities, Gatekeeper rules, context clutter, or timeouts.
-- **Design Systemic Solutions**: Update `src-tauri/src/` or `src-tauri/src/prompts/` to permanently fix the underlying deficiency for all future tasks.
-- **Zero Test-Specific Hacks**: Never hardcode test prompt names or mock answers. Keep the runtime general and autonomous.
+1. **Persist-Before-Emit**: Every message receives its immutable `seq` rowid in SQLite before frontend event emission.
+2. **Backend Owns Visibility**: The frontend renders what the backend commits using the `visible` flag (`1` or `0`).
+3. **ActiveRunGuard**: Enforces a single-flight execution loop per task to prevent race conditions.
+4. **CancellationToken Hierarchy**: Long-running model streams and child processes drop cleanly upon user cancellation.
+5. **Lock Separation**: Database mutex locks are never held across asynchronous network requests or tool executions.

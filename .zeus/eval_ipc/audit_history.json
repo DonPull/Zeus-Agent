@@ -1814,5 +1814,2256 @@
       "action": "approve"
     },
     "timestamp": 1787530426653
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "0146c91e-5f74-425a-9661-59a14f21310c",
+      "task_id": "c93e7035-4636-48f1-a405-667b6faa8e2a",
+      "title": "Python Network: www.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789250801157
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789250802826
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "85a4b7db-58c9-4b94-a905-9fefcc8ead4e",
+      "task_id": "c93e7035-4636-48f1-a405-667b6faa8e2a",
+      "title": "Python Network: consent.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "consent.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789250804341
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789250805992
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ad59c22d-9226-4710-a495-be8027d2340b",
+      "task_id": "a4cc7b37-08b9-43ad-a975-ea9c947c088b",
+      "title": "Python Network: query1.finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "query1.finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252585683
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252587331
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "9cc7005b-6548-41af-a52b-1c5bef34cf9e",
+      "task_id": "a4cc7b37-08b9-43ad-a975-ea9c947c088b",
+      "title": "Python Network: stooq.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "stooq.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252588857
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252590471
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "37e6f17a-798e-482d-a9c3-48dbc9aeae89",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install -q yfinance",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install -q yfinance",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252808724
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252810351
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "cf616efd-c030-442b-8ede-7b447f1aaf76",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Network: query1.finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "query1.finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252815924
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252817572
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "88cd23dd-f5d8-4b3d-aa94-fcae5afef77e",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Network: fc.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "fc.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252859436
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252861084
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "f4247e02-f458-495b-9c24-186386dceb76",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Network: www.fool.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.fool.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252949256
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252950925
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "0ec4bfc6-aaa7-4375-9264-ec311a5f9eea",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Network: www.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789252980668
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789252982335
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "37baff02-e749-43cf-a9b6-e65716cc1211",
+      "task_id": "b6e427dd-5bd9-469e-aaf5-a227585fdc3b",
+      "title": "Python Network: news.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "news.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789253012093
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789253013765
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "573a16d8-0994-4711-a250-64ef17b0ec4c",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: query1.finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "query1.finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308786747
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308788405
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "0fe2c3bb-815e-457d-9cef-1130dc309820",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308868570
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308870215
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "404de83f-09dc-4f22-bc73-3714a9d0cd55",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: query2.finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "query2.finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308871738
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308873379
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "69d7a454-392e-4291-ae4f-2feb4de7b2cb",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: finviz.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "finviz.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308874908
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308876548
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "67524f99-b417-4c43-bdc2-ece962142ab7",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: fc.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "fc.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308944580
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308946250
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ce393949-2997-4bc6-ae64-ea51f28eee03",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: stockanalysis.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "stockanalysis.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789308947769
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789308949423
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "d8ec2dd8-cd3f-47ce-bee7-970091062331",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: news.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "news.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789309227146
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789309228804
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "de392a92-5672-481e-ba01-04b1d68a2fc9",
+      "task_id": "c7fe86ae-c1f4-413a-87a5-b2620389aac6",
+      "title": "Python Network: www.fool.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.fool.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789309230336
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789309231993
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a61382ff-6ba3-4948-a9ef-e632063af12a",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: www.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311537911
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311539563
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e7313399-2cc8-49fd-8747-493e88a6d826",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: consent.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "consent.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311541081
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311542751
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "5c1c03d7-23bf-433e-8fc0-3aaa532491a5",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: www.bing.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.bing.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311550308
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311551964
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "eca20a8f-5363-4b29-a49d-da91e79fe2ed",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: news.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "news.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311559523
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311561171
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "4d0da6cb-a50c-47cb-b07d-e9e9b667b86e",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: www.fool.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.fool.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311572768
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311574414
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e8e2e263-f347-490b-a8b1-f735d99ae9da",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: html.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "html.duckduckgo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311588025
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311589668
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "53dbaed0-f597-450b-a139-493a19873310",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311595229
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311596877
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "b8b9e4e4-bea0-4204-8db4-863b9053204c",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: search.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "search.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311709327
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311710974
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "37674fbf-e3cf-4e29-af3d-d661c658eb3e",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: www.mojeek.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.mojeek.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311726599
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311728260
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a69bb919-de2d-452e-8fb8-1db83e17bcca",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: search.brave.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "search.brave.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311729782
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311731443
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "3da61c54-2dce-4955-a0ef-d79977e1f1db",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311855894
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311857512
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "319d9611-f007-49f0-bae5-ec4d3d0ffea9",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311909388
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311911021
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "90297850-5755-4d9d-bac0-4d6648b37d1e",
+      "task_id": "a41f1d69-3d9a-4fbc-9217-b90a59c5461a",
+      "title": "Python Network: www.cnbc.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.cnbc.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789311912548
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789311914212
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "fd4d57f9-d741-4896-8367-bfead13d1ba9",
+      "task_id": "0734516e-5823-4f0c-8700-a3ff3676a761",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789312381540
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789312383208
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "c8342870-239f-4936-9412-4a3ef80b8787",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install -q yfinance --disable-pip-version-check",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install -q yfinance --disable-pip-version-check",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314027113
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314028763
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "cfe0ba4c-1ba9-4910-88ab-19405425e872",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Network: fc.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "fc.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314059144
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314060798
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "db261a12-c7b7-43b2-a8ae-ce9ae0936954",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Network: query1.finance.yahoo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "query1.finance.yahoo.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314061814
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314063472
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e69865cd-756a-49ab-9ace-ca74eb78a30c",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Network: news.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "news.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314119120
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314120767
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "c058f32a-ea04-4e7f-8604-c6fbe2b18dc7",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314126821
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314128501
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "8e482c8b-c7c7-42cc-8f88-a3dbc97fdf59",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314142669
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314144326
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "d3da54ca-ac38-4cbd-80a4-039062fb0b52",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Network: www.bing.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.bing.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314161530
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314163163
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "66799ee8-84be-4e17-a60e-11e5a5cac1d8",
+      "task_id": "c962da0c-2369-4cfc-a019-bdd2371a07ad",
+      "title": "Python Network: consent.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "consent.google.com"
+      },
+      "prompt": "I'm researching high-growth tech stocks. Could you check recent recommendations and analysis for Nvidia (NVDA) and Palantir (PLTR) on Motley Fool or financial news sources, fetch their current valuation metrics and trailing P/E ratios, compute a comparative statistical risk-reward scorecard in Python, and output a detailed executive memo in 'tech_stock_dossier.md' along with a structured CSV table 'stock_metrics.csv'?",
+      "test_title": "[Prompt 2] Financial Due Diligence & Quantitative Stock Analysis (financial_stock_dossier)",
+      "timestamp": 1789314176298
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789314177958
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "2b5df173-3731-45a4-a923-f74651adedf7",
+      "task_id": "09df5e22-c81b-4cc8-9fdf-9388f9d7c752",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe feedback_pipeline\\ingest.py",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe feedback_pipeline\\ingest.py",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I need an ETL data pipeline for processing customer feedback. In a new folder called 'feedback_pipeline/', create a Python SQLite pipeline with a script 'ingest.py' that reads dummy feedback data from 'raw_feedback.json', computes sentiment scores (using a simple lexicon heuristic or text scoring), and saves processed rows into 'feedback.db'. Test run it and make sure 10 sample records are inserted.",
+      "test_title": "[Prompt 3] Standalone ETL Pipeline Scaffolding & Schema Evolution (sqlite_pipeline_migration)",
+      "timestamp": 1789315726560
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789315728207
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "5edd43a0-6501-4dbf-929a-bd17574fe5a3",
+      "task_id": "09df5e22-c81b-4cc8-9fdf-9388f9d7c752",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe feedback_pipeline\\ingest.py",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe feedback_pipeline\\ingest.py",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "We need to evolve the database schema. Add a new 'category' column to the SQLite table in 'feedback.db' without wiping existing data, update 'ingest.py' to classify records into categories ('Billing', 'Technical', 'General'), re-run the pipeline on an expanded dataset, and write 'pipeline_summary.json' showing category distribution.",
+      "test_title": "[Prompt 3] Standalone ETL Pipeline Scaffolding & Schema Evolution (sqlite_pipeline_migration)",
+      "timestamp": 1789315911424
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789315913056
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "7a24f06b-aee5-4008-8204-21dc70099e7c",
+      "task_id": "22342cb7-86e0-4417-acb7-fde6560db03c",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install --quiet matplotlib",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe -m pip install --quiet matplotlib",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "Fetch recent technological benchmark data (or top trending open-source AI projects from public APIs), parse metrics like star counts and fork ratios, install any needed python libraries, generate a styled comparison bar chart or heatmap saved as 'benchmark_visualization.png', and output a structured JSON dataset in 'benchmarks_data.json'.",
+      "test_title": "[Prompt 6] Public Data Scraping, Statistical Aggregation & Heatmap (resilient_data_scraper_heatmap)",
+      "timestamp": 1789319111292
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789319112939
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "3baa9b58-4084-407e-a242-8b36f5607d10",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321281820
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321283616
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "7a1f7202-6510-432f-bec4-96880d123abc",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: www.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.google.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321307286
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321308984
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "b8cd4b35-88e1-4a64-86eb-27a16442a47b",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: consent.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "consent.google.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321310006
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321311696
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "638b8965-36d8-474c-9e05-eb4e7b27a55e",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: sproutsocial.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "sproutsocial.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321319837
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321321598
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "67e27ddd-f158-45bf-b276-217637104445",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: blog.hootsuite.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "blog.hootsuite.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321322615
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321324347
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "864a48c7-6f43-4993-bae6-221852d9dbc6",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: buffer.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "buffer.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321325367
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321327035
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e3ecfd8b-bfe8-4466-8207-daedf8415584",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: www.adobe.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.adobe.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321329076
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321330746
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "5923466c-2c28-4ad8-b5ca-4909d0441049",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: fonts.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "fonts.google.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321356528
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321358199
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "44d6b6e6-817b-45ff-9087-ab65bdce0cf3",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: www.behance.net",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.behance.net"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321365357
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321367187
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ea723058-70e5-4634-b2f2-581a7c0c54e7",
+      "task_id": "8e57cc83-fc49-45a9-88dd-84efdf3851cc",
+      "title": "Python Network: dribbble.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "dribbble.com"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789321369232
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789321370999
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "23333c26-c9ec-44bd-89e8-bcb12ab34d9e",
+      "task_id": "6768ae63-4725-43a7-a7a6-2b40edbb15cd",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789323823982
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789323825652
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "64d09a96-564b-468b-9e6a-3826cd171be4",
+      "task_id": "6768ae63-4725-43a7-a7a6-2b40edbb15cd",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\node.exe C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\playwright\\driver\\package\\cli.js run-driver",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "I want to prepare promotional graphics on Canva for our upcoming spring product launch. Using the browser, look up modern minimalist product promo design layouts (fonts, color schemes, spacing, aspect ratios), and compile a design specification document in 'canva_design_spec.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789323848950
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789323850612
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a97f0cdf-a7c1-4fcd-9374-bf15405de42a",
+      "task_id": "6768ae63-4725-43a7-a7a6-2b40edbb15cd",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe render_mockup.py",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe render_mockup.py",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "Based on the design specifications you just compiled in 'canva_design_spec.md', generate a Python script that renders a high-res mockup image 'product_mockup.png' following those exact aspect ratios and font hierarchies, and output a deployment checklist in 'launch_checklist.md'.",
+      "test_title": "[Prompt 8] Canva Creative Research & Programmatic Asset Generation (canva_design_to_code)",
+      "timestamp": 1789324449311
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789324451465
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "c055e5cb-d730-4a85-9688-8ccae4406d80",
+      "task_id": "fdf9ad02-3a5f-4580-8186-4d86de0963c6",
+      "title": "Python Command: C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe fix_service.py",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "command": "C:\\Users\\hrist\\AppData\\Local\\Programs\\Python\\Python311\\python.exe fix_service.py",
+        "cwd": null,
+        "type": "run_command"
+      },
+      "prompt": "We simulated a service disruption, and the server produced an error log file in 'workspace/logs/server_outage.log'. Parse the log file efficiently without running out of context memory (using python or shell utilities), group the errors into primary root causes, and create an automated Python remediation script 'fix_service.py' along with an incident postmortem in 'incident_postmortem.md'.",
+      "test_title": "[Prompt 9] Large Server Log Clustering & Incident Remediation Script (log_outage_diagnostic_script)",
+      "timestamp": 1789325238405
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789325240542
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ce8152cf-b2ef-4c84-965c-5e503c214463",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: html.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "html.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326222257
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326223928
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "3b784d49-6b3c-49a0-a716-8fc955ad8374",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: global.toyota",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "global.toyota"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326232032
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326233705
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "700a290a-8024-4b95-9dcc-feda5996df3c",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.idemitsu.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.idemitsu.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326235743
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326237397
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "7f0eb1f0-092c-4a03-bde7-f5d53f6b43ab",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.samsungsdi.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.samsungsdi.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326240437
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326242096
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "7c50d4de-f846-4caa-b17e-a257e63a1dc4",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.quantumscape.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.quantumscape.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326244140
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326245794
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "4236b5d9-b4b4-4083-b010-65a5fa4c6038",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: ir.quantumscape.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "ir.quantumscape.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326247815
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326249447
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "4438fffe-3362-499b-bda8-2fb149a52d7d",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.press.bmwgroup.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.press.bmwgroup.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326275716
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326277371
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "0ca2eb49-c8ee-4a47-adb8-eb9d2a365f87",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.catl.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.catl.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326278394
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326280036
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "fb762b44-1d38-4d09-a2e1-8710b74fdfe7",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.nio.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.nio.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326281055
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326282698
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a41dd0d1-1d71-4141-bccd-d6f139913ce8",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: prologium.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "prologium.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326284738
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326286387
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "746eba18-fc11-4db7-9392-4b333fd49e96",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.bing.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.bing.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326295504
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326297161
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "79616199-c5d4-44aa-8e42-7fa5a75a25b5",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: search.brave.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "search.brave.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326298180
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326299840
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "431a8f8f-23fb-41a8-8c2d-baac9915525c",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: news.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "news.google.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326313022
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326314676
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e068e643-e10a-47a1-bc17-1b4598bc47df",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.energy.gov",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.energy.gov"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326326831
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326328473
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "1054d021-49bc-4911-8977-3d7981bd196b",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: doi.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "doi.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326330510
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326332153
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "fff5afc4-eac8-43e6-bf79-bac1dc6ababb",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.nature.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.nature.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326333164
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326334822
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "90df1e90-8965-445c-a6cd-e4e5913e6bce",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: idp.nature.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "idp.nature.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326335846
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326337496
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "89720c4d-5390-49df-88b2-3c5b249a9fe5",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: ir.solidpowerbattery.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "ir.solidpowerbattery.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326339537
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326341202
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "cdcbd67b-6ae0-48c6-8116-755daa79fe68",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: factorialenergy.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "factorialenergy.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326342211
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326343870
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "903adb65-d012-4b5a-8f01-81831b038a68",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.gacgroup.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.gacgroup.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326344891
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326346534
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "6d18efd1-c7ae-497d-bd71-31ca1254a0da",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: api.crossref.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.crossref.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326354640
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326356294
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "193a2f18-7859-4a8d-b07c-ce81975b7fb5",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.anl.gov",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.anl.gov"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326374506
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326376161
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "1babbf10-33fe-407f-845c-7652073aa6ec",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.science.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.science.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326378193
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326379850
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ec06e910-1500-476a-abf6-19e800590d23",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: consent.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "consent.google.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326388953
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326390608
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "17080f58-1809-47a7-8563-7e5947b41e3e",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: www.google.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "www.google.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326543285
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326544954
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "2c8cf34c-a5a0-47c8-91e2-fbda5a073c31",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: api.semanticscholar.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.semanticscholar.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326566245
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326567917
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "ea3d04b1-cd66-4bea-8ba9-504af0b05bca",
+      "task_id": "ff1a0d14-17dd-4f2d-b0f6-e1b3effffc65",
+      "title": "Python Network: api.gdeltproject.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.gdeltproject.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789326615440
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789326617108
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "e97acc26-607b-49f2-9de8-a66af28e4e7f",
+      "task_id": "b6fcad73-a5cb-44e5-ac25-bfa63c27bbaa",
+      "title": "Python Network: en.wikipedia.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "en.wikipedia.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789330078124
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789330079778
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "f0b5ac85-c7cc-40eb-931c-97e0bb30a490",
+      "task_id": "b6fcad73-a5cb-44e5-ac25-bfa63c27bbaa",
+      "title": "Python Network: export.arxiv.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "export.arxiv.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789330081820
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789330083465
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a2fecf76-e0eb-433d-a2c4-4e068c095cb4",
+      "task_id": "b6fcad73-a5cb-44e5-ac25-bfa63c27bbaa",
+      "title": "Python Network: api.semanticscholar.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.semanticscholar.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789330099701
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789330101345
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "37ad1316-ba08-4525-be5c-cfc8ec7c185b",
+      "task_id": "b6fcad73-a5cb-44e5-ac25-bfa63c27bbaa",
+      "title": "Python Network: api.openalex.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.openalex.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789330737734
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789330739381
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "6f354b43-0c3a-4968-a043-1f515d5d02fa",
+      "task_id": "b6fcad73-a5cb-44e5-ac25-bfa63c27bbaa",
+      "title": "Python Network: api.crossref.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.crossref.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789330745473
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789330747121
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "31aaed67-7d81-46b2-bc25-02c1c27917fc",
+      "task_id": "d5c9c9fb-7cf0-4ad6-8667-c078949d033c",
+      "title": "Python Network: en.wikipedia.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "en.wikipedia.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789331095395
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789331097049
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "84dda5c2-e47d-43ff-96e4-83e49ed1aa98",
+      "task_id": "d5c9c9fb-7cf0-4ad6-8667-c078949d033c",
+      "title": "Python Network: api.openalex.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.openalex.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789331098061
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789331099706
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "b763a953-db0d-436e-8d9d-0790f33ea4cd",
+      "task_id": "d5c9c9fb-7cf0-4ad6-8667-c078949d033c",
+      "title": "Python Network: api.crossref.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.crossref.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789331101739
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789331103382
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "255210ac-debd-4cca-85ea-42eb7d2507ff",
+      "task_id": "d5c9c9fb-7cf0-4ad6-8667-c078949d033c",
+      "title": "Python Network: html.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "html.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789331245192
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789331246853
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "b6055dac-1d70-4e66-8b90-451b79522b01",
+      "task_id": "3bbe56d5-c69a-422f-87fd-d065eb4d92aa",
+      "title": "Python Network: en.wikipedia.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "en.wikipedia.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789338480536
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789338482200
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "c420c70e-792c-4e7e-9ffb-fcd62a7908ff",
+      "task_id": "3bbe56d5-c69a-422f-87fd-d065eb4d92aa",
+      "title": "Python Network: api.openalex.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.openalex.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789338486254
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789338487916
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a7405f7e-133d-4551-a595-fbeeb9736bec",
+      "task_id": "3bbe56d5-c69a-422f-87fd-d065eb4d92aa",
+      "title": "Python Network: html.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "html.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789338560757
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789338562421
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "788fc999-ec6f-4ede-a4df-35efe30858a8",
+      "task_id": "3bbe56d5-c69a-422f-87fd-d065eb4d92aa",
+      "title": "Python Network: lite.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "lite.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789338565463
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789338567119
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "12fb16d8-711a-4c24-ae2a-7f908c997bf6",
+      "task_id": "6f99fb38-e773-4148-9ee7-46b1a88f4da0",
+      "title": "Python Network: api.openalex.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.openalex.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789340089311
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789340090976
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "3fb04ce5-0a5c-48f8-a2a3-750d168228b4",
+      "task_id": "6f99fb38-e773-4148-9ee7-46b1a88f4da0",
+      "title": "Python Network: en.wikipedia.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "en.wikipedia.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789340093015
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789340094676
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "a9814c44-f918-4867-9751-86236ce13946",
+      "task_id": "6f99fb38-e773-4148-9ee7-46b1a88f4da0",
+      "title": "Python Network: api.crossref.org",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.crossref.org"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789340095700
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789340097359
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "5df69f0d-3a07-4001-b4f6-b725eb79874f",
+      "task_id": "6f99fb38-e773-4148-9ee7-46b1a88f4da0",
+      "title": "Python Network: html.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "html.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789340100401
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789340102071
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "dfde1f4d-86f2-4455-a5fc-5e750f69281f",
+      "task_id": "6f99fb38-e773-4148-9ee7-46b1a88f4da0",
+      "title": "Python Network: api.duckduckgo.com",
+      "detail": "Requested by Python script sandbox",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "api.duckduckgo.com"
+      },
+      "prompt": "Conduct an in-depth market research investigation on recent advancements in solid-state battery technology and commercialization timelines for 2026-2028. Query multiple reliable engineering/scientific sources, verify conflicting claims regarding energy density (Wh/kg) and charge cycle lifespan, compute an average industry benchmark comparison table in 'battery_benchmarks.json', and compile an executive briefing in 'solid_state_battery_report.md'.",
+      "test_title": "[Prompt 10] Multi-Source Scientific Fact Verification & Executive Report (multi_source_battery_report)",
+      "timestamp": 1789340140542
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789340142218
+  },
+  {
+    "card": {
+      "status": "pending",
+      "message_id": "296336cc-4914-4831-a9ad-feb54fff780d",
+      "task_id": "49eef581-b863-4713-97c2-2914fde20621",
+      "title": "Run Network Request: GET https://wordlegame.org/",
+      "detail": "",
+      "blocked_directive": {
+        "body": null,
+        "method": "GET",
+        "type": "http_request",
+        "url": "https://wordlegame.org/"
+      },
+      "prompt": "Go to \"https://wordlegame.org/\", switch to unlimited mode, and play until you win 10 games of wordle. After winning 10 games, save a structured report named \"wordle_10_wins_report.json\" summarizing each game (game number, target word, number of attempts, list of guesses) and report back to me how each game went.",
+      "test_title": "[Prompt 1] Autonomous Wordle Solver: 10 Consecutive Wins in Unlimited Mode (wordle_unlimited_10_wins)",
+      "timestamp": 1789934444084
+    },
+    "decision": {
+      "decision": "approve"
+    },
+    "timestamp": 1789934445774
   }
 ]

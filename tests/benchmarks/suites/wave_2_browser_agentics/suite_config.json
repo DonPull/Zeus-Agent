@@ -1,0 +1,11 @@
+{
+  "master_model": "gpt-5.6-luna",
+  "worker_model": "gpt-5.6-luna",
+  "verifier_model": "zai-org/GLM-5.3-Flash",
+  "watcher_model": "Qwen/Qwen3.8-Flash-Next",
+  "vision_model": "gemini-3.8-flash",
+  "budget_credits": 1000000,
+  "browser_mode": "sandboxed",
+  "prompt_timeout_ms": 2400000,
+  "turn_timeout_ms": 2400000
+}

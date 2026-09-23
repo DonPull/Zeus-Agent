@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests', // We'll run both e2e and advanced_e2e from here, Playwright finds *.spec.js recursively
-  timeout: 25 * 60 * 1000, // 25 minutes for real LLM runs
+  timeout: 45 * 60 * 1000, // 45 minutes for real LLM runs
   expect: {
     timeout: 30000 // 30 seconds for expectations to accommodate UI latency
   },
@@ -12,7 +12,7 @@ export default defineConfig({
   workers: 1, // Must be 1 since they share the same SQLite file
   reporter: 'list',
   use: {
-    actionTimeout: 0,
+    actionTimeout: 10000,
     trace: 'on-first-retry',
   },
   projects: [
@@ -21,7 +21,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: process.platform === 'win32' ? 'npm.cmd run dev' : 'npm run dev',
     url: 'http://127.0.0.1:1420',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

@@ -54,8 +54,8 @@ test.describe('Advanced E2E - Headless Scraper', () => {
 
         await permInput.focus();
         await permInput.fill(sandboxDir);
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('write');
+        await settingsModal.locator('#permission-action-select').selectOption('allow');
+        await settingsModal.locator('#permission-type-select').selectOption('write');
         await settingsModal.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 

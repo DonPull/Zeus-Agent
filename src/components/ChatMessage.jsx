@@ -101,7 +101,12 @@ function ApprovalCard({ message, onDecision }) {
 
     return (
         <div className="chat-message event">
-            <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
+            <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`} data-message-id={message.id} data-task-id={message.task_id}>
+                {data.blocked_directive && (
+                    <div className="approval-card-blocked-directive" style={{ display: "none" }}>
+                        {JSON.stringify(data.blocked_directive)}
+                    </div>
+                )}
                 <div className="approval-card-header align-center justify-space-between no-user-select">
                     <span className="approval-card-title">{data.summary}</span>
                     <span className="approval-card-status">{pending ? "needs approval" : data.status}</span>
@@ -111,7 +116,7 @@ function ApprovalCard({ message, onDecision }) {
                 {pending ? (
                     <div className="column gap-10">
                         <div className="align-center gap-10">
-                            <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once", messageId: message.id })}>
+                            <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { mode: "once", messageId: message.id, taskId: message.task_id })}>
                                 <label>Deny</label>
                             </button>
 
@@ -124,7 +129,7 @@ function ApprovalCard({ message, onDecision }) {
                             </button>
                             
                             <div style={{ position: "relative" }} className="align-center">
-                                <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive, messageId: message.id })}>
+                                <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { mode: "once", blocked: data.blocked_directive, messageId: message.id, taskId: message.task_id })}>
                                     <label>Approve (Once)</label>
                                 </button>
                                 {showDropdown && (
@@ -189,7 +194,7 @@ function ApprovalCard({ message, onDecision }) {
                                     autoFocus
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter" && feedbackText.trim()) {
-                                            onDecision(false, feedbackText.trim(), { mode: "once", messageId: message.id, note: feedbackText.trim() });
+                                            onDecision(false, feedbackText.trim(), { mode: "once", messageId: message.id, taskId: message.task_id, note: feedbackText.trim() });
                                         }
                                     }}
                                 />
@@ -201,7 +206,7 @@ function ApprovalCard({ message, onDecision }) {
                                             opacity: feedbackText.trim() ? 1 : 0.4,
                                             cursor: feedbackText.trim() ? "pointer" : "not-allowed"
                                         }}
-                                        onClick={() => onDecision(false, feedbackText.trim(), { mode: "once", messageId: message.id, note: feedbackText.trim() })}
+                                        onClick={() => onDecision(false, feedbackText.trim(), { mode: "once", messageId: message.id, taskId: message.task_id, note: feedbackText.trim() })}
                                     >
                                         <label>Submit Deny & Feedback</label>
                                     </button>
@@ -396,7 +401,111 @@ function ReasoningPill({ reasoning, streaming }) {
     );
 }
 
-function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDecision, onHandoffDecision, onChoiceDecision }) {
+function BrowserSessionStartedCard({ message, onOpenLiveView }) {
+    const data = useMemo(() => parseEventContent(message), [message]);
+    if (!data) return null;
+    const sessionId = data.session_id || "";
+    const displayId = sessionId.length > 14 ? `${sessionId.slice(0, 12)}…` : sessionId;
+
+    return (
+        <div className="chat-message event">
+            <div className="chat-bubble browser-session-card column gap-10">
+                <div className="browser-session-header align-center justify-space-between no-user-select">
+                    <div className="align-center gap-10">
+                        <span className="live-pulse-dot" />
+                        <span className="browser-session-title">Browser Session Active</span>
+                    </div>
+                    {sessionId && <span className="browser-session-id mono">{displayId}</span>}
+                </div>
+                <div className="browser-session-body align-center justify-space-between gap-15">
+                    <div className="browser-session-info column gap-4">
+                        <span className="browser-session-subtext">
+                            Autonomous browser execution in progress...
+                        </span>
+                        {data.initial_url && (
+                            <span className="browser-session-url mono truncate-url" title={data.initial_url}>
+                                🌐 {data.initial_url}
+                            </span>
+                        )}
+                    </div>
+                    <button
+                        id="browser-session-live-view-btn"
+                        className="browser-session-action-btn live-btn align-center gap-6 no-user-select"
+                        title="Open passive live view of browser"
+                        onClick={() => onOpenLiveView && onOpenLiveView(sessionId, message.task_id)}
+                    >
+                        <span>👁️</span>
+                        <span>Live View</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function BrowserSessionCompletedCard({ message, onOpenReplay }) {
+    const data = useMemo(() => parseEventContent(message), [message]);
+    if (!data) return null;
+    const sessionId = data.session_id || "";
+    const totalSteps = data.total_steps || 0;
+    const durationSec = data.duration_ms ? (data.duration_ms / 1000).toFixed(1) : null;
+    const displayId = sessionId.length > 14 ? `${sessionId.slice(0, 12)}…` : sessionId;
+
+    return (
+        <div className="chat-message event">
+            <div className="chat-bubble browser-session-card completed column gap-10">
+                <div className="browser-session-header align-center justify-space-between no-user-select">
+                    <div className="align-center gap-10">
+                        <span className="browser-badge-completed">✓</span>
+                        <span className="browser-session-title">Browser Session Completed</span>
+                    </div>
+                    {sessionId && <span className="browser-session-id mono">{displayId}</span>}
+                </div>
+                <div className="browser-session-metrics align-center gap-15 no-user-select">
+                    <div className="browser-metric-pill">
+                        <span className="metric-label">Actions</span>
+                        <span className="metric-value">{totalSteps}</span>
+                    </div>
+                    {durationSec && (
+                        <div className="browser-metric-pill">
+                            <span className="metric-label">Duration</span>
+                            <span className="metric-value">{durationSec}s</span>
+                        </div>
+                    )}
+                    {data.final_url && (
+                        <div className="browser-metric-pill url-pill" title={data.final_url}>
+                            <span className="metric-label">Final URL</span>
+                            <span className="metric-value mono truncate-url">{data.final_url}</span>
+                        </div>
+                    )}
+                </div>
+                <div className="browser-session-footer align-center justify-space-between gap-10">
+                    <span className="browser-session-subtext">Step-by-step visual replay available</span>
+                    <button
+                        id="browser-session-replay-btn"
+                        className="browser-session-action-btn replay-btn align-center gap-6 no-user-select"
+                        title="Open interactive session replay"
+                        onClick={() => onOpenReplay && onOpenReplay(sessionId, message.task_id)}
+                    >
+                        <span>🎬</span>
+                        <span>View Session Replay</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ChatMessage({
+    message,
+    streaming = false,
+    reasoning = "",
+    onApprovalDecision,
+    onHandoffDecision,
+    onChoiceDecision,
+    onOpenLiveView,
+    onOpenReplay,
+}) {
     if (message.role === "user") {
         return (
             <div className="chat-message user">
@@ -415,6 +524,8 @@ function ChatMessage({ message, streaming = false, reasoning = "", onApprovalDec
         if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;
         if (message.kind === "choice") return <InteractiveChoiceCard message={message} onDecision={onChoiceDecision} />;
         if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
+        if (message.kind === "browser_session_started") return <BrowserSessionStartedCard message={message} onOpenLiveView={onOpenLiveView} />;
+        if (message.kind === "browser_session_completed") return <BrowserSessionCompletedCard message={message} onOpenReplay={onOpenReplay} />;
         return (
             <div className="chat-message event">
                 <div className="chat-bubble event"><div className="chat-bubble-content">{message.content}</div></div>

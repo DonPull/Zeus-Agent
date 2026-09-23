@@ -12,6 +12,7 @@ pub mod python_runner;
 pub mod settings;
 pub mod utils;
 pub mod worker;
+pub mod output_compressor;
 
 use std::fs;
 use tauri::generate_context;
@@ -29,6 +30,9 @@ pub fn run() {
     if let Ok(settings) = settings::read_settings(&connection) {
         if let Some(url) = settings.local_base_url {
             gateway::set_cached_local_url(url);
+        }
+        if let Some(url) = settings.xiaomi_base_url {
+            gateway::set_cached_xiaomi_url(url);
         }
     }
 
@@ -52,14 +56,19 @@ pub fn run() {
             chat::rename_task,
             chat::update_task_settings,
             chat::delete_task,
+            chat::save_task_attachment,
             settings::get_settings,
             settings::save_settings,
             settings::set_api_key,
             settings::has_api_key,
             settings::set_gemini_api_key,
             settings::has_gemini_api_key,
+            settings::set_xiaomi_api_key,
+            settings::has_xiaomi_api_key,
             gateway::fetch_available_models,
+            gateway::get_local_model_ids,
             gateway::test_local_endpoint,
+            gateway::test_xiaomi_endpoint,
             logger::get_debug_log,
             gatekeeper::get_file_permissions,
             gatekeeper::add_file_permission,
@@ -71,6 +80,7 @@ pub fn run() {
             browser_manager::start_browser_handoff,
             browser_manager::finish_browser_handoff,
             browser_manager::get_browser_history,
+            browser_manager::get_browser_session,
             cookie_vault::get_vault_accounts,
             cookie_vault::get_vault_account,
             cookie_vault::save_vault_account,

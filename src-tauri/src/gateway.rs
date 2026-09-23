@@ -8,9 +8,13 @@ use crate::db::AppState;
 
 pub const ROUTELLM_BASE_URL: &str = "https://routellm.abacus.ai/v1";
 pub const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+pub const DEFAULT_XIAOMI_BASE_URL: &str = "https://token-plan-ams.xiaomimimo.com/v1";
 
 static LOCAL_MODELS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 static LOCAL_BASE_URL: OnceLock<Mutex<String>> = OnceLock::new();
+
+static XIAOMI_MODELS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static XIAOMI_BASE_URL: OnceLock<Mutex<String>> = OnceLock::new();
 
 pub fn set_cached_local_url(url: String) {
     if let Ok(mut lock) = LOCAL_BASE_URL.get_or_init(|| Mutex::new("http://localhost:11434/v1".to_string())).lock() {
@@ -37,6 +41,44 @@ pub fn register_local_models(models: &[String]) {
     }
 }
 
+pub fn set_cached_xiaomi_url(url: String) {
+    if let Ok(mut lock) = XIAOMI_BASE_URL.get_or_init(|| Mutex::new(DEFAULT_XIAOMI_BASE_URL.to_string())).lock() {
+        *lock = url;
+    }
+}
+
+pub fn get_cached_xiaomi_url() -> String {
+    XIAOMI_BASE_URL.get_or_init(|| Mutex::new(DEFAULT_XIAOMI_BASE_URL.to_string()))
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_else(|_| DEFAULT_XIAOMI_BASE_URL.to_string())
+}
+
+fn xiaomi_models() -> &'static Mutex<HashSet<String>> {
+    XIAOMI_MODELS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+pub fn register_xiaomi_models(models: &[String]) {
+    if let Ok(mut set) = xiaomi_models().lock() {
+        for m in models {
+            set.insert(m.clone());
+        }
+    }
+}
+
+pub fn is_mimo_model(model: &str) -> bool {
+    let m = model.to_lowercase();
+    if m.starts_with("mimo") || m.contains("xiaomi") {
+        return true;
+    }
+    if let Ok(set) = xiaomi_models().lock() {
+        if set.contains(model) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn is_local_model(model: &str) -> bool {
     if model.starts_with("local/") || model.starts_with("local:") {
         return true;
@@ -47,22 +89,22 @@ pub fn is_local_model(model: &str) -> bool {
         }
     }
     let m = model.to_lowercase();
-    if m.contains("qwen")
-        || m.contains("llama")
-        || m.contains("mistral")
-        || m.contains("gemma")
-        || m.contains("deepseek-r1")
-        || m.contains(".gguf")
-        || m.contains(".bin")
+    m.contains("localhost")
+        || m.contains("127.0.0.1")
+        || m.ends_with(".gguf")
+        || m.ends_with(".bin")
         || m.contains(":latest")
-        || m.contains("localhost")
-    {
-        return true;
+}
+
+#[tauri::command]
+pub fn get_local_model_ids() -> Result<Vec<String>, String> {
+    if let Ok(set) = local_models().lock() {
+        let mut list: Vec<String> = set.iter().cloned().collect();
+        list.sort();
+        Ok(list)
+    } else {
+        Ok(Vec::new())
     }
-    if !model.starts_with("gemini") && crate::settings::load_api_key().is_err() {
-        return true;
-    }
-    false
 }
 
 fn get_api_config(model: &str) -> Result<(String, String), String> {
@@ -74,6 +116,12 @@ fn get_api_config(model: &str) -> Result<(String, String), String> {
         let local_url = std::env::var("ZEUS_LOCAL_BASE_URL")
             .unwrap_or_else(|_| get_cached_local_url());
         return Ok((local_url, "local".to_string()));
+    }
+
+    if is_mimo_model(model) {
+        let xiaomi_url = std::env::var("ZEUS_XIAOMI_BASE_URL")
+            .unwrap_or_else(|_| get_cached_xiaomi_url());
+        return Ok((xiaomi_url, crate::settings::load_xiaomi_api_key()?));
     }
 
     if model.starts_with("gemini") {
@@ -471,57 +519,103 @@ impl ThinkFilter {
 }
 
 /// Non-streaming call, kept for simple internal uses later (M1b verifier).
+fn extract_error_message(status: reqwest::StatusCode, text: &str) -> String {
+    let extracted_msg = serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .and_then(|v| {
+            v["error"]["message"].as_str().map(|s| s.to_string())
+                .or_else(|| v["error"].as_str().map(|s| s.to_string()))
+                .or_else(|| v["message"].as_str().map(|s| s.to_string()))
+        })
+        .unwrap_or_else(|| text.to_string());
+    format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg)
+}
+
+/// Non-streaming call, kept for simple internal uses later (M1b verifier).
 pub async fn chat_completion(
     model: &str,
     messages: &[ChatMessage],
+    effort: Option<&str>,
 ) -> Result<(String, UsageInfo, String, Option<String>), String> {
     let (base_url, api_key) = get_api_config(model)?;
     let normalized = normalize_chat_messages(messages);
-    let body = json!({ "model": model, "messages": normalized });
-
     let client = http_client();
-    let response = tokio::time::timeout(
-        std::time::Duration::from_secs(90),
-        client
-            .post(format!("{}/chat/completions", base_url))
-            .bearer_auth(api_key)
-            .json(&body)
-            .send(),
-    )
-    .await
-    .map_err(|_| "API request timed out after 90 seconds.".to_string())?
-    .map_err(|e| format!("API request failed: {}", e))?;
 
-    let status = response.status();
-    let text = response
-        .text()
+    let mut current_effort: Option<String> = effort
+        .filter(|e| *e == "low" || *e == "medium" || *e == "high")
+        .map(|s| s.to_string());
+
+    loop {
+        let mut body = json!({ "model": model, "messages": normalized });
+        if let Some(ref eff) = current_effort {
+            if !is_local_model(model) {
+                body["reasoning_effort"] = json!(eff);
+            }
+        }
+        if is_local_model(model) {
+            body["options"] = json!({ "num_ctx": 32768 });
+        }
+
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(180),
+            client
+                .post(format!("{}/chat/completions", base_url))
+                .bearer_auth(&api_key)
+                .json(&body)
+                .send(),
+        )
         .await
-        .map_err(|e| format!("Failed to read the API response: {}", e))?;
-    if !status.is_success() {
-        return Err(format!("API error ({}): {}", status.as_u16(), text));
+        .map_err(|_| "API request timed out after 180 seconds.".to_string())?
+        .map_err(|e| format!("API request failed: {}", e))?;
+
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read the API response: {}", e))?;
+
+        if !status.is_success() {
+            let code = status.as_u16();
+            if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
+                let next = match current_effort.as_deref() {
+                    Some("high") => Some("medium".to_string()),
+                    Some("medium") => Some("low".to_string()),
+                    _ => None,
+                };
+                crate::logger::log(
+                    "gateway",
+                    "reasoning_effort",
+                    &format!("Reasoning effort {:?} rejected by API ({}). Cascading to {:?}", current_effort, code, next),
+                );
+                current_effort = next;
+                continue;
+            }
+            return Err(extract_error_message(status, &text));
+        }
+
+        let json: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| format!("Failed to parse the API response: {}", e))?;
+
+        let raw_content = json["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        if raw_content.is_empty() {
+            return Err(format!("API returned no message content: {}", text));
+        }
+
+        let (content, _extracted_reasoning) = strip_think_tags(&raw_content);
+        let (usage, usage_json) = parse_usage_value(&json["usage"], &content);
+        let model_used = json["model"].as_str().map(|s| s.to_string());
+        return Ok((content, usage, usage_json, model_used));
     }
-
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse the API response: {}", e))?;
-
-    let raw_content = json["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
-    if raw_content.is_empty() {
-        return Err(format!("API returned no message content: {}", text));
-    }
-
-    let (content, _extracted_reasoning) = strip_think_tags(&raw_content);
-    let (usage, usage_json) = parse_usage_value(&json["usage"], &content);
-    let model_used = json["model"].as_str().map(|s| s.to_string());
-    Ok((content, usage, usage_json, model_used))
 }
 
 /// Chat Completions streaming call (fallback for models without Responses API).
 pub async fn chat_completion_stream<F>(
     model: &str,
     messages: &[ChatMessage],
+    effort: Option<&str>,
     mut on_event: F,
 ) -> Result<(String, String, UsageInfo, String, Option<String>), String>
 where
@@ -529,34 +623,60 @@ where
 {
     let (base_url, api_key) = get_api_config(model)?;
     let normalized = normalize_chat_messages(messages);
-    let body = json!({ "model": model, "messages": normalized, "stream": true });
-
     let client = http_client();
     let timeout_secs = if is_local_model(model) { 1800 } else { 300 };
-    let response = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout_secs),
-        client
-            .post(format!("{}/chat/completions", base_url))
-            .bearer_auth(api_key)
-            .json(&body)
-            .send(),
-    )
-    .await
-    .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
-    .map_err(|e| format!("API request failed: {}", e))?;
 
-    let status = response.status();
-    if !status.is_success() {
-        let text = response.text().await.unwrap_or_default();
-        let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
-            .ok()
-            .and_then(|v| {
-                v["error"]["message"].as_str().map(|s| s.to_string())
-                    .or_else(|| v["error"].as_str().map(|s| s.to_string()))
-                    .or_else(|| v["message"].as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| text.clone());
-        return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
+    let mut current_effort: Option<String> = effort
+        .filter(|e| *e == "low" || *e == "medium" || *e == "high")
+        .map(|s| s.to_string());
+
+    let response;
+    loop {
+        let mut body = json!({ "model": model, "messages": normalized, "stream": true });
+        if let Some(ref eff) = current_effort {
+            if !is_local_model(model) {
+                body["reasoning_effort"] = json!(eff);
+            }
+        }
+        if is_local_model(model) {
+            body["options"] = json!({ "num_ctx": 32768 });
+        }
+
+        let resp_res = tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            client
+                .post(format!("{}/chat/completions", base_url))
+                .bearer_auth(&api_key)
+                .json(&body)
+                .send(),
+        )
+        .await
+        .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
+        .map_err(|e| format!("API request failed: {}", e))?;
+
+        let status = resp_res.status();
+        if !status.is_success() {
+            let code = status.as_u16();
+            if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
+                let next = match current_effort.as_deref() {
+                    Some("high") => Some("medium".to_string()),
+                    Some("medium") => Some("low".to_string()),
+                    _ => None,
+                };
+                crate::logger::log(
+                    "gateway",
+                    "reasoning_effort",
+                    &format!("Reasoning effort {:?} rejected in stream ({}). Cascading to {:?}", current_effort, code, next),
+                );
+                current_effort = next;
+                continue;
+            }
+            let text = resp_res.text().await.unwrap_or_default();
+            return Err(extract_error_message(status, &text));
+        }
+
+        response = resp_res;
+        break;
     }
 
     on_event(StreamEventPayload::Status {
@@ -575,7 +695,7 @@ where
 
     loop {
         let chunk_res = tokio::time::timeout(
-            std::time::Duration::from_secs(90),
+            std::time::Duration::from_secs(180),
             byte_stream.next(),
         ).await;
 
@@ -583,7 +703,7 @@ where
             Ok(Some(Ok(c))) => c,
             Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
             Ok(None) => break,
-            Err(_) => return Err("LLM stream timed out after 90 seconds of inactivity.".into()),
+            Err(_) => return Err("LLM stream timed out after 180 seconds of inactivity.".into()),
         };
 
         buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -641,7 +761,10 @@ where
     }
 
     on_event(StreamEventPayload::Done);
-    let (full_text, reasoning_text) = think_filter.finish(&mut on_event);
+    let (mut full_text, reasoning_text) = think_filter.finish(&mut on_event);
+    if full_text.trim().is_empty() && !reasoning_text.trim().is_empty() {
+        full_text = reasoning_text.clone();
+    }
     if full_text.is_empty() && reasoning_text.is_empty() {
         return Err("RouteLLM stream ended without any content.".into());
     }
@@ -655,6 +778,7 @@ where
 pub async fn responses_stream<F>(
     model: &str,
     messages: &[ChatMessage],
+    effort: Option<&str>,
     mut on_event: F,
 ) -> Result<(String, String, UsageInfo, String, Option<String>), String>
 where
@@ -682,40 +806,71 @@ where
         }
     }
 
-    let body = json!({
-        "model": model,
-        "instructions": instructions,
-        "input": input_items,
-        "stream": true,
-        "reasoning": { "summary": "auto" }
-    });
-
     let client = http_client();
     let timeout_secs = if is_local_model(model) { 1800 } else { 300 };
-    let response = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout_secs),
-        client
-            .post(format!("{}/responses", base_url))
-            .bearer_auth(api_key)
-            .json(&body)
-            .send(),
-    )
-    .await
-    .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
-    .map_err(|e| format!("API request failed: {}", e))?;
 
-    let status = response.status();
-    if !status.is_success() {
-        let text = response.text().await.unwrap_or_default();
-        let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
-            .ok()
-            .and_then(|v| {
-                v["error"]["message"].as_str().map(|s| s.to_string())
-                    .or_else(|| v["error"].as_str().map(|s| s.to_string()))
-                    .or_else(|| v["message"].as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| text.clone());
-        return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
+    let mut current_effort: Option<String> = effort
+        .filter(|e| *e == "low" || *e == "medium" || *e == "high")
+        .map(|s| s.to_string());
+
+    let response;
+    loop {
+        let reasoning_val = match current_effort.as_deref() {
+            Some(e) => json!({ "effort": e, "summary": "auto" }),
+            None => json!({ "summary": "auto" }),
+        };
+
+        let body = json!({
+            "model": model,
+            "instructions": instructions,
+            "input": input_items,
+            "stream": true,
+            "reasoning": reasoning_val
+        });
+
+        let resp_res = tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            client
+                .post(format!("{}/responses", base_url))
+                .bearer_auth(&api_key)
+                .json(&body)
+                .send(),
+        )
+        .await
+        .map_err(|_| format!("API connection timed out after {} seconds.", timeout_secs))?
+        .map_err(|e| format!("API request failed: {}", e))?;
+
+        let status = resp_res.status();
+        if !status.is_success() {
+            let code = status.as_u16();
+            if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
+                let next = match current_effort.as_deref() {
+                    Some("high") => Some("medium".to_string()),
+                    Some("medium") => Some("low".to_string()),
+                    _ => None,
+                };
+                crate::logger::log(
+                    "gateway",
+                    "reasoning_effort",
+                    &format!("Responses API effort {:?} rejected ({}). Cascading to {:?}", current_effort, code, next),
+                );
+                current_effort = next;
+                continue;
+            }
+            let text = resp_res.text().await.unwrap_or_default();
+            let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
+                .ok()
+                .and_then(|v| {
+                    v["error"]["message"].as_str().map(|s| s.to_string())
+                        .or_else(|| v["error"].as_str().map(|s| s.to_string()))
+                        .or_else(|| v["message"].as_str().map(|s| s.to_string()))
+                })
+                .unwrap_or_else(|| text.clone());
+            return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
+        }
+
+        response = resp_res;
+        break;
     }
 
     on_event(StreamEventPayload::Status {
@@ -737,7 +892,7 @@ where
 
     loop {
         let chunk_res = tokio::time::timeout(
-            std::time::Duration::from_secs(90),
+            std::time::Duration::from_secs(180),
             byte_stream.next(),
         ).await;
 
@@ -745,7 +900,7 @@ where
             Ok(Some(Ok(c))) => c,
             Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
             Ok(None) => break,
-            Err(_) => return Err("LLM stream timed out after 90 seconds of inactivity.".into()),
+            Err(_) => return Err("LLM stream timed out after 180 seconds of inactivity.".into()),
         };
 
         if !valid_utf8(&chunk) {
@@ -867,6 +1022,9 @@ where
     }
 
     on_event(StreamEventPayload::Done);
+    if full_text.trim().is_empty() && !reasoning_summary.trim().is_empty() {
+        full_text = reasoning_summary.clone();
+    }
     if full_text.is_empty() {
         return Err("RouteLLM stream ended without any content.".into());
     }
@@ -882,6 +1040,7 @@ where
 pub async fn stream_model_reply<F>(
     model: &str,
     messages: &[ChatMessage],
+    effort: Option<&str>,
     mut on_event: F,
 ) -> Result<(String, String, UsageInfo, String, Option<String>), String>
 where
@@ -899,7 +1058,7 @@ where
 
         let attempt = {
             let on_event_ref = &mut on_event;
-            responses_stream(model, messages, move |event| {
+            responses_stream(model, messages, effort, move |event| {
                 match &event {
                     StreamEventPayload::Delta { .. }
                     | StreamEventPayload::ReasoningDelta { .. } => {
@@ -933,7 +1092,7 @@ where
     }
 
     let (text, reasoning, usage, usage_json, model_used) =
-        chat_completion_stream(model, messages, &mut on_event).await?;
+        chat_completion_stream(model, messages, effort, &mut on_event).await?;
     Ok((text, reasoning, usage, usage_json, model_used))
 }
 
@@ -973,6 +1132,13 @@ pub async fn test_local_endpoint(endpoint: String) -> Result<Vec<String>, String
                 .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
                 .collect()
         })
+        .or_else(|| {
+            json["models"].as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|m| m["id"].as_str().or_else(|| m["name"].as_str()).map(|s| s.to_string()))
+                    .collect()
+            })
+        })
         .unwrap_or_default();
 
     if models.is_empty() {
@@ -981,6 +1147,62 @@ pub async fn test_local_endpoint(endpoint: String) -> Result<Vec<String>, String
 
     set_cached_local_url(endpoint);
     register_local_models(&models);
+    Ok(models)
+}
+
+#[tauri::command]
+pub async fn test_xiaomi_endpoint(endpoint: String) -> Result<Vec<String>, String> {
+    let endpoint = endpoint.trim().trim_end_matches('/').to_string();
+    if endpoint.is_empty() {
+        return Err("Endpoint URL cannot be empty.".into());
+    }
+    let api_key = crate::settings::load_xiaomi_api_key()?;
+    let url = if endpoint.ends_with("/v1") {
+        format!("{}/models", endpoint)
+    } else {
+        format!("{}/v1/models", endpoint)
+    };
+
+    let client = http_client();
+    let response = client
+        .get(&url)
+        .bearer_auth(&api_key)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("Could not connect to {}: {}", url, e))?;
+
+    let status = response.status();
+    let text = response.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("Xiaomi server returned error {}: {}", status.as_u16(), text));
+    }
+
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse Xiaomi models JSON: {}", e))?;
+
+    let models: Vec<String> = json["data"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .or_else(|| {
+            json["models"].as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|m| m["id"].as_str().or_else(|| m["name"].as_str()).map(|s| s.to_string()))
+                    .collect()
+            })
+        })
+        .unwrap_or_default();
+
+    if models.is_empty() {
+        return Err("Xiaomi server responded, but no models were found in data list.".into());
+    }
+
+    set_cached_xiaomi_url(endpoint);
+    register_xiaomi_models(&models);
     Ok(models)
 }
 
@@ -1011,11 +1233,22 @@ pub async fn fetch_available_models(state: State<'_, AppState>) -> Result<Vec<St
             if response.status().is_success() {
                 if let Ok(text) = response.text().await {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                        if let Some(arr) = json["data"].as_array() {
-                            let local_ids: Vec<String> = arr
-                                .iter()
-                                .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
-                                .collect();
+                        let local_ids: Vec<String> = json["data"]
+                            .as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .or_else(|| {
+                                json["models"].as_array().map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|m| m["id"].as_str().or_else(|| m["name"].as_str()).map(|s| s.to_string()))
+                                        .collect()
+                                })
+                            })
+                            .unwrap_or_default();
+                        if !local_ids.is_empty() {
                             register_local_models(&local_ids);
                             models.extend(local_ids);
                         }
@@ -1050,21 +1283,217 @@ pub async fn fetch_available_models(state: State<'_, AppState>) -> Result<Vec<St
         }
     }
 
-    // 3) Include default Google Gemini models
+    // 3) Query Xiaomi MiMo endpoint if API key is set
+    if let Ok(xiaomi_key) = crate::settings::load_xiaomi_api_key() {
+        let xiaomi_url = {
+            if let Ok(conn) = state.db.lock() {
+                crate::settings::read_settings(&conn)
+                    .map(|s| s.xiaomi_base_url.unwrap_or_else(get_cached_xiaomi_url))
+                    .unwrap_or_else(|_| get_cached_xiaomi_url())
+            } else {
+                get_cached_xiaomi_url()
+            }
+        };
+        let endpoint = xiaomi_url.trim().trim_end_matches('/');
+        if !endpoint.is_empty() {
+            let url = if endpoint.ends_with("/v1") {
+                format!("{}/models", endpoint)
+            } else {
+                format!("{}/v1/models", endpoint)
+            };
+            let client = http_client();
+            if let Ok(response) = client
+                .get(&url)
+                .bearer_auth(xiaomi_key)
+                .timeout(std::time::Duration::from_secs(5))
+                .send()
+                .await
+            {
+                if response.status().is_success() {
+                    if let Ok(text) = response.text().await {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                            let mut xiaomi_ids = Vec::new();
+                            if let Some(arr) = json["data"].as_array() {
+                                for m in arr {
+                                    if let Some(id) = m["id"].as_str() {
+                                        xiaomi_ids.push(id.to_string());
+                                    }
+                                }
+                            } else if let Some(arr) = json["models"].as_array() {
+                                for m in arr {
+                                    if let Some(id) = m["id"].as_str().or_else(|| m["name"].as_str()) {
+                                        xiaomi_ids.push(id.to_string());
+                                    }
+                                }
+                            }
+                            if !xiaomi_ids.is_empty() {
+                                register_xiaomi_models(&xiaomi_ids);
+                                models.extend(xiaomi_ids);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4) Include default Xiaomi MiMo models
+    let xiaomi_defaults = [
+        "mimo-v2.6-pro",
+        "mimo-v2.6",
+    ];
+    for m in xiaomi_defaults {
+        if !models.contains(&m.to_string()) {
+            models.push(m.to_string());
+        }
+    }
+
+    // 5) Include default Google Gemini models
     let gemini_defaults = [
         "gemini-1.5-pro",
         "gemini-1.5-flash",
         "gemini-2.0-flash-exp",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
+        "gemini-3.8-flash",
     ];
     for m in gemini_defaults {
         if !models.contains(&m.to_string()) {
             models.push(m.to_string());
         }
     }
-
     models.sort();
     models.dedup();
     Ok(models)
+}
+
+pub const ZEUS_EYES_SYSTEM_PROMPT: &str = r#"You are Zeus Eyes, the intelligent visual perception and inspection engine for the Zeus Agent runtime.
+You analyze screenshots, diagrams, web pages, and user interfaces to provide high-signal visual intelligence to autonomous agent processes.
+
+Your Capabilities:
+1. Obstacle & UI Diagnostics: Identify why an action failed or stalled (e.g., newsletter popups, cookie consent overlays, CAPTCHAs, unhandled modal dialogs, loading spinners).
+2. Layout & Styling Inspection: Analyze visual design, responsive alignment, typography, contrast, clipping, and visual bugs in rendered apps or websites.
+3. Content & Chart Reading: Interpret diagrams, graphs, charts, canvas elements, and text in images/PDFs that cannot be extracted from HTML DOM.
+4. Visual State Verification: Confirm whether an action took effect (e.g., did a modal open, did an item appear in the cart, is a button disabled/grayed out).
+
+Instructions:
+- Provide direct, factual, and actionable visual observations answering the caller's query.
+- Be spatially precise: indicate where key elements are located (e.g., "A centered modal dialog is covering the page with a close '✕' button at the top-right").
+- Start directly with your observations (no conversational pleasantries like "Sure, I see...")."#;
+
+pub async fn analyze_visual(
+    model: &str,
+    task_id: &str,
+    image_path: &str,
+    query: &str,
+    effort: Option<&str>,
+) -> Result<(String, UsageInfo, String), String> {
+    if model.is_empty() || model.eq_ignore_ascii_case("none") {
+        return Err("Vision model is disabled (set to 'None'). To inspect images, select a vision-capable model in settings.".into());
+    }
+
+    let full_path = if std::path::Path::new(image_path).is_absolute() {
+        std::path::PathBuf::from(image_path)
+    } else {
+        match crate::utils::task_workspace(task_id) {
+            Ok(ws) => {
+                let candidate = ws.join(image_path);
+                if candidate.exists() {
+                    candidate
+                } else {
+                    std::path::PathBuf::from(image_path)
+                }
+            }
+            Err(_) => std::path::PathBuf::from(image_path),
+        }
+    };
+
+    if !full_path.exists() {
+        return Err(format!("Image file not found: '{}'", full_path.display()));
+    }
+
+    let bytes = tokio::fs::read(&full_path).await
+        .map_err(|e| format!("Failed to read image file '{}': {}", full_path.display(), e))?;
+
+    let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => "image/png",
+    };
+
+    use base64::prelude::*;
+    let b64 = BASE64_STANDARD.encode(&bytes);
+    let data_url = format!("data:{};base64,{}", mime, b64);
+
+    let (base_url, api_key) = get_api_config(model)?;
+    let client = http_client();
+
+    let mut body = json!({
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": ZEUS_EYES_SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": [
+                    { "type": "text", "text": query },
+                    { "type": "image_url", "image_url": { "url": data_url } }
+                ]
+            }
+        ],
+        "temperature": 0.1
+    });
+
+    if let Some(eff) = effort {
+        let eff_lower = eff.trim().to_lowercase();
+        if matches!(eff_lower.as_str(), "low" | "medium" | "high") && !is_local_model(model) {
+            body["reasoning_effort"] = json!(eff_lower);
+        }
+    }
+
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(180),
+        client
+            .post(format!("{}/chat/completions", base_url))
+            .bearer_auth(&api_key)
+            .json(&body)
+            .send(),
+    )
+    .await
+    .map_err(|_| "Vision API request timed out after 180 seconds.".to_string())?
+    .map_err(|e| format!("Vision API request failed: {}", e))?;
+
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(extract_error_message(status, &text));
+    }
+
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse Vision API response: {}", e))?;
+    
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    if content.is_empty() {
+        return Err("Vision API returned an empty response.".into());
+    }
+
+    let (mut usage_info, usage_json) = if json["usage"].is_object() {
+        parse_usage_value(&json["usage"], &content)
+    } else {
+        (UsageInfo::default(), "{}".to_string())
+    };
+    if usage_info.images == 0 {
+        usage_info.images = 1;
+    }
+
+    let (clean_content, _) = strip_think_tags(&content);
+    Ok((clean_content, usage_info, usage_json))
 }

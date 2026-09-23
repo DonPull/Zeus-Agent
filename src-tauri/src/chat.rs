@@ -68,6 +68,12 @@ pub struct TaskDto {
     pub watcher_model: String,
     pub browser_mode: String,
     pub browser_executable_path: Option<String>,
+    pub master_effort: String,
+    pub worker_effort: String,
+    pub verifier_effort: String,
+    pub watcher_effort: String,
+    pub vision_model: String,
+    pub vision_effort: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -285,6 +291,63 @@ pub(crate) fn finish_cancelled_run(
     );
     persist_and_emit(state, app_handle, task_id, &mut cancellation_message)?;
 
+    // If an action plan has an active in_progress step, mark it interrupted
+    let latest_plan = {
+        let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+        conn.query_row(
+            "SELECT content FROM messages WHERE task_id = ?1 AND kind = 'action_plan' ORDER BY rowid DESC LIMIT 1",
+            params![task_id],
+            |row| row.get::<_, String>(0),
+        ).optional().ok().flatten()
+    };
+    if let Some(plan_raw) = latest_plan {
+        let mut updated = false;
+        let mut new_payload = plan_raw.clone();
+
+        if plan_raw.trim_start().starts_with('{') {
+            if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&plan_raw) {
+                if let Some(steps_val) = val.get_mut("steps").and_then(|s| s.as_array_mut()) {
+                    for step in steps_val.iter_mut() {
+                        if step.get("status").and_then(|s| s.as_str()) == Some("in_progress") {
+                            step["status"] = serde_json::json!("interrupted");
+                            updated = true;
+                        }
+                    }
+                }
+                if updated {
+                    new_payload = val.to_string();
+                }
+            }
+        } else {
+            let mut steps = orchestrator::parse_markdown_steps(&plan_raw);
+            for s in steps.iter_mut() {
+                if s.status == "in_progress" {
+                    s.status = "interrupted".to_string();
+                    updated = true;
+                }
+            }
+            if updated {
+                new_payload = serde_json::json!({
+                    "markdown": plan_raw,
+                    "steps": steps,
+                }).to_string();
+            }
+        }
+
+        if updated {
+            let mut msg = new_message(
+                task_id,
+                "assistant",
+                "action_plan",
+                new_payload,
+                None,
+                None,
+                true,
+            );
+            let _ = persist_and_emit(state, app_handle, task_id, &mut msg);
+        }
+    }
+
     let cancelled_run = {
         let connection = state
             .db
@@ -313,6 +376,12 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<TaskDto> {
         watcher_model: row.get(10)?,
         browser_mode: row.get(11)?,
         browser_executable_path: row.get(12)?,
+        master_effort: row.get(13).unwrap_or_else(|_| "default".to_string()),
+        worker_effort: row.get(14).unwrap_or_else(|_| "default".to_string()),
+        verifier_effort: row.get(15).unwrap_or_else(|_| "default".to_string()),
+        watcher_effort: row.get(16).unwrap_or_else(|_| "default".to_string()),
+        vision_model: row.get(17).unwrap_or_else(|_| "gemini-3.8-flash".to_string()),
+        vision_effort: row.get(18).unwrap_or_else(|_| "default".to_string()),
     })
 }
 
@@ -338,7 +407,7 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
 pub fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> {
     connection
         .query_row(
-            "SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path FROM tasks WHERE id = ?1",
+            "SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path, master_effort, worker_effort, verifier_effort, watcher_effort, vision_model, vision_effort FROM tasks WHERE id = ?1",
             params![task_id],
             row_to_task,
         )
@@ -442,9 +511,9 @@ pub(crate) fn persist_and_emit(
 /// reasoning sharpness, while keeping the system prompt, initial user prompt,
 /// task memory, and the most recent K turns intact.
 pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
-    const MAX_COMPACT_MESSAGES: usize = 16;
-    const MAX_COMPACT_CHARS: usize = 24_000;
-    const RECENT_MESSAGES_TO_KEEP: usize = 6;
+    const MAX_COMPACT_MESSAGES: usize = 60;
+    const MAX_COMPACT_CHARS: usize = 160_000;
+    const RECENT_MESSAGES_TO_KEEP: usize = 20;
 
     let total_chars: usize = history.iter().map(|m| m.content.len()).sum();
     if history.len() <= MAX_COMPACT_MESSAGES && total_chars <= MAX_COMPACT_CHARS {
@@ -479,7 +548,8 @@ pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
         let trimmed = msg.content.trim();
         let first_line = trimmed.lines().next().unwrap_or("");
         let snippet: String = if first_line.len() > 180 {
-            format!("{}...", &first_line[..180])
+            let prefix = crate::utils::safe_truncate_str(first_line, 180);
+            format!("{}...", prefix)
         } else if trimmed.len() > first_line.len() {
             format!("{}... [more]", first_line)
         } else {
@@ -504,8 +574,34 @@ pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
     compacted
 }
 
-fn load_master_history(connection: &Connection, task_id: &str, model: &str) -> Result<Vec<ChatMessage>, String> {
-    let mut system_prompt = settings::load_master_prompt_for_model(model)?;
+pub fn load_master_history(connection: &Connection, task_id: &str, model: &str, effort: Option<&str>) -> Result<Vec<ChatMessage>, String> {
+    let (has_worker, has_vision) = {
+        connection.query_row(
+            "SELECT worker_model, vision_model FROM tasks WHERE id = ?1",
+            params![task_id],
+            |row| {
+                let w: String = row.get(0).unwrap_or_default();
+                let v: String = row.get(1).unwrap_or_default();
+                let hw = !w.trim().is_empty() && !w.eq_ignore_ascii_case("none");
+                let hv = !v.trim().is_empty() && !v.eq_ignore_ascii_case("none");
+                Ok((hw, hv))
+            }
+        ).unwrap_or((true, true))
+    };
+    let mut system_prompt = settings::load_master_prompt_for_config(model, has_worker, has_vision)?;
+    if let Some(eff) = effort {
+        if eff != "default" && !eff.is_empty() {
+            let effort_instruction = match eff {
+                "low" => "\n\n[REASONING EFFORT: LOW]\nProvide concise, direct answers. Limit internal deliberation and prioritize fast, direct action.",
+                "medium" => "\n\n[REASONING EFFORT: MEDIUM]\nBalance thorough analysis with concise execution. Formulate a structured plan before executing.",
+                "high" => "\n\n[REASONING EFFORT: HIGH]\nPerform exhaustive, deep reasoning and verification. Scrutinize all edge cases, evaluate alternatives, and verify each step with highest precision.",
+                _ => "",
+            };
+            if !effort_instruction.is_empty() {
+                system_prompt.push_str(effort_instruction);
+            }
+        }
+    }
     if let Ok(Some(memory)) = crate::db::get_chat_memory(connection, task_id) {
         system_prompt.push_str("\n\n[TASK MEMORY - PRESERVE THIS CONTEXT]\n");
         system_prompt.push_str(&memory);
@@ -585,13 +681,19 @@ pub async fn create_task(
         watcher_model: app_settings.watcher_model,
         browser_mode: app_settings.browser_mode,
         browser_executable_path: app_settings.browser_executable_path,
+        master_effort: app_settings.master_effort,
+        worker_effort: app_settings.worker_effort,
+        verifier_effort: app_settings.verifier_effort,
+        watcher_effort: app_settings.watcher_effort,
+        vision_model: app_settings.vision_model,
+        vision_effort: app_settings.vision_effort,
     };
 
     connection
         .execute(
-            "INSERT INTO tasks (id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![task.id, task.title, task.status, task.budget_credits, task.spent_credits, task.created_at, task.updated_at, task.master_model, task.worker_model, task.verifier_model, task.watcher_model, task.browser_mode, task.browser_executable_path],
+            "INSERT INTO tasks (id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path, master_effort, worker_effort, verifier_effort, watcher_effort, vision_model, vision_effort)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+            params![task.id, task.title, task.status, task.budget_credits, task.spent_credits, task.created_at, task.updated_at, task.master_model, task.worker_model, task.verifier_model, task.watcher_model, task.browser_mode, task.browser_executable_path, task.master_effort, task.worker_effort, task.verifier_effort, task.watcher_effort, task.vision_model, task.vision_effort],
         )
         .map_err(|e| format!("Failed to create the task: {}", e))?;
 
@@ -607,7 +709,7 @@ pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<TaskDto>, Stri
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
     let mut statement = connection
-        .prepare("SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path FROM tasks ORDER BY updated_at DESC")
+        .prepare("SELECT id, title, status, budget_credits, spent_credits, created_at, updated_at, master_model, worker_model, verifier_model, watcher_model, browser_mode, browser_executable_path, master_effort, worker_effort, verifier_effort, watcher_effort, vision_model, vision_effort FROM tasks ORDER BY updated_at DESC")
         .map_err(|e| format!("Failed to prepare the task list query: {}", e))?;
 
     let rows = statement
@@ -1154,7 +1256,7 @@ async fn execute_user_turn(
             task.title = title;
         }
 
-        let history = load_master_history(&connection, task_id, &task.master_model)?;
+        let history = load_master_history(&connection, task_id, &task.master_model, Some(&task.master_effort))?;
         let current_spend = task.spent_credits;
         let master_model = task.master_model.clone();
         (
@@ -1225,6 +1327,8 @@ async fn execute_user_turn(
         || std::env::var("ZEUS_UNLIMITED_BUDGET").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
         || gateway::is_local_model(&master_model);
 
+    let mut transient_stream_retries: usize = 0;
+
     // 2) Orchestration loop. Each iteration may add directive-result messages
     //    to `history` (and persist them) before re-calling the master.
     for iteration in 0..orchestrator::max_orchestration_iterations() {
@@ -1281,9 +1385,17 @@ async fn execute_user_turn(
             ).optional().ok().flatten()
         };
         if let Some(plan) = &injected_plan {
+            let plan_markdown = if plan.trim_start().starts_with('{') {
+                serde_json::from_str::<serde_json::Value>(plan)
+                    .ok()
+                    .and_then(|v| v.get("markdown").and_then(|m| m.as_str()).map(|s| s.to_string()))
+                    .unwrap_or_else(|| plan.clone())
+            } else {
+                plan.clone()
+            };
             history.push(ChatMessage {
                 role: "system".into(),
-                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]\n{}", plan),
+                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]\n{}", plan_markdown),
             });
         }
 
@@ -1300,7 +1412,7 @@ async fn execute_user_turn(
             crate::logger::log(task_id, "orchestrator", &format!("Sending payload to master model '{}' ({} messages, ~{} bytes)", master_model, history.len(), payload_size));
 
             let stream_future =
-                gateway::stream_model_reply(&master_model, &history, move |event| {
+                gateway::stream_model_reply(&master_model, &history, Some(&task.master_effort), move |event| {
                     if let gateway::StreamEventPayload::Delta { text } = &event {
                         if let Ok(mut lock) = partial_text_clone.lock() {
                             lock.push_str(text);
@@ -1354,8 +1466,11 @@ async fn execute_user_turn(
             let _ = history.pop();
         }
 
-        let (reply_text, _reasoning_summary, usage, usage_json, model_used) = match stream_result {
-            Ok(v) => v,
+        let (mut reply_text, reasoning_summary, usage, usage_json, model_used) = match stream_result {
+            Ok(v) => {
+                transient_stream_retries = 0;
+                v
+            }
             Err(e) => {
                 if e == "BUDGET_EXCEEDED" {
                     let mut note = new_message(
@@ -1366,6 +1481,14 @@ async fn execute_user_turn(
                     persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
                     produced_final = true;
                     break;
+                }
+
+                // Transient stream or connection timeout/drop: retry up to 2 times
+                if (e.contains("timed out") || e.contains("connection") || e.contains("stream read failed")) && transient_stream_retries < 2 {
+                    transient_stream_retries += 1;
+                    crate::logger::log(&task_id, "gateway", &format!("Transient LLM stream error ({}), retrying iteration (attempt {}/2)...", e, transient_stream_retries));
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    continue;
                 }
 
                 // Persist the failure as an event so it survives reloads.
@@ -1391,6 +1514,10 @@ async fn execute_user_turn(
             }
         };
 
+        if reply_text.trim().is_empty() && !reasoning_summary.trim().is_empty() {
+            reply_text = reasoning_summary.clone();
+        }
+
         let model_name = model_used.unwrap_or_else(|| master_model.clone());
 
         // Persist the spend for this iteration.
@@ -1402,6 +1529,16 @@ async fn execute_user_turn(
             record_spend(&connection, &task_id, &model_name, &usage, &usage_json)?
         };
         current_spend += units;
+
+        if reply_text.trim().is_empty() {
+            crate::logger::log(&task_id, "orchestrator", "Master returned empty content, prompting for directive");
+            let retry_prompt = "[SYSTEM AUTO-CONTINUATION]: Your previous response was empty. Please output your action plan or next `zeus-directive` now to execute the task.".to_string();
+            history.push(ChatMessage {
+                role: "user".into(),
+                content: retry_prompt,
+            });
+            continue;
+        }
 
         match orchestrator::parse_master_reply(&reply_text) {
             orchestrator::MasterReply::Text(text) => {
@@ -1441,10 +1578,18 @@ async fn execute_user_turn(
                     || lower.contains("starting with")
                     || lower.contains("generating")
                     || lower.contains("writing")
-                    || lower.contains("i need to")
-                    || lower.contains("next step");
+                    || lower.contains("i need to");
+                let is_question_to_user = (lower.contains("would you like")
+                    || lower.contains("do you want")
+                    || lower.contains("should i ")
+                    || lower.contains("shall i ")
+                    || lower.contains("please let me know")
+                    || lower.contains("please confirm")
+                    || lower.contains("can you clarify")
+                    || lower.contains("could you specify"))
+                    || (text.trim().ends_with('?') && !is_narration);
 
-                if plain_text_nudges < 3 && !text.contains('?') && is_narration {
+                if plain_text_nudges < 3 && !is_question_to_user && is_narration {
                     plain_text_nudges += 1;
                     crate::logger::log(
                         &task_id,
@@ -1472,14 +1617,14 @@ async fn execute_user_turn(
                 produced_final = true;
                 break;
             }
-            orchestrator::MasterReply::MalformedDirective(error, _extracted, raw) => {
+            orchestrator::MasterReply::MalformedDirective { preamble: _, error, raw } => {
                 crate::logger::log(
                     &task_id,
                     "orchestrator",
                     &format!("MALFORMED directive: {}", error),
                 );
                 let feedback = format!(
-                    "[DIRECTIVE_ERROR] Your directive block could not be parsed: {}. Re-emit exactly ONE valid ```zeus-directive block (single JSON object, nothing after the closing fence), or reply in plain text if no action is needed.",
+                    "[DIRECTIVE_ERROR] Your directive could not be executed: {}. None of your previous actions ran. Re-emit exactly ONE valid ```zeus-directive block now for the step you want to execute.",
                     error
                 );
                 let mut hidden_directive = new_message(
@@ -1510,6 +1655,7 @@ async fn execute_user_turn(
                     role: "user".into(),
                     content: feedback,
                 });
+                plain_text_nudges = 0;
                 // Loop: call the master again with the error feedback.
             }
             orchestrator::MasterReply::Directive(preamble, directive, raw) => {
@@ -1538,13 +1684,14 @@ async fn execute_user_turn(
                 }
 
                 let preamble_trimmed = preamble.trim();
-                if !preamble_trimmed.is_empty() {
+                let preamble_has_content = !preamble_trimmed.is_empty();
+                if preamble_has_content {
                     let mut preamble_msg = new_message(
                         &task_id,
                         "assistant",
                         "chat",
                         preamble_trimmed.to_string(),
-                        None,
+                        Some(units),
                         Some(model_name.clone()),
                         true,
                     );
@@ -1556,7 +1703,7 @@ async fn execute_user_turn(
                     "assistant",
                     "directive",
                     raw.clone(),
-                    Some(units),
+                    if preamble_has_content { None } else { Some(units) },
                     Some(model_name.clone()),
                     false,
                 );
@@ -1738,7 +1885,7 @@ async fn execute_user_turn(
                         });
                         // Loop: call the master again with the action result.
                     }
-                    Directive::UpdateActionPlan { action_plan, request_approval } => {
+                    Directive::UpdateActionPlan { action_plan, request_approval, steps } => {
                         let _prior_plans: i64 = {
                             let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
                             conn.query_row(
@@ -1748,9 +1895,19 @@ async fn execute_user_turn(
                             ).unwrap_or(0)
                         };
 
+                        let parsed_steps = match steps {
+                            Some(s) if !s.is_empty() => s,
+                            _ => orchestrator::parse_markdown_steps(&action_plan),
+                        };
+
+                        let stored_payload = serde_json::json!({
+                            "markdown": action_plan,
+                            "steps": parsed_steps,
+                        }).to_string();
+
                         let mut msg = new_message(
                             &task_id, "assistant", "action_plan",
-                            action_plan.clone(),
+                            stored_payload,
                             None, None, true,
                         );
                         persist_and_emit(&state, &app_handle, &task_id, &mut msg)?;
@@ -1855,7 +2012,8 @@ async fn execute_user_turn(
                                         let status = response.status();
                                         let text = response.text().await.unwrap_or_default();
                                         let truncated_text = if text.len() > 6000 {
-                                            format!("{}... [truncated remaining {} characters]", &text[..6000], text.len() - 6000)
+                                            let prefix = crate::utils::safe_truncate_str(&text, 6000);
+                                            format!("{}... [truncated remaining {} characters]", prefix, text.len() - prefix.len())
                                         } else {
                                             text
                                         };
@@ -1955,7 +2113,8 @@ async fn execute_user_turn(
                                     Ok(Ok(out)) => {
                                         let stdout = String::from_utf8_lossy(&out.stdout).to_string();
                                         let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                                        format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr)
+                                        let raw = format!("Exit Code: {}\nStdout: {}\nStderr: {}", out.status.code().unwrap_or(-1), stdout, stderr);
+                                        crate::output_compressor::compress_tool_output(&task_id, "run_command", &raw, out.status.code())
                                     }
                                     Ok(Err(e)) => format!("Failed to execute command: {}", e),
                                     Err(_) => "Command timed out after 1800 seconds.".to_string(),
@@ -2002,14 +2161,14 @@ async fn execute_user_turn(
                             }
                         }
                     }
-                    Directive::ReadFile { path } => {
+                    Directive::ReadFile { path, start_line, end_line, limit } => {
                         let verdict = {
                             let conn = state.db.lock().map_err(|e| e.to_string())?;
                             crate::gatekeeper::evaluate_file_permission(&conn, &task_id, &path, "read").unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
                         };
                         match verdict {
                             crate::gatekeeper::PermissionVerdict::Allow => {
-                                let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::ReadFile { path: path.clone() }).await {
+                                let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::ReadFile { path: path.clone(), start_line, end_line, limit }).await {
                                     Ok(text) => text,
                                     Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
                                 };
@@ -2026,8 +2185,12 @@ async fn execute_user_turn(
                                 history.push(ChatMessage { role: "user".into(), content: msg });
                             }
                             crate::gatekeeper::PermissionVerdict::Ask => {
-                                let summary = format!("Read File: `{}`", path);
-                                let blocked_dir = Directive::ReadFile { path: path.clone() };
+                                let summary = if let (Some(s), Some(e)) = (start_line, end_line) {
+                                    format!("Read File: `{}` (lines {}-{})", path, s, e)
+                                } else {
+                                    format!("Read File: `{}`", path)
+                                };
+                                let blocked_dir = Directive::ReadFile { path: path.clone(), start_line, end_line, limit };
                                 let mut approval_message = new_message(
                                     &task_id, "event", "approval",
                                     serde_json::json!({ "summary": summary, "detail": "", "status": "pending", "blocked_directive": blocked_dir }).to_string(),
@@ -2369,6 +2532,15 @@ async fn execute_user_turn(
                         persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { role: "user".into(), content: feedback });
                     }
+                    Directive::AnalyzeVisual { image_path, query } => {
+                        let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::AnalyzeVisual { image_path, query }).await {
+                            Ok(text) => text,
+                            Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
+                        };
+                        let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
+                        persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
+                        history.push(ChatMessage { role: "user".into(), content: feedback });
+                    }
             }
         }
     }
@@ -2423,21 +2595,41 @@ pub async fn rename_task(
     Ok(())
 }
 
+fn default_effort_val() -> String {
+    "default".to_string()
+}
+
 #[derive(serde::Deserialize)]
 pub struct TaskSettingsDto {
     pub master_model: String,
     pub worker_model: String,
     pub verifier_model: String,
     pub watcher_model: String,
+    #[serde(default = "default_vision_val")]
+    pub vision_model: String,
     pub budget_credits: i64,
+    #[serde(default = "default_effort_val")]
+    pub master_effort: String,
+    #[serde(default = "default_effort_val")]
+    pub worker_effort: String,
+    #[serde(default = "default_effort_val")]
+    pub verifier_effort: String,
+    #[serde(default = "default_effort_val")]
+    pub watcher_effort: String,
+    #[serde(default = "default_effort_val")]
+    pub vision_effort: String,
+}
+
+fn default_vision_val() -> String {
+    "gemini-3.8-flash".to_string()
 }
 
 #[tauri::command]
 pub fn update_task_settings(state: State<'_, AppState>, task_id: String, settings: TaskSettingsDto) -> Result<(), String> {
     let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     connection.execute(
-        "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4, budget_credits = ?5 WHERE id = ?6",
-        params![settings.master_model, settings.worker_model, settings.verifier_model, settings.watcher_model, settings.budget_credits, task_id],
+        "UPDATE tasks SET master_model = ?1, worker_model = ?2, verifier_model = ?3, watcher_model = ?4, budget_credits = ?5, master_effort = ?6, worker_effort = ?7, verifier_effort = ?8, watcher_effort = ?9, vision_model = ?10, vision_effort = ?11 WHERE id = ?12",
+        params![settings.master_model, settings.worker_model, settings.verifier_model, settings.watcher_model, settings.budget_credits, settings.master_effort, settings.worker_effort, settings.verifier_effort, settings.watcher_effort, settings.vision_model, settings.vision_effort, task_id],
     ).map_err(|e| format!("Failed to update task settings: {}", e))?;
     Ok(())
 }
@@ -2511,7 +2703,7 @@ pub(crate) async fn execute_gated_native_directive(
             crate::gatekeeper::evaluate_command_action(&conn, task_id, command)
                 .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
         }
-        Directive::ReadFile { path } => {
+        Directive::ReadFile { path, .. } => {
             let conn = state.db.lock().map_err(|e| e.to_string())?;
             crate::gatekeeper::evaluate_file_permission(&conn, task_id, path, "read")
                 .unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
@@ -2535,6 +2727,11 @@ pub(crate) async fn execute_gated_native_directive(
             }
             v
         }
+        Directive::AnalyzeVisual { image_path, .. } => {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            crate::gatekeeper::evaluate_file_permission(&conn, task_id, image_path, "read")
+                .unwrap_or(crate::gatekeeper::PermissionVerdict::Allow)
+        }
         Directive::RecallMessages { .. } => crate::gatekeeper::PermissionVerdict::Allow,
         _ => return Err("Not a gated native directive".into()),
     };
@@ -2552,12 +2749,25 @@ pub(crate) async fn execute_gated_native_directive(
             let summary = match &directive {
                 Directive::HttpRequest { url, method, .. } => format!("Run Network Request: {} {}", method, url),
                 Directive::RunCommand { command, .. } => format!("Run Command: `{}`", command),
-                Directive::ReadFile { path } => format!("Read File: `{}`", path),
+                Directive::ReadFile { path, start_line, end_line, .. } => {
+                    if let (Some(s), Some(e)) = (start_line, end_line) {
+                        format!("Read File: `{}` (lines {}-{})", path, s, e)
+                    } else {
+                        format!("Read File: `{}`", path)
+                    }
+                }
                 Directive::WriteFile { path, .. } => format!("Write File: `{}`", path),
                 Directive::DeleteFile { path } => format!("Delete File: `{}`", path),
                 Directive::ListDir { path } => format!("List Directory: `{}`", path),
                 Directive::SearchFiles { path, pattern } => format!("Search Files in `{}` for `{}`", path, pattern),
+                Directive::AnalyzeVisual { image_path, query } => format!("Analyze Visual Image `{}` with query: {}", image_path, query),
                 _ => "Permission required".into(),
+            };
+            let detail = match &directive {
+                Directive::HttpRequest { url, .. } => url.clone(),
+                Directive::RunCommand { command, .. } => command.clone(),
+                Directive::ReadFile { path, .. } | Directive::WriteFile { path, .. } | Directive::DeleteFile { path } => path.clone(),
+                _ => String::new(),
             };
             let mut approval_message = new_message(
                 task_id,
@@ -2565,7 +2775,7 @@ pub(crate) async fn execute_gated_native_directive(
                 "approval",
                 serde_json::json!({
                     "summary": summary,
-                    "detail": "",
+                    "detail": detail,
                     "status": "pending",
                     "blocked_directive": directive,
                 })
@@ -2740,6 +2950,44 @@ pub async fn wait_for_approval(
     }
 }
 
+#[tauri::command]
+pub async fn save_task_attachment(
+    task_id: String,
+    filename: String,
+    base64_data: String,
+) -> Result<String, String> {
+    let workspace = crate::utils::task_workspace(&task_id)?;
+    let attachments_dir = workspace.join("attachments");
+    tokio::fs::create_dir_all(&attachments_dir)
+        .await
+        .map_err(|e| format!("Failed to create attachments dir: {}", e))?;
+
+    let safe_name = std::path::Path::new(&filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("attachment.bin");
+
+    let clean_b64 = if let Some(idx) = base64_data.find(";base64,") {
+        &base64_data[idx + 8..]
+    } else if let Some(idx) = base64_data.find(',') {
+        &base64_data[idx + 1..]
+    } else {
+        &base64_data
+    };
+
+    use base64::prelude::*;
+    let bytes = BASE64_STANDARD
+        .decode(clean_b64.trim())
+        .map_err(|e| format!("Invalid base64 attachment data: {}", e))?;
+
+    let file_path = attachments_dir.join(safe_name);
+    tokio::fs::write(&file_path, bytes)
+        .await
+        .map_err(|e| format!("Failed to write attachment file: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2840,21 +3088,21 @@ mod tests {
             ChatMessage { role: "system".into(), content: "system prompt with memory".into() },
             ChatMessage { role: "user".into(), content: "original initial task request".into() },
         ];
-        // Add 20 intermediate turns
-        for i in 0..20 {
+        // Add 70 intermediate turns
+        for i in 0..70 {
             history.push(ChatMessage {
                 role: if i % 2 == 0 { "assistant".into() } else { "user".into() },
                 content: format!("Step {} action or tool output with lots of details", i),
             });
         }
-        assert_eq!(history.len(), 22);
+        assert_eq!(history.len(), 72);
         let compacted = compact_master_history(history);
-        // Should keep system (0), initial user (1), compacted summary (2), and last 6 recent turns (3..9) = 9 total
-        assert_eq!(compacted.len(), 9);
+        // Should keep system (0), initial user (1), compacted summary (2), and last 20 recent turns = 23 total
+        assert_eq!(compacted.len(), 23);
         assert_eq!(compacted[0].content, "system prompt with memory");
         assert_eq!(compacted[1].content, "original initial task request");
         assert!(compacted[2].content.contains("[CONVERSATION MILESTONES (COMPACTED)]"));
         assert!(compacted[2].content.contains("recall_messages"));
-        assert_eq!(compacted.last().unwrap().content, "Step 19 action or tool output with lots of details");
+        assert_eq!(compacted.last().unwrap().content, "Step 69 action or tool output with lots of details");
     }
 }

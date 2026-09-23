@@ -74,9 +74,9 @@ try {
 
         // Setup Task with Models
         await setupAdvancedTask(page, "Self-Healing Test", {
-            "Master": "deepseek/deepseek-chat",
-            "Worker": "deepseek/deepseek-chat",
-            "Verifier": "deepseek/deepseek-chat"
+            "Master": "zai-org/GLM-5.3-Flash",
+            "Worker": "gpt-5.6-luna",
+            "Verifier": "zai-org/GLM-5.3-Flash"
         });
 
         // Setup Global Permission for mathProjectDir
@@ -85,33 +85,34 @@ try {
         await expect(settingsModal).toBeVisible();
 
         const permInput = settingsModal.locator('input[placeholder="C:/Projects or /home/user"]');
+        const permRow = permInput.locator('xpath=..');
 
         await permInput.focus();
         await permInput.fill('node');
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('command');
-        await expect(settingsModal.locator('button:has-text("Add")')).toBeEnabled();
-        await settingsModal.locator('button:has-text("Add")').click();
+        await permRow.locator('select').nth(0).selectOption('allow');
+        await permRow.locator('select').nth(1).selectOption('command');
+        await expect(permRow.locator('button:has-text("Add")')).toBeEnabled();
+        await permRow.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 
         // Also add Write permission
         await permInput.focus();
         await permInput.fill('');
         await permInput.fill(mathProjectDir);
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('write');
-        await expect(settingsModal.locator('button:has-text("Add")')).toBeEnabled();
-        await settingsModal.locator('button:has-text("Add")').click();
+        await permRow.locator('select').nth(0).selectOption('allow');
+        await permRow.locator('select').nth(1).selectOption('write');
+        await expect(permRow.locator('button:has-text("Add")')).toBeEnabled();
+        await permRow.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 
         // Also add Read permission
         await permInput.focus();
         await permInput.fill('');
         await permInput.fill(mathProjectDir);
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('read');
-        await expect(settingsModal.locator('button:has-text("Add")')).toBeEnabled();
-        await settingsModal.locator('button:has-text("Add")').click();
+        await permRow.locator('select').nth(0).selectOption('allow');
+        await permRow.locator('select').nth(1).selectOption('read');
+        await expect(permRow.locator('button:has-text("Add")')).toBeEnabled();
+        await permRow.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 
         await page.keyboard.press('Escape');

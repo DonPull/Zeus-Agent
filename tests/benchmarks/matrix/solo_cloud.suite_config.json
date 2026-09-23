@@ -1,0 +1,15 @@
+{
+  "architecture": "solo",
+  "description": "Single unified master (local_master-style) on one cloud model. For A/B vs team multi-agent. Use ZEUS_BENCH_ARCH=solo.",
+  "master_model": "zai-org/GLM-5.3-Flash",
+  "worker_model": "zai-org/GLM-5.3-Flash",
+  "verifier_model": "zai-org/GLM-5.3-Flash",
+  "watcher_model": "zai-org/GLM-5.3-Flash",
+  "vision_model": "gemini-3.8-flash",
+  "budget_credits": 500000,
+  "browser_mode": "sandboxed",
+  "prompt_timeout_ms": 1500000,
+  "turn_timeout_ms": 900000,
+  "execution_mode": "unified",
+  "notes": "Prefer single-agent prompt path when available (local_master or equivalent)."
+}

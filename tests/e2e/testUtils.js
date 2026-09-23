@@ -94,6 +94,7 @@ async function launchTauri(useRealApi = false) {
     const env = {
       ...process.env,
       ZEUS_TEST_WORKSPACE_ROOT: testWorkspaceDir,
+      ZEUS_EVAL_MODE: "1",
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`, // Ensure WebView2 gets the port
       WEBVIEW2_USER_DATA_FOLDER: path.join(testWorkspaceDir, `wv2_${cdpPort}`)
     };

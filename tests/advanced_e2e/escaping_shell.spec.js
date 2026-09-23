@@ -56,8 +56,8 @@ test.describe('Advanced E2E - Escaping Shell Command', () => {
 
         await permInput.focus();
         await permInput.fill('echo');
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('command');
+        await settingsModal.locator('#permission-action-select').selectOption('allow');
+        await settingsModal.locator('#permission-type-select').selectOption('command');
         await settingsModal.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 

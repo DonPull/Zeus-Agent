@@ -1,6 +1,6 @@
 # Zeus Agent: Project Handover & Architecture Overview
 
-This document provides a comprehensive overview of the Zeus Agent project. It outlines the core vision, the technical architecture, currently implemented features, and the roadmap for future development. It is designed to serve as a high-level technical handover for developers and architects.
+This document provides a comprehensive overview of the Zeus Agent project. It outlines the core vision, technical architecture, currently implemented features, and the roadmap for future development. It is designed to serve as an authoritative technical handover for developers and architects.
 
 ---
 
@@ -13,6 +13,7 @@ The primary vision for Zeus Agent is to transcend the traditional "chatbot" para
 * **Recoverability:** If an agent encounters an error (e.g., a broken script, a blocked website, or a missing dependency), it should attempt to self-heal and find alternative routes rather than halting completely.
 * **Observability:** The user must always have a clear view into what the agent is doing, why it is doing it, and what resources (e.g., LLM tokens/budget) it is consuming.
 * **Durable State:** The agent's progress, state, and conversation history must be durably persisted. If the application crashes, the state is fully recoverable.
+* **Cognitive Budget Governance:** Providing user control over model reasoning effort (`low`, `medium`, `high`), enabling intentional optimization between computational intelligence and token cost.
 
 ---
 
@@ -24,22 +25,26 @@ Zeus Agent operates on a thick-client architecture combining a high-performance 
 * **Backend:** Rust, Tauri 2.0, Tokio (for async/concurrency).
 * **Frontend:** React 18, Vite, `react-markdown` (for rendering agent outputs).
 * **Database:** SQLite (`rusqlite`), which serves as the authoritative source of truth.
-* **LLM Gateway:** `reqwest` is used to communicate with various LLM providers (e.g., DeepSeek, Anthropic, OpenAI, Abacus).
+* **LLM Gateway:** `reqwest` communicates with LLM providers (Abacus AI RouteLLM, Google Gemini, OpenAI-compatible local endpoints like Ollama / `llama.cpp`).
+* **Security/Secrets:** Windows Credential Manager stores API tokens securely.
 
 ### System Components
 
-1. **The Database (SQLite) as the Source of Truth:**
-   The architecture strictly adheres to a "persist before emit" invariant. Every message, task, and state transition is inserted into SQLite to receive an authoritative sequence ID (`seq`) *before* it is broadcast to the frontend. The React frontend is purely a projection of the database; it does not invent optimistic chat messages.
+1. **The Database (SQLite) as the Authoritative Source of Truth:**
+   The architecture strictly adheres to a "persist before emit" invariant. Every message, task, and state transition is inserted into SQLite to receive an authoritative sequence ID (`seq`) *before* it is broadcast to the frontend. The React frontend is purely a projection of the database; it never invents optimistic chat messages.
 
-2. **The Agent Hierarchy:**
-   The runtime utilizes a multi-agent system to divide labor and enforce quality control:
-   * **Master Agent:** The primary orchestrator. It receives the high-level user goal, creates an implementation plan, interacts with the local file system, runs shell commands, and delegates complex tasks.
-   * **Worker Agents:** Spawned by the Master Agent to execute constrained sub-tasks (e.g., performing a web search, scraping a site, or navigating a web portal). Workers are equipped with Playwright for browser automation.
-   * **Verifier:** An evaluation LLM (often utilizing a different model, like Grok) that reviews a Worker's output against the Master's success criteria. If the output fails verification, it generates feedback and forces the Worker to retry.
-   * **Watcher:** A monitoring LLM designed to detect infinite loops, hallucination traps, or budget exhaustion, ensuring the agent doesn't spin endlessly on an impossible task.
+2. **Dual Execution Engine:**
+   * **Cloud API Mode (Multi-Agent Hierarchy):**
+     * **Master Agent:** Decomposes user goals, plans workflows, and delegates sub-tasks.
+     * **Worker Agents:** Spawned in isolated sandboxes to execute focused sub-tasks (Python scripts, browser scraping, file transformations).
+     * **Verifier Agent:** An independent evaluation LLM validating Worker output against strict criteria before sub-task resolution.
+     * **Watcher AI:** A cognitive security layer monitoring browser interactions and halting risky DOM actions.
+   * **Local Model Mode (Unified Single-Agent Engine):**
+     * Powered by `src-tauri/src/prompts/local_master.txt`.
+     * Collapses planning, host directive execution, and verification into a single-pass loop to optimize consumer VRAM and compute.
 
-3. **The Gatekeeper (Permissions System):**
-   A strict, zero-trust interception layer. When the Master Agent or a sandboxed script attempts to perform a sensitive action (e.g., writing to a file, making an HTTP request, or running a CLI command), the Gatekeeper intercepts the directive. It emits a "Pending Approval" card to the React frontend, halting execution until the user explicitly approves or denies the action.
+3. **The Gatekeeper (Permissions & Capability System):**
+   A strict, zero-trust interception layer. Filesystem access is governed by hierarchical scopes (`task:<task_id>` $\rightarrow$ `global`), while shell commands are validated against safe developer tool prefixes (`cargo`, `npm`, `npx playwright`, `git`, `python`, `node`, `pytest`, `dir`). Chained and composite commands are decomposed and validated recursively. Newly created session files are automatically authorized for the active task.
 
 4. **Python Execution Sandbox:**
    The backend includes a dedicated module (`python_runner.rs`) for safely spawning and executing Python scripts generated by the agent. The sandbox handles dependency management (e.g., running `pip install`), pipes `stdout`/`stderr` back to the UI in real-time, and provides environment variables (like the CDP websocket endpoint) so scripts can hook into active browser sessions.
@@ -51,28 +56,37 @@ Zeus Agent operates on a thick-client architecture combining a high-performance 
 
 ## 3. Current State & Implemented Features
 
-At present, the foundation of the Zeus runtime is firmly established. While software is always evolving, the following capabilities are currently active in the codebase:
+At present, the foundation of the Zeus runtime is fully established and proven:
 
-* **End-to-End Task Delegation:** The Master Agent can successfully spin up Worker Agents, provide them with success criteria, and await their verified results.
-* **Local Workspace Manipulation:** The agent can search for files, read file contents, write new code/configurations, and execute terminal commands (like compiling projects or scaffolding templates).
-* **Browser Automation (Playwright):** Workers can launch browsers (headed or headless) to navigate the web, bypass basic blocks, and scrape data. Python scripts executed by the Master can also connect to this browser instance over CDP (Chrome DevTools Protocol).
-* **Self-Healing Execution:** Through the Verifier loop, if a Worker fails to meet criteria, it is given feedback and retries automatically.
-* **Interactive Approvals:** The UI successfully intercepts actions, presenting them to the user for approval. 
-* **Advanced E2E Test Suite:** A robust automated testing framework that executes real, multi-turn combination scenarios (e.g., "The Iterative Builder", "The Local Configurator") using actual LLMs, ensuring that integrations between file IO, web browsing, and Python execution remain stable.
+* **100% Benchmark Completion (10 / 10 Pass Rate):**
+  The runtime has passed the entire Zeus Agentic Benchmark suite covering 10 real-world, multi-turn challenges:
+  1. Localized Marketing Asset Generation & Weather Integration (`sofia_weather_flyer_campaign`)
+  2. Financial Due Diligence & Quantitative Stock Analysis (`financial_stock_dossier`)
+  3. Standalone ETL Pipeline Scaffolding & Schema Evolution (`sqlite_pipeline_migration`)
+  4. External Codebase Bug Localization & Test Repair (`sample_project_bug_repair`)
+  5. Brand Guidelines Memory Anchoring & Responsive Showcase (`brand_guidelines_memory_recall`)
+  6. Public Data Scraping, Statistical Aggregation & Heatmap (`resilient_data_scraper_heatmap`)
+  7. Deep File Search, Parsing & Fuzzy Financial Reconciliation (`workspace_search_and_reconciliation`)
+  8. Canva Creative Research & Programmatic Asset Generation (`canva_design_to_code`)
+  9. Large Server Log Clustering & Incident Remediation Script (`log_outage_diagnostic_script`)
+  10. Multi-Stage Autonomous Workflow Execution (`autonomous_workflow_marathon`)
+* **Local Single-Agent Engine:** Fully integrated with auto-continuation loops, intermediate narration pruning, and host directive execution.
+* **Browser Automation (Playwright + Stealth):** Profile cloning from `.zeus/parent_browser_profile`, anti-bot evasion, and Cookie Vault authentication.
+* **Interactive Approval Cards:** Seamless UI interception for unverified network actions and terminal commands.
+* **Dual Wire Protocol Gateway:** Native support for both the OpenAI Responses API (`/v1/responses` with reasoning summary streaming) and Chat Completions (`/v1/chat/completions` with in-flight `<think>` filtering).
 
 ---
 
 ## 4. Planned Features & Roadmap
 
-While the core mechanics are operational, the vision for Zeus Agent includes several planned milestones to elevate it to a production-ready assistant.
-
 * **Resource Ledger & Model Strategy (P3):**
-  Implementing a granular budget system (tracking "units" or tokens consumed) to prevent runaway costs. This includes dynamically switching between model tiers (e.g., using a smaller, cheaper model for simple file operations and a massive reasoning model for complex debugging) based on the task complexity and remaining budget.
+  - **Reasoning Effort Selector UI**: Exposing an Effort Level selector (`low`, `medium`, `high`) in `SettingsModal.jsx` and `TaskSettingsModal.jsx`.
+  - **Gateway Reasoning Effort Ingestion**: Passing `reasoning_effort` (Chat Completions) and `"reasoning": { "effort": "..." }` (Responses API) through to Abacus AI RouteLLM and upstream reasoning models.
+  - **Dynamic Tier Switching**: Automatically downgrading effort level or model tier for lightweight tasks (file search, formatting) and upgrading to `high` effort for architectural debugging.
 * **Expanded System & Browser Tools (P4):**
-  Enhancing the native capabilities of the agent, potentially allowing deeper OS integrations (like window management, specific application APIs) and more resilient browser actions (handling complex shadow DOMs, iframes, and dynamic SPA states more reliably).
+  - Enhancing OS integrations (window management, native clipboard) and deeper browser capabilities (shadow DOM traversal, complex iframe automation).
 * **Production Hardening (P5):**
-  Refining error handling, optimizing the frontend virtualization for massive chat histories, and ensuring the SQLite database is strictly optimized against race conditions and lock contention under heavy async loads.
-* **Advanced Watcher Heuristics:**
-  Further developing the Watcher AI to proactively detect when an agent is caught in an "impossible loop" (e.g., repeatedly trying to scrape a site protected by Cloudflare) and forcing it to pivot its strategy or ask the user for help *before* burning through the budget.
+  - Virtualized message lists in the React UI for massive chat histories (>1,000 turns).
+  - SQLite WAL mode optimizations and index hardening under heavy concurrent loads.
 * **Skill Creation / Distillation:**
-  The ability for the agent to take a successful, multi-turn manual workflow (e.g., "how I just deployed this AWS lambda") and distill it into a reusable, automated "Skill" for future use.
+  - Automated distillation of successful multi-turn workflows into reusable, versioned agent skills (`.agents/skills/`).

@@ -54,15 +54,15 @@ test.describe('Advanced E2E - Agent Capability', () => {
 
         await permInput.focus();
         await permInput.fill(sandboxDir);
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('write');
+        await settingsModal.locator('#permission-action-select').selectOption('allow');
+        await settingsModal.locator('#permission-type-select').selectOption('write');
         await settingsModal.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 
         await permInput.focus();
         await permInput.fill('node');
-        await settingsModal.locator('select').nth(0).selectOption('allow');
-        await settingsModal.locator('select').nth(1).selectOption('command');
+        await settingsModal.locator('#permission-action-select').selectOption('allow');
+        await settingsModal.locator('#permission-type-select').selectOption('command');
         await settingsModal.locator('button:has-text("Add")').click();
         await page.waitForTimeout(300);
 

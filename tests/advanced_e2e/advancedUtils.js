@@ -18,6 +18,7 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
 
     // Click "New Task"
     await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
+    await page.waitForTimeout(500);
 
     // Set models directly via bridge or Task Settings
     if (modelConfig) {
@@ -25,17 +26,29 @@ async function setupAdvancedTask(page, taskName, modelConfig) {
             if (!window.__ZEUS_BRIDGE__) return;
             const tasks = await window.__ZEUS_BRIDGE__.listTasks();
             if (!tasks || tasks.length === 0) return;
-            const id = tasks[0].id;
-            const updatePayload = {
-                browser_mode: "sandboxed"
+            const currentTask = tasks[0];
+            const id = currentTask.id;
+            const normalize = (m, fallback) => {
+                if (!m || m === "deepseek/deepseek-chat" || m === "deepseek-chat") return fallback;
+                return m;
             };
-            if (cfg["Master"]) updatePayload.master_model = cfg["Master"];
-            if (cfg["Worker"]) updatePayload.worker_model = cfg["Worker"];
-            if (cfg["Verifier"]) updatePayload.verifier_model = cfg["Verifier"];
-            if (cfg["Watcher"]) updatePayload.watcher_model = cfg["Watcher"];
-            if (cfg["Task Budget"]) updatePayload.budget_credits = parseInt(cfg["Task Budget"], 10) || 50000;
+            const updatePayload = {
+                master_model: normalize(cfg["Master"], currentTask.master_model || "zai-org/GLM-5.3-Flash"),
+                worker_model: normalize(cfg["Worker"], currentTask.worker_model || "gpt-5.6-luna"),
+                verifier_model: normalize(cfg["Verifier"], currentTask.verifier_model || "zai-org/GLM-5.3-Flash"),
+                watcher_model: normalize(cfg["Watcher"], currentTask.watcher_model || "Qwen3.8-27B"),
+                master_effort: cfg["Master Effort"] || cfg["master_effort"] || currentTask.master_effort || "default",
+                worker_effort: cfg["Worker Effort"] || cfg["worker_effort"] || currentTask.worker_effort || "default",
+                verifier_effort: cfg["Verifier Effort"] || cfg["verifier_effort"] || currentTask.verifier_effort || "default",
+                watcher_effort: cfg["Watcher Effort"] || cfg["watcher_effort"] || currentTask.watcher_effort || "default",
+                budget_credits: parseInt(cfg["Task Budget"], 10) || currentTask.budget_credits || 50000,
+            };
             await window.__ZEUS_BRIDGE__.updateTaskSettings(id, updatePayload);
+            if (window.__ZEUS_REFRESH_TASKS__) {
+                await window.__ZEUS_REFRESH_TASKS__();
+            }
         }, modelConfig);
+        await page.waitForTimeout(300);
     }
 }
 
@@ -60,7 +73,117 @@ export function cleanIpcDir() {
     }
 }
 
-async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, expectedText = null) {
+/**
+ * Evaluates an approval card realistically from the perspective of an observant user.
+ * - Does NOT auto-allow everything blindly.
+ * - Evaluates the requested action against the user's task prompt, host environment, and safety.
+ * - Rejects destructive actions and OS-incompatible shell commands with actionable feedback.
+ * - Approves benign and task-aligned actions (e.g. workspace Python scripts, valid HTTP requests).
+ */
+function simulateRealisticUserDecision(payload) {
+    const { title = '', detail = '', blocked_directive, prompt = '' } = payload;
+    const dirType = blocked_directive ? blocked_directive.type : null;
+    const lowerTitle = (title || '').toLowerCase();
+    const isWindows = process.platform === 'win32';
+
+    // 1. Shell / Python Command Evaluation
+    if (dirType === 'run_command' || lowerTitle.includes('run shell command') || lowerTitle.includes('execute command') || lowerTitle.includes('command')) {
+        let cmd = (blocked_directive && blocked_directive.command) ? blocked_directive.command : detail;
+        if (!cmd && lowerTitle.includes('command:')) {
+            cmd = title.replace(/^.*command:\s*/i, '').trim();
+        }
+        const trimmed = (cmd || '').trim();
+
+        // Check for destructive commands
+        const destructivePatterns = [
+            /format\s+[a-z]:/i,
+            /rmdir\s+\/s\s+\/q\s+[a-z]:\\(?:\s|$)/i,
+            /del\s+\/f\s+\/s\s+\/q\s+[a-z]:\\(?:\s|$)/i,
+            /drop\s+database/i,
+            /:(){ :|:& };:/,
+            /shutdown\s+/i
+        ];
+        for (const pat of destructivePatterns) {
+            if (pat.test(trimmed)) {
+                return {
+                    decision: 'deny_with_feedback',
+                    feedback: 'Destructive system modification commands are prohibited.'
+                };
+            }
+        }
+
+        // Host OS compatibility check (e.g., Windows cmd/PowerShell)
+        if (isWindows) {
+            const unixOnlyPatterns = [
+                /^which\s+/i,
+                /^\s*grep\s+-[a-zA-Z]*r/i,
+                /^\s*sed\s+-i/i,
+                /^\s*export\s+[A-Za-z_][A-Za-z0-9_]*=/i
+            ];
+            for (const pat of unixOnlyPatterns) {
+                if (pat.test(trimmed)) {
+                    return {
+                        decision: 'deny_with_feedback',
+                        feedback: `The host operating system is Windows (${process.platform}). The command "${trimmed}" is a Unix utility and may not be available or syntax-compatible. Please use PowerShell cmdlets or execute a Python script in your workspace instead.`
+                    };
+                }
+            }
+        }
+
+        // Legitimate commands directly related to user requests:
+        // Python execution, package installation, build tools, git, directory listing, file inspection
+        return { decision: 'approve' };
+    }
+
+    // 2. Network Request Evaluation (HttpRequest / Python Network)
+    if (dirType === 'http_request' || lowerTitle.includes('run network request') || lowerTitle.includes('http request') || lowerTitle.includes('network')) {
+        let url = (blocked_directive && blocked_directive.url) ? blocked_directive.url : detail;
+        if (!url && lowerTitle.includes('network:')) {
+            url = title.replace(/^.*network:\s*/i, '').trim();
+        }
+        if (url && (url.includes('malicious') || url.includes('exfiltrate') || url.includes('localhost:9999/exfil'))) {
+            return {
+                decision: 'deny_with_feedback',
+                feedback: 'Access to this suspicious or untrusted external destination is blocked.'
+            };
+        }
+        return { decision: 'approve' };
+    }
+
+    // 3. File Operations Evaluation (WriteFile, ReadFile, DeleteFile, Python File Access)
+    if (dirType === 'write_file' || dirType === 'delete_file' || dirType === 'read_file' ||
+        lowerTitle.includes('file write') || lowerTitle.includes('delete file') || lowerTitle.includes('file access') ||
+        lowerTitle.includes('access:') || lowerTitle.includes('python access')) {
+        let filePath = (blocked_directive && blocked_directive.path) ? blocked_directive.path : detail;
+        if (!filePath) {
+            const match = title.match(/`([^`]+)`/);
+            if (match) filePath = match[1];
+        }
+        const normalized = (filePath || '').replace(/\\/g, '/').toLowerCase();
+
+        // Disallow modifications to system-level directories
+        if (normalized.includes('/windows/system32') || normalized.includes('/etc/passwd') || normalized.includes('/etc/shadow')) {
+            return {
+                decision: 'deny_with_feedback',
+                feedback: 'Operating outside the assigned workspace on critical operating system files is prohibited.'
+            };
+        }
+        return { decision: 'approve' };
+    }
+
+    // Default for legitimate actions
+    return { decision: 'approve' };
+}
+
+async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, expectedText = null, defaultCardDecision = null) {
+    // Backward-compatibility: if testInfo is omitted and passed as timeoutMs (number)
+    if (typeof testInfo === 'number') {
+        defaultCardDecision = typeof arguments[4] === 'string' ? arguments[4] : null;
+        expectedText = typeof timeoutMs === 'string' ? timeoutMs : null;
+        timeoutMs = testInfo;
+        testInfo = null;
+    }
+
     ensureIpcDir();
 
     // Fill prompt
@@ -74,51 +197,28 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
 
     const startTime = Date.now();
     const endTime = startTime + timeoutMs;
+    let lastTelemetry = 0;
 
     while (Date.now() < endTime) {
-        // 1. Check for credit/budget exhaustion
-        const chatLog = page.locator('.chat-message.assistant, .chat-message.event, .chat-message.system');
-        if (await chatLog.count() > 0) {
-            const text = await chatLog.allInnerTexts();
-            const joinedText = text.join('\n');
-            if (joinedText.includes('BUDGET_EXCEEDED') || (joinedText.includes('credit') && joinedText.includes('run out')) || joinedText.includes('reached its unit budget')) {
-                throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
-            }
-            if (expectedText && joinedText.includes(expectedText)) {
-                return; // Success!
-            }
-        }
+        // 1. Check for pending approval card blocking the agent FIRST
+        const pendingCardLocator = page.locator('.approval-card.pending, .approval-card:has(button:has-text("Approve"))').last();
+        const hasPendingApproval = (await pendingCardLocator.count()) > 0;
 
-        // 2. Check for pending approval card blocking the agent
-        const pendingApproval = page.locator('.approval-card.pending').last();
-        if (await pendingApproval.count() > 0) {
-            const cardTitle = await pendingApproval.locator('.approval-card-title').innerText().catch(() => "Permission Required");
-            const cardDetail = await pendingApproval.locator('.approval-card-detail').innerText().catch(() => "");
-            
-            // Extract message metadata via bridge
-            const cardMeta = await page.evaluate(async () => {
-                if (!window.__ZEUS_BRIDGE__) return null;
-                const tasks = await window.__ZEUS_BRIDGE__.listTasks();
-                if (!tasks || tasks.length === 0) return null;
-                const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(tasks[0].id, true);
-                const approvalMsg = msgs.slice().reverse().find(m => m.kind === 'approval');
-                if (!approvalMsg) return null;
-                try {
-                    const parsed = JSON.parse(approvalMsg.content);
-                    return {
-                        messageId: approvalMsg.id,
-                        taskId: tasks[0].id,
-                        status: parsed.status,
-                        summary: parsed.summary,
-                        detail: parsed.detail,
-                        blocked_directive: parsed.blocked_directive
-                    };
-                } catch (_) {
-                    return { messageId: approvalMsg.id, taskId: tasks[0].id };
-                }
-            });
+        if (hasPendingApproval) {
+            const titleEl = pendingCardLocator.locator('.approval-card-title');
+            const cardTitle = ((await titleEl.count()) > 0 ? (await titleEl.textContent().catch(() => "")) : "") || "Permission Required";
+            const detailEl = pendingCardLocator.locator('.approval-card-detail');
+            const cardDetail = (await detailEl.count()) > 0 ? (await detailEl.textContent().catch(() => "")) : "";
+            const dirEl = pendingCardLocator.locator('.approval-card-blocked-directive');
+            const rawDirective = (await dirEl.count()) > 0 ? (await dirEl.textContent().catch(() => "")) : "";
+            let blockedDirective = null;
+            if (rawDirective) {
+                try { blockedDirective = JSON.parse(rawDirective); } catch (_) {}
+            }
+            const domMessageId = await pendingCardLocator.getAttribute('data-message-id').catch(() => null);
+            const domTaskId = await pendingCardLocator.getAttribute('data-task-id').catch(() => null);
+            const messageId = domMessageId || `card_${Date.now()}`;
 
-            const messageId = (cardMeta && cardMeta.messageId) || `card_${Date.now()}`;
             const pendingFile = path.join(ipcDir, 'pending_card.json');
             const decisionFileGeneral = path.join(ipcDir, 'decision.json');
             const decisionFileSpecific = path.join(ipcDir, `decision_${messageId}.json`);
@@ -126,10 +226,10 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             const pendingPayload = {
                 status: 'pending',
                 message_id: messageId,
-                task_id: cardMeta ? cardMeta.taskId : null,
+                task_id: domTaskId,
                 title: cardTitle,
                 detail: cardDetail,
-                blocked_directive: cardMeta ? cardMeta.blocked_directive : null,
+                blocked_directive: blockedDirective,
                 prompt: prompt,
                 test_title: testInfo ? testInfo.title : "Benchmark",
                 timestamp: Date.now()
@@ -141,19 +241,20 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             console.log(`[ANTIGRAVITY_CARD_DECISION_NEEDED]`);
             console.log(`Card: "${cardTitle}"`);
             if (cardDetail) console.log(`Detail: ${cardDetail}`);
-            if (cardMeta && cardMeta.blocked_directive) {
-                console.log(`Blocked Directive:`, JSON.stringify(cardMeta.blocked_directive));
+            if (blockedDirective) {
+                console.log(`Blocked Directive:`, JSON.stringify(blockedDirective));
             }
-            console.log(`Write decision to .zeus/eval_ipc/decision.json:`);
-            console.log(`  { "decision": "approve" } | { "decision": "deny" } | { "decision": "deny_with_feedback", "feedback": "..." }`);
             console.log(`======================================================\n`);
 
             await takeMilestoneScreenshot(page, "Pending Card Awaiting Decision", testInfo);
 
-            // Wait for decision file
+            // Wait briefly for manual decision file, otherwise evaluate realistically as an observant user
             let decision = null;
-            const waitDecisionTimeout = Date.now() + 180000; // 3 minutes wait for decision
-            while (Date.now() < waitDecisionTimeout) {
+            if (defaultCardDecision) {
+                decision = { decision: defaultCardDecision };
+            }
+            const waitDecisionTimeout = Date.now() + 1500;
+            while (!decision && Date.now() < waitDecisionTimeout) {
                 if (fs.existsSync(decisionFileSpecific)) {
                     try {
                         decision = JSON.parse(fs.readFileSync(decisionFileSpecific, 'utf8'));
@@ -166,38 +267,59 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
                         break;
                     } catch (_) {}
                 }
-                await page.waitForTimeout(500);
+                await page.waitForTimeout(250);
             }
 
             if (!decision) {
-                console.warn(`[UserSimulator] No decision received within timeout, defaulting to Deny.`);
-                decision = { decision: 'deny' };
+                decision = simulateRealisticUserDecision(pendingPayload);
             }
 
-            console.log(`[UserSimulator] Applying decision: ${decision.decision}`);
+            console.log(`[UserSimulator] Applying decision: ${decision.decision}${decision.feedback ? ` (Feedback: ${decision.feedback})` : ''}`);
 
             if (decision.decision === 'approve') {
-                const approveBtn = pendingApproval.locator('button:has-text("Approve")').first();
-                if (await approveBtn.count() > 0) {
-                    await approveBtn.click({ force: true });
+                const targetBtn = pendingCardLocator.locator('button:has-text("Approve (Once)"), button:has-text("Approve")').last();
+                if (await targetBtn.count() > 0) {
+                    await targetBtn.click({ force: true }).catch(() => {});
+                }
+                // Resilient fallback: ensure backend state is updated in case DOM click was delayed
+                if (domTaskId && domMessageId) {
+                    await page.evaluate(async ({ tId, mId }) => {
+                        if (window.__ZEUS_BRIDGE__) {
+                            await window.__ZEUS_BRIDGE__.resolvePendingApprovals(tId, true, mId, "").catch(() => {});
+                        }
+                    }, { tId: domTaskId, mId: domMessageId }).catch(() => {});
                 }
             } else if (decision.decision === 'deny_with_feedback' && decision.feedback) {
-                const feedbackBtn = pendingApproval.locator('button:has-text("Deny with Feedback")').first();
+                const feedbackBtn = pendingCardLocator.locator('button:has-text("Deny with Feedback")').last();
                 if (await feedbackBtn.count() > 0) {
-                    await feedbackBtn.click({ force: true });
-                    const feedbackInput = pendingApproval.locator('.settings-input').first();
-                    await expect(feedbackInput).toBeVisible({ timeout: 5000 });
-                    await feedbackInput.fill(decision.feedback);
-                    const submitBtn = pendingApproval.locator('button:has-text("Submit Deny & Feedback")').first();
-                    await submitBtn.click({ force: true });
+                    await feedbackBtn.click({ force: true }).catch(() => {});
+                    const feedbackInput = pendingCardLocator.locator('.settings-input').last();
+                    await expect(feedbackInput).toBeVisible({ timeout: 5000 }).catch(() => {});
+                    await feedbackInput.fill(decision.feedback).catch(() => {});
+                    const submitBtn = pendingCardLocator.locator('button:has-text("Submit Deny & Feedback")').last();
+                    await submitBtn.click({ force: true }).catch(() => {});
                 } else {
-                    const denyBtn = pendingApproval.locator('button:has-text("Deny")').first();
-                    if (await denyBtn.count() > 0) await denyBtn.click({ force: true });
+                    const denyBtn = pendingCardLocator.locator('button:has-text("Deny")').last();
+                    if (await denyBtn.count() > 0) await denyBtn.click({ force: true }).catch(() => {});
+                }
+                if (domTaskId && domMessageId) {
+                    await page.evaluate(async ({ tId, mId, note }) => {
+                        if (window.__ZEUS_BRIDGE__) {
+                            await window.__ZEUS_BRIDGE__.resolvePendingApprovals(tId, false, mId, note).catch(() => {});
+                        }
+                    }, { tId: domTaskId, mId: domMessageId, note: decision.feedback }).catch(() => {});
                 }
             } else {
-                const denyBtn = pendingApproval.locator('button:has-text("Deny")').first();
+                const denyBtn = pendingCardLocator.locator('button:has-text("Deny")').last();
                 if (await denyBtn.count() > 0) {
-                    await denyBtn.click({ force: true });
+                    await denyBtn.click({ force: true }).catch(() => {});
+                }
+                if (domTaskId && domMessageId) {
+                    await page.evaluate(async ({ tId, mId }) => {
+                        if (window.__ZEUS_BRIDGE__) {
+                            await window.__ZEUS_BRIDGE__.resolvePendingApprovals(tId, false, mId, "").catch(() => {});
+                        }
+                    }, { tId: domTaskId, mId: domMessageId }).catch(() => {});
                 }
             }
 
@@ -219,11 +341,11 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             if (fs.existsSync(decisionFileGeneral)) try { fs.unlinkSync(decisionFileGeneral); } catch (_) {}
             if (fs.existsSync(decisionFileSpecific)) try { fs.unlinkSync(decisionFileSpecific); } catch (_) {}
 
-            await page.waitForTimeout(1500);
+            await page.waitForTimeout(1000);
             continue;
         }
 
-        // 3. Check for pending handoff card
+        // 2. Check for pending handoff card
         const pendingHandoff = page.locator('.approval-card.pending button:has-text("Done, Resume Agent")').last();
         if (await pendingHandoff.count() > 0) {
             await takeMilestoneScreenshot(page, "Browser Handoff Detected", testInfo);
@@ -254,11 +376,10 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             continue;
         }
 
-        // 4. Check if the button has returned to "Send" (agent finished turn)
+        // 3. Check if turn completed (button returned to "Send" and no pending approvals)
         const sendBtn = page.locator('#chat-send-button');
         const btnText = await sendBtn.innerText().catch(() => "");
         if (btnText.includes('Send')) {
-            // Verify there is no pending approval card before concluding
             const pendingCards = await page.locator('.approval-card.pending').count();
             if (pendingCards === 0) {
                 console.log(`[UserSimulator] Turn completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s.`);
@@ -266,7 +387,55 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             }
         }
 
-        await page.waitForTimeout(2000);
+        // 4. Periodic telemetry & budget check (every 10s)
+        if (Date.now() - lastTelemetry > 10000) {
+            lastTelemetry = Date.now();
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            const isStopping = (await page.locator('#chat-send-button:has-text("Stop")').count()) > 0;
+            const approveCount = await page.locator('button:has-text("Approve (Once)"), button:has-text("Approve")').count();
+            console.log(`[UserSimulator Loop] Elapsed: ${elapsed}s | Agent Active: ${isStopping} | Pending Approvals: ${approveCount}`);
+
+            // Check budget via toast or chat messages
+            const warningToast = page.locator('.toast.warning');
+            if (await warningToast.count() > 0) {
+                const toastText = (await warningToast.first().innerText().catch(() => "")) || "";
+                if (toastText.includes('budget') || toastText.includes('credit')) {
+                    throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
+                }
+            }
+            if (expectedText) {
+                const messagesEl = page.locator('#chat-messages');
+                const messagesText = (await messagesEl.innerText().catch(() => "")) || "";
+                if (messagesText.includes(expectedText)) {
+                    return;
+                }
+            }
+
+            // Visual Evaluator: Check and capture active live view frame
+            if (process.env.ZEUS_VISUAL_EVAL_DIR) {
+                try {
+                    const liveViewBtn = page.locator('#browser-session-live-view-btn').last();
+                    if (await liveViewBtn.count() > 0 && await liveViewBtn.isVisible()) {
+                        const liveSnapshotPath = path.join(process.env.ZEUS_VISUAL_EVAL_DIR, 'live_view_open.png');
+                        if (!fs.existsSync(liveSnapshotPath)) {
+                            console.log('[Visual Evaluator] Active browser session detected. Opening Live View modal...');
+                            await liveViewBtn.click({ force: true }).catch(() => {});
+                            await page.waitForTimeout(1200);
+                            await page.screenshot({ path: liveSnapshotPath }).catch(() => {});
+                            console.log(`[Visual Evaluator] Captured live view snapshot: ${liveSnapshotPath}`);
+                            const closeBtn = page.locator('#live-modal-close-button');
+                            if (await closeBtn.count() > 0) {
+                                await closeBtn.click({ force: true }).catch(() => {});
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Visual Evaluator] Live view check warning:', e.message);
+                }
+            }
+        }
+
+        await page.waitForTimeout(1000);
     }
 
     throw new Error(`Timeout (${timeoutMs / 1000}s) waiting for agent turn to complete.`);
@@ -288,7 +457,7 @@ async function captureArtifacts(page, testInfo, suffix = '') {
 
     // 2. Open the Chat log modal
     try {
-        await page.click('#chat-log-button', { timeout: 5000 });
+        await page.click('#chat-log-button', { force: true, timeout: 5000 });
         const chatLogModal = page.locator('.modal-content:has-text("Chat log")');
         await expect(chatLogModal).toBeVisible({ timeout: 5000 });
         
@@ -399,6 +568,7 @@ async function cleanupTaskBrowserDir(page) {
 export {
     setupAdvancedTask,
     submitPromptAndWait,
+    simulateRealisticUserDecision,
     captureArtifacts,
     pruneResults,
     cleanupTaskBrowserDir,

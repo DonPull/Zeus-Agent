@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "eval:benchmark": "node scripts/eval_harness/run_eval_loop.js",
+    "eval:score": "node scripts/eval_harness/run_score_only.js",
+    "eval:dashboard": "node scripts/eval_harness/generate_dashboard.js",
+    "eval:matrix": "node scripts/eval_harness/run_matrix.js",
     "test:browser-profile": "node scripts/manual_test_browser_profile.js"
   },
   "dependencies": {

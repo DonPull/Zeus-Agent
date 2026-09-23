@@ -100,7 +100,9 @@ class Toast extends Component {
     }
     
     render() {
-        let { toastMessage, toastRef, closeToastRef, toastTypeObj, notificationType } = this.state;
+        let { toastRef, closeToastRef, toastTypeObj } = this.state;
+        const toastMessage = this.props.toastMessage || this.state.toastMessage;
+        const notificationType = this.props.notificationType || this.state.notificationType;
 
         return (
             <div ref={toastRef} className='toast-notification flex'>

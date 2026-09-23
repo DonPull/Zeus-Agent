@@ -209,7 +209,7 @@ pub async fn negotiate_watcher_policy(
         GatewayMsg { role: "user".into(), content: prompt },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = chat_completion(&model, &messages, Some("low")).await.map_err(|e| e.to_string())?;
     Ok(text)
 }
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -350,6 +350,124 @@ pub fn evaluate_file_permission(
     Ok(PermissionVerdict::Ask)
 }
 
+pub fn split_shell_composite_commands(command: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+
+    let chars: Vec<char> = command.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        let c = chars[i];
+
+        if escaped {
+            current.push(c);
+            escaped = false;
+            i += 1;
+            continue;
+        }
+
+        if c == '\\' && !in_single_quote {
+            escaped = true;
+            current.push(c);
+            i += 1;
+            continue;
+        }
+
+        if c == '\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+            current.push(c);
+            i += 1;
+            continue;
+        }
+
+        if c == '"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+            current.push(c);
+            i += 1;
+            continue;
+        }
+
+        if !in_single_quote && !in_double_quote {
+            if i + 1 < len && chars[i] == '&' && chars[i + 1] == '&' {
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                current.clear();
+                i += 2;
+                continue;
+            } else if i + 1 < len && chars[i] == '|' && chars[i + 1] == '|' {
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                current.clear();
+                i += 2;
+                continue;
+            } else if c == ';' || c == '|' || c == '\n' || c == '\r' {
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                current.clear();
+                i += 1;
+                continue;
+            }
+        }
+
+        current.push(c);
+        i += 1;
+    }
+
+    let trimmed = current.trim();
+    if !trimmed.is_empty() {
+        parts.push(trimmed.to_string());
+    }
+
+    parts
+}
+
+fn strip_redirections(cmd: &str) -> &str {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut cut_idx = None;
+
+    for (idx, c) in cmd.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if c == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        if c == '\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+            continue;
+        }
+        if c == '"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+            continue;
+        }
+        if !in_single_quote && !in_double_quote && (c == '>' || c == '<') {
+            cut_idx = Some(idx);
+            break;
+        }
+    }
+
+    if let Some(idx) = cut_idx {
+        cmd[..idx].trim()
+    } else {
+        cmd.trim()
+    }
+}
+
 pub fn evaluate_command_action(
     conn: &Connection,
     task_id: &str,
@@ -470,17 +588,11 @@ pub fn evaluate_command_action(
         let stripped_quotes = normalized.trim_matches('"').trim_matches('\'').trim();
         let target_command = if !stripped_quotes.is_empty() { stripped_quotes } else { command };
 
-        let parts: Vec<&str> = target_command
-            .split("&&")
-            .flat_map(|s| s.split("||"))
-            .flat_map(|s| s.split(';'))
-            .flat_map(|s| s.split('|'))
-            .collect();
+        let parts = split_shell_composite_commands(target_command);
         let mut all_parts_safe = !parts.is_empty();
         
         for part in &parts {
-            let mut clean_part = part.split('>').next().unwrap_or(part);
-            clean_part = clean_part.split('<').next().unwrap_or(clean_part).trim();
+            let mut clean_part = strip_redirections(part);
             if clean_part.starts_with("cd /d") {
                 clean_part = "cd";
             }
@@ -607,6 +719,7 @@ pub async fn evaluate_network_action(
     };
     
     let model = settings.watcher_model.clone();
+    let effort = settings.watcher_effort.clone();
     if model.is_empty() {
         return Ok(PermissionVerdict::Ask);
     }
@@ -637,7 +750,7 @@ pub async fn evaluate_network_action(
         GatewayMsg { role: "user".into(), content: action_desc },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = chat_completion(&model, &messages, Some(&effort)).await.map_err(|e| e.to_string())?;
     
     let verdict_str = text.trim().to_uppercase();
     
@@ -716,6 +829,7 @@ pub async fn evaluate_browser_action(
     };
     
     let model = settings.watcher_model.clone();
+    let effort = settings.watcher_effort.clone();
     if model.is_empty() {
         return Ok(PermissionVerdict::Ask);
     }
@@ -750,7 +864,7 @@ pub async fn evaluate_browser_action(
         GatewayMsg { role: "user".into(), content: action_desc.clone() },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = chat_completion(&model, &messages, Some(&effort)).await.map_err(|e| e.to_string())?;
     
     let verdict_str = text.trim().to_uppercase();
     
@@ -1000,5 +1114,23 @@ mod tests {
         for (cmd, expected) in more_commands {
             assert_eq!(check("task-2", cmd), expected);
         }
+    }
+
+    #[test]
+    fn test_split_shell_composite_commands_preserves_quotes() {
+        let cmd1 = r#"python -c "import os; print('hello;world|test')""#;
+        let parts1 = split_shell_composite_commands(cmd1);
+        assert_eq!(parts1.len(), 1);
+        assert_eq!(parts1[0], cmd1);
+
+        let cmd2 = "cargo check && npm run build";
+        let parts2 = split_shell_composite_commands(cmd2);
+        assert_eq!(parts2, vec!["cargo check", "npm run build"]);
+
+        let cmd3 = "python script.py > out.log";
+        assert_eq!(strip_redirections(cmd3), "python script.py");
+
+        let cmd4 = r#"python -c "if 5 > 3: print('ok')""#;
+        assert_eq!(strip_redirections(cmd4), cmd4);
     }
 }

@@ -1,0 +1,26 @@
+[
+  {
+    "event_id": "EV-2026-301",
+    "customer_id": "CUST-205",
+    "date": "2026-03-02",
+    "amount_usd": 610.50,
+    "status": "COMPLETED",
+    "channel": "web_portal"
+  },
+  {
+    "event_id": "EV-2026-302",
+    "customer_id": "CUST-550",
+    "date": "2026-03-14",
+    "amount_usd": 1840.00,
+    "status": "COMPLETED",
+    "channel": "direct_invoice"
+  },
+  {
+    "event_id": "EV-2026-303",
+    "customer_id": "CUST-312",
+    "date": "2026-03-22",
+    "amount_usd": 220.00,
+    "status": "COMPLETED",
+    "channel": "mobile_app"
+  }
+]

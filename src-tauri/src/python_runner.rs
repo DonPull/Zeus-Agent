@@ -4,7 +4,6 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
@@ -52,17 +51,29 @@ pub async fn run_python_action(
     std::fs::create_dir_all(workspace)
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
 
+    let tid_opt = task_id.clone();
+    let session_id = format!("sess_{}", crate::db::new_id());
+    let history_dir = if let Some(ref tid) = tid_opt {
+        crate::utils::workspace_root()
+            .ok()
+            .map(|r| r.join(".zeus").join("browser_history").join(tid).join(&session_id))
+    } else {
+        None
+    };
+
     // Setup IPC server if we have context
     let mut ipc_port = 0;
-    if let (Some(app), Some(tid)) = (app_handle, task_id) {
+    if let (Some(ref app), Some(ref tid)) = (&app_handle, &task_id) {
         if let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await {
             ipc_port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
+            let app_clone = app.clone();
+            let tid_clone = tid.clone();
             tokio::spawn(async move {
                 while let Ok((stream, _)) = listener.accept().await {
-                    let app_clone = app.clone();
-                    let tid_clone = tid.clone();
+                    let app_conn = app_clone.clone();
+                    let tid_conn = tid_clone.clone();
                     tokio::spawn(async move {
-                        handle_ipc_connection(stream, app_clone, tid_clone).await;
+                        handle_ipc_connection(stream, app_conn, tid_conn).await;
                     });
                 }
             });
@@ -76,10 +87,35 @@ import sys
 import os
 import json
 import socket
+import tempfile
+import atexit
+import time
+import base64
 
 _zeus_workspace = os.path.abspath(os.getcwd())
 _zeus_sys_prefix = os.path.abspath(sys.prefix)
 _zeus_sys_base = os.path.abspath(sys.base_prefix)
+_zeus_temp_dir = os.path.abspath(tempfile.gettempdir())
+_zeus_env_temp = os.path.abspath(os.environ.get('TEMP', '')) if os.environ.get('TEMP') else None
+_zeus_env_tmp = os.path.abspath(os.environ.get('TMP', '')) if os.environ.get('TMP') else None
+
+_zeus_history_dir = os.environ.get('ZEUS_BROWSER_HISTORY_DIR', '')
+_zeus_task_id = os.environ.get('ZEUS_TASK_ID', '')
+_zeus_session_id = os.environ.get('ZEUS_BROWSER_SESSION_ID', '')
+
+_zeus_allowed_prefixes = [
+    os.path.normcase(_zeus_workspace),
+    os.path.normcase(_zeus_sys_prefix),
+    os.path.normcase(_zeus_sys_base),
+    os.path.normcase(_zeus_temp_dir),
+]
+if _zeus_env_temp:
+    _zeus_allowed_prefixes.append(os.path.normcase(_zeus_env_temp))
+if _zeus_env_tmp:
+    _zeus_allowed_prefixes.append(os.path.normcase(_zeus_env_tmp))
+if _zeus_history_dir:
+    _zeus_allowed_prefixes.append(os.path.normcase(os.path.abspath(_zeus_history_dir)))
+
 _zeus_ipc_port = int(os.environ.get('ZEUS_IPC_PORT', '0'))
 _zeus_ipc_socket = None
 _zeus_ipc_f = None
@@ -92,21 +128,25 @@ def _get_ipc_socket():
         _zeus_ipc_f = _zeus_ipc_socket.makefile('rw', encoding='utf-8')
     return _zeus_ipc_f
 
-def _ask_gatekeeper(req):
+def _zeus_ipc_send(msg):
     f = _get_ipc_socket()
     if not f:
-        # If IPC is disabled (e.g. tests), default to deny
-        return False
-    f.write(json.dumps(req) + '\n')
-    f.flush()
-    resp_line = f.readline()
-    if not resp_line:
-        return False
+        return None
     try:
-        resp = json.loads(resp_line)
-        return resp.get('status') == 'allow'
+        f.write(json.dumps(msg) + '\n')
+        f.flush()
+        resp_line = f.readline()
+        if resp_line:
+            return json.loads(resp_line)
     except Exception:
-        return False
+        pass
+    return None
+
+def _ask_gatekeeper(req):
+    resp = _zeus_ipc_send(req)
+    if resp and isinstance(resp, dict):
+        return resp.get('status') == 'allow'
+    return False
 
 _zeus_approved_hosts = set()
 
@@ -122,82 +162,251 @@ def _zeus_audit_hook(event, args):
                 _zeus_approved_hosts.add(host)
     elif event == 'socket.connect':
         address = args[0] if len(args) > 0 else None
-        if isinstance(address, tuple) and len(address) > 0:
+        if isinstance(address, tuple) and len(address) >= 1:
             host = address[0]
             if isinstance(host, str) and host not in ('127.0.0.1', 'localhost', '::1'):
                 if host not in _zeus_approved_hosts:
                     req = {"type": "network", "url": host}
                     if not _ask_gatekeeper(req):
-                        raise PermissionError(f'Zeus Gatekeeper DENIED network access to {host}')
+                        raise PermissionError(f'Zeus Gatekeeper DENIED connection to {host}')
                     _zeus_approved_hosts.add(host)
 
-    if event in ('subprocess.Popen', 'os.system', 'os.exec', 'os.spawn', 'os.posix_spawn'):
-        exe = args[0] if len(args) > 0 else None
-        cmd_args = args[1] if len(args) > 1 else None
-        
-        if exe is None and cmd_args is not None:
-            if isinstance(cmd_args, list):
-                cmd = " ".join(str(x) for x in cmd_args)
-            else:
-                cmd = str(cmd_args)
-        else:
-            if isinstance(exe, list):
-                cmd = " ".join(str(x) for x in exe)
-            else:
-                cmd = str(exe if exe is not None else event)
-                
-        req = {"type": "command", "command": cmd}
+    if event in ('os.system', 'subprocess.Popen'):
+        cmd_arg = args[0] if len(args) > 0 else ''
+        if (cmd_arg is None or cmd_arg == '') and len(args) > 1:
+            cmd_arg = args[1]
+        cmd_str = ''
+        if isinstance(cmd_arg, (list, tuple)):
+            cmd_str = ' '.join(str(x) for x in cmd_arg)
+        elif isinstance(cmd_arg, (str, bytes)):
+            cmd_str = cmd_arg.decode('utf-8', errors='replace') if isinstance(cmd_arg, bytes) else str(cmd_arg)
+        cmd_str_clean = cmd_str.strip()
+        if not cmd_str_clean:
+            return
+        cmd_lower = cmd_str_clean.lower()
+        if 'playwright' in cmd_lower and ('driver' in cmd_lower or 'node' in cmd_lower):
+            return
+        req = {"type": "command", "command": cmd_str_clean}
         if not _ask_gatekeeper(req):
-            raise PermissionError(f'Zeus Gatekeeper DENIED OS command execution: {cmd}')
+            raise PermissionError(f'Zeus Gatekeeper DENIED process execution: {cmd_str_clean}')
 
-    if event in ('ctypes.dlopen', '_ctypes.dlopen'):
+    if event == 'ctypes.dlopen':
         raise PermissionError('Loading native dynamic libraries is disabled in this sandbox for security reasons.')
 
     if event == 'open':
         path = args[0]
-        if isinstance(path, str):
-            abs_path = os.path.abspath(path)
-            if abs_path.startswith(_zeus_sys_prefix) or abs_path.startswith(_zeus_sys_base):
-                return
-            if abs_path.startswith(_zeus_workspace):
-                return
-            mode = args[1] if len(args) > 1 else 'r'
-            action = 'write' if ('w' in mode or 'a' in mode or '+' in mode) else 'read'
-            req = {"type": "file", "path": abs_path, "action": action}
-            if not _ask_gatekeeper(req):
-                raise PermissionError(f'Zeus Gatekeeper DENIED {action} access to {abs_path}')
+        if isinstance(path, (str, bytes, os.PathLike)):
+            try:
+                raw_path = os.fspath(path)
+                if isinstance(raw_path, bytes):
+                    raw_path = raw_path.decode('utf-8', errors='replace')
+                abs_path = os.path.abspath(raw_path)
+                norm_path = os.path.normcase(abs_path)
+                for pfx in _zeus_allowed_prefixes:
+                    if norm_path.startswith(pfx):
+                        return
+                mode = args[1] if len(args) > 1 else 'r'
+                action = 'write' if ('w' in mode or 'a' in mode or '+' in mode) else 'read'
+                req = {"type": "file", "path": abs_path, "action": action}
+                if not _ask_gatekeeper(req):
+                    raise PermissionError(f'Zeus Gatekeeper DENIED {action} access to {abs_path}')
+            except (PermissionError, SystemExit):
+                raise
+            except Exception:
+                pass
 
 sys.addaudithook(_zeus_audit_hook)
 
-try:
-    import playwright.sync_api
-    
-    _zeus_original_click = playwright.sync_api.Page.click
-    _zeus_original_fill = playwright.sync_api.Page.fill
-    
-    def _zeus_screenshot_before_action(page, action_name):
-        history_dir = os.path.join(_zeus_workspace, ".zeus", "browser_history")
-        os.makedirs(history_dir, exist_ok=True)
-        import time
-        ts = int(time.time() * 1000)
-        shot_path = os.path.join(history_dir, f"{ts}_{action_name}.png")
+# --- Browser Session Tracking & Capture State ---
+_zeus_session_started = False
+_zeus_step_counter = 0
+_zeus_steps = []
+_zeus_start_time = None
+_zeus_last_url = ""
+_zeus_current_page = None
+
+def _zeus_ensure_session_started(page=None):
+    global _zeus_session_started, _zeus_start_time, _zeus_last_url, _zeus_current_page
+    if page:
+        _zeus_current_page = page
+    if not _zeus_session_started:
+        _zeus_session_started = True
+        _zeus_start_time = int(time.time() * 1000)
+        if _zeus_history_dir:
+            try:
+                os.makedirs(_zeus_history_dir, exist_ok=True)
+            except Exception:
+                pass
+        curr_url = ""
         try:
+            if page:
+                curr_url = page.url or ""
+        except Exception:
+            pass
+        _zeus_last_url = curr_url
+        if _zeus_session_id:
+            _zeus_ipc_send({
+                "type": "browser_session_started",
+                "session_id": _zeus_session_id,
+                "timestamp": _zeus_start_time,
+                "initial_url": curr_url
+            })
+
+def _zeus_extract_bounding_box(page, selector):
+    if not page or not selector:
+        return None
+    try:
+        loc = page.locator(selector).first
+        box = loc.bounding_box(timeout=1000)
+        if box:
+            return {
+                "x": float(box.get("x", 0)),
+                "y": float(box.get("y", 0)),
+                "width": float(box.get("width", 0)),
+                "height": float(box.get("height", 0))
+            }
+    except Exception:
+        pass
+    return None
+
+def _zeus_record_step(page, action_name, selector=None, value=None, pre_box=None):
+    global _zeus_step_counter, _zeus_last_url, _zeus_current_page
+    if not _zeus_history_dir or not _zeus_session_id:
+        return
+    if page:
+        _zeus_current_page = page
+    elif _zeus_current_page:
+        page = _zeus_current_page
+    _zeus_ensure_session_started(page)
+    _zeus_step_counter += 1
+    ts = int(time.time() * 1000)
+    curr_url = ""
+    try:
+        if page:
+            curr_url = page.url or ""
+        if not curr_url and action_name == "goto" and selector:
+            curr_url = selector
+        if not curr_url:
+            curr_url = _zeus_last_url
+        if curr_url:
+            _zeus_last_url = curr_url
+    except Exception:
+        curr_url = _zeus_last_url
+    
+    shot_filename = f"{_zeus_step_counter}_{action_name}.png"
+    shot_path = os.path.join(_zeus_history_dir, shot_filename)
+    try:
+        if page:
             page.screenshot(path=shot_path)
-            # We could draw a box here using locator, but keeping it simple for now.
+    except Exception:
+        shot_path = ""
+
+    step_info = {
+        "step": _zeus_step_counter,
+        "action": action_name,
+        "target": selector,
+        "value": value,
+        "url": curr_url,
+        "timestamp": ts,
+        "bounding_box": pre_box,
+        "screenshot_path": shot_filename
+    }
+    _zeus_steps.append(step_info)
+    _zeus_write_manifest()
+
+    shot_b64 = ""
+    if shot_path and os.path.exists(shot_path):
+        try:
+            with open(shot_path, "rb") as sf:
+                shot_b64 = "data:image/png;base64," + base64.b64encode(sf.read()).decode("ascii")
         except Exception:
             pass
 
-    def _zeus_patched_click(self, selector, **kwargs):
-        _zeus_screenshot_before_action(self, "click")
-        return _zeus_original_click(self, selector, **kwargs)
-        
-    def _zeus_patched_fill(self, selector, value, **kwargs):
-        _zeus_screenshot_before_action(self, "fill")
-        return _zeus_original_fill(self, selector, value, **kwargs)
-        
+    _zeus_ipc_send({
+        "type": "browser_live_frame",
+        "session_id": _zeus_session_id,
+        "step": _zeus_step_counter,
+        "action": action_name,
+        "target": selector,
+        "value": value,
+        "url": curr_url,
+        "timestamp": ts,
+        "screenshot_path": shot_b64 if shot_b64 else shot_path,
+        "screenshot_base64": shot_b64,
+        "bounding_box": pre_box
+    })
+
+def _zeus_write_manifest():
+    if not _zeus_history_dir or not _zeus_session_id:
+        return
+    try:
+        now = int(time.time() * 1000)
+        start_ts = _zeus_start_time or now
+        manifest = {
+            "session_id": _zeus_session_id,
+            "task_id": _zeus_task_id,
+            "started_at": start_ts,
+            "completed_at": now,
+            "duration_ms": max(0, now - start_ts),
+            "final_url": _zeus_last_url,
+            "total_steps": len(_zeus_steps),
+            "steps": _zeus_steps
+        }
+        manifest_path = os.path.join(_zeus_history_dir, "manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as mf:
+            json.dump(manifest, mf, indent=2)
+    except Exception:
+        pass
+
+def _zeus_finalize_session():
+    global _zeus_session_started
+    if not _zeus_session_started or len(_zeus_steps) == 0:
+        return
+    _zeus_session_started = False
+    _zeus_write_manifest()
+    now = int(time.time() * 1000)
+    start_ts = _zeus_start_time or now
+    if _zeus_session_id:
+        _zeus_ipc_send({
+            "type": "browser_session_completed",
+            "session_id": _zeus_session_id,
+            "total_steps": len(_zeus_steps),
+            "duration_ms": max(0, now - start_ts),
+            "final_url": _zeus_last_url,
+            "timestamp": now
+        })
+
+atexit.register(_zeus_finalize_session)
+
+try:
+    import playwright.sync_api
+    import random
+    
+    _zeus_original_click = playwright.sync_api.Page.click
+    _zeus_original_fill = playwright.sync_api.Page.fill
+    _zeus_original_press = getattr(playwright.sync_api.Page, "press", None)
     _zeus_original_goto = playwright.sync_api.Page.goto
     _zeus_original_close = playwright.sync_api.Page.close
     _zeus_original_connect = playwright.sync_api.BrowserType.connect_over_cdp
+
+    def _zeus_patched_click(self, selector, **kwargs):
+        box = _zeus_extract_bounding_box(self, selector)
+        _zeus_record_step(self, "click", selector=selector, pre_box=box)
+        return _zeus_original_click(self, selector, **kwargs)
+        
+    def _zeus_patched_fill(self, selector, value, **kwargs):
+        box = _zeus_extract_bounding_box(self, selector)
+        res = _zeus_original_fill(self, selector, value, **kwargs)
+        _zeus_record_step(self, "fill", selector=selector, value=str(value), pre_box=box)
+        return res
+
+    def _zeus_patched_press(self, selector, key, **kwargs):
+        box = _zeus_extract_bounding_box(self, selector)
+        res = None
+        if _zeus_original_press:
+            res = _zeus_original_press(self, selector, key, **kwargs)
+        _zeus_record_step(self, "press", selector=selector, value=str(key), pre_box=box)
+        return res
 
     def _zeus_stealth_init(page):
         stealth_js = """
@@ -218,6 +427,8 @@ try:
             pass
 
     def _zeus_patched_connect(self, endpoint_url, **kwargs):
+        if isinstance(endpoint_url, str) and endpoint_url.startswith('ws://127.0.0.1:') and '/devtools/' not in endpoint_url:
+            endpoint_url = 'http://' + endpoint_url[5:]
         browser = _zeus_original_connect(self, endpoint_url, **kwargs)
         for context in browser.contexts:
             for page in context.pages:
@@ -230,30 +441,93 @@ try:
         if not _ask_gatekeeper(req):
             raise PermissionError(f'Zeus Gatekeeper DENIED browser navigation to {url}')
         _zeus_stealth_init(self)
-        return _zeus_original_goto(self, url, **kwargs)
+        _zeus_ensure_session_started(self)
+        res = _zeus_original_goto(self, url, **kwargs)
+        _zeus_record_step(self, "goto", selector=url)
+        return res
         
     def _zeus_patched_close(self, **kwargs):
         req = {"type": "browser", "action": "close"}
         if not _ask_gatekeeper(req):
-            raise PermissionError(f'Zeus Gatekeeper DENIED closing the browser tab')
+            raise PermissionError('Zeus Gatekeeper DENIED closing the browser tab')
+        _zeus_finalize_session()
         return _zeus_original_close(self, **kwargs)
 
     playwright.sync_api.Page.click = _zeus_patched_click
     playwright.sync_api.Page.fill = _zeus_patched_fill
+    if _zeus_original_press:
+        playwright.sync_api.Page.press = _zeus_patched_press
     playwright.sync_api.Page.goto = _zeus_patched_goto
     playwright.sync_api.Page.close = _zeus_patched_close
     playwright.sync_api.BrowserType.connect_over_cdp = _zeus_patched_connect
 
-    import random
+    # Patch Locator if available
+    try:
+        _zeus_orig_loc_click = playwright.sync_api.Locator.click
+        def _zeus_patched_loc_click(self, **kwargs):
+            sel = getattr(self, "_selector", str(self))
+            box = None
+            try:
+                raw_box = self.bounding_box(timeout=1000)
+                if raw_box:
+                    box = {
+                        "x": float(raw_box.get("x", 0)),
+                        "y": float(raw_box.get("y", 0)),
+                        "width": float(raw_box.get("width", 0)),
+                        "height": float(raw_box.get("height", 0))
+                    }
+            except Exception:
+                pass
+            _zeus_record_step(self.page, "click", selector=sel, pre_box=box)
+            return _zeus_orig_loc_click(self, **kwargs)
+        playwright.sync_api.Locator.click = _zeus_patched_loc_click
+
+        _zeus_orig_loc_fill = playwright.sync_api.Locator.fill
+        def _zeus_patched_loc_fill(self, value, **kwargs):
+            sel = getattr(self, "_selector", str(self))
+            box = None
+            try:
+                raw_box = self.bounding_box(timeout=1000)
+                if raw_box:
+                    box = {
+                        "x": float(raw_box.get("x", 0)),
+                        "y": float(raw_box.get("y", 0)),
+                        "width": float(raw_box.get("width", 0)),
+                        "height": float(raw_box.get("height", 0))
+                    }
+            except Exception:
+                pass
+            res = _zeus_orig_loc_fill(self, value, **kwargs)
+            _zeus_record_step(self.page, "fill", selector=sel, value=str(value), pre_box=box)
+            return res
+        playwright.sync_api.Locator.fill = _zeus_patched_loc_fill
+    except Exception:
+        pass
+
+    try:
+        _zeus_orig_kb_press = getattr(playwright.sync_api.Keyboard, "press", None)
+        if _zeus_orig_kb_press:
+            def _zeus_patched_kb_press(self, key, **kwargs):
+                res = _zeus_orig_kb_press(self, key, **kwargs)
+                k_lower = str(key).lower()
+                if k_lower in ("enter", "return", "tab", "escape"):
+                    _zeus_record_step(_zeus_current_page, "press", value=str(key))
+                return res
+            playwright.sync_api.Keyboard.press = _zeus_patched_kb_press
+    except Exception:
+        pass
+
     def human_type(page, selector, text):
+        box = _zeus_extract_bounding_box(page, selector)
+        _zeus_record_step(page, "human_type", selector=selector, value=str(text), pre_box=box)
         page.focus(selector)
         for char in text:
             page.keyboard.type(char)
             time.sleep(random.uniform(0.04, 0.12))
 
     def human_click(page, selector):
-        _zeus_screenshot_before_action(page, "click")
-        box = page.locator(selector).bounding_box()
+        box = _zeus_extract_bounding_box(page, selector)
+        _zeus_record_step(page, "human_click", selector=selector, pre_box=box)
         if box:
             x = box['x'] + box['width'] * random.uniform(0.3, 0.7)
             y = box['y'] + box['height'] * random.uniform(0.3, 0.7)
@@ -282,8 +556,17 @@ except Exception:
         .env("PYTHONUTF8", "1")
         .env("ZEUS_IPC_PORT", ipc_port.to_string());
         
+    if let Some(ref tid) = tid_opt {
+        command.env("ZEUS_TASK_ID", tid);
+        command.env("ZEUS_BROWSER_SESSION_ID", &session_id);
+        if let Some(ref hdir) = history_dir {
+            command.env("ZEUS_BROWSER_HISTORY_DIR", hdir);
+        }
+    }
+
     if let Some(port) = browser_port {
-        command.env("ZEUS_BROWSER_WS_ENDPOINT", format!("ws://127.0.0.1:{}", port));
+        command.env("ZEUS_BROWSER_WS_ENDPOINT", format!("http://127.0.0.1:{}", port));
+        command.env("ZEUS_BROWSER_HTTP_ENDPOINT", format!("http://127.0.0.1:{}", port));
     }
 
     command
@@ -296,7 +579,6 @@ except Exception:
         .spawn()
         .map_err(|e| format!("Failed to start Python (`{}`): {}", interpreter, e))?;
 
-    let timeout = Duration::from_secs(timeout_secs.max(5));
     let mut timed_out = false;
 
     let mut stdout_handle = child.stdout.take();
@@ -317,14 +599,51 @@ except Exception:
         buf
     });
 
-    let wait_result = tokio::time::timeout(timeout, child.wait()).await;
-    let status = match wait_result {
-        Ok(res) => Some(res.map_err(|e| format!("Failed to wait on the Python process: {}", e))?),
-        Err(_) => {
-            timed_out = true;
-            let _ = child.kill().await;
-            let _ = child.wait().await;
-            None
+    let timeout_duration = std::time::Duration::from_secs(timeout_secs);
+    let mut elapsed_active = std::time::Duration::ZERO;
+    let mut last_tick = tokio::time::Instant::now();
+
+    let status = loop {
+        tokio::select! {
+            res = child.wait() => {
+                match res {
+                    Ok(exit_status) => break Some(exit_status),
+                    Err(e) => return Err(format!("Failed to wait on the Python process: {}", e)),
+                }
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
+                let now = tokio::time::Instant::now();
+                let delta = now.duration_since(last_tick);
+                last_tick = now;
+
+                // Check if this task currently has a pending Gatekeeper approval
+                let has_pending_approval = if let (Some(ref app), Some(ref tid)) = (app_handle.as_ref(), task_id.as_ref()) {
+                    let state = app.state::<AppState>();
+                    let is_pending = if let Ok(conn) = state.db.lock() {
+                        conn.query_row(
+                            "SELECT 1 FROM messages WHERE task_id = ?1 AND kind = 'approval' AND json_extract(content, '$.status') = 'pending' LIMIT 1",
+                            rusqlite::params![tid],
+                            |_| Ok(true)
+                        ).unwrap_or(false)
+                    } else {
+                        false
+                    };
+                    is_pending
+                } else {
+                    false
+                };
+
+                // Only accumulate active execution time if NOT waiting on human approval!
+                if !has_pending_approval {
+                    elapsed_active += delta;
+                    if elapsed_active >= timeout_duration {
+                        timed_out = true;
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        break None;
+                    }
+                }
+            }
         }
     };
 
@@ -358,7 +677,7 @@ except Exception:
     })
 }
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use crate::db::AppState;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
@@ -384,6 +703,81 @@ async fn handle_ipc_connection(
 
         let req_type = req["type"].as_str().unwrap_or("");
         let state = app_handle.state::<AppState>();
+
+        if req_type == "browser_session_started" {
+            let session_id = req["session_id"].as_str().unwrap_or("").to_string();
+            let initial_url = req["initial_url"].as_str().unwrap_or("").to_string();
+            let timestamp = req["timestamp"].as_u64().unwrap_or(0);
+
+            let content = serde_json::json!({
+                "session_id": session_id,
+                "initial_url": initial_url,
+                "timestamp": timestamp,
+                "status": "active"
+            }).to_string();
+
+            let mut msg = crate::chat::new_message(
+                &task_id,
+                "event",
+                "browser_session_started",
+                content,
+                None,
+                None,
+                true,
+            );
+            let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut msg);
+
+            let res = serde_json::json!({ "status": "ok" });
+            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
+            let _ = writer.flush().await;
+            line.clear();
+            continue;
+        }
+
+        if req_type == "browser_live_frame" {
+            let _ = app_handle.emit("browser_live_frame", &req);
+
+            let res = serde_json::json!({ "status": "ok" });
+            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
+            let _ = writer.flush().await;
+            line.clear();
+            continue;
+        }
+
+        if req_type == "browser_session_completed" {
+            let session_id = req["session_id"].as_str().unwrap_or("").to_string();
+            let total_steps = req["total_steps"].as_u64().unwrap_or(0);
+            let duration_ms = req["duration_ms"].as_u64().unwrap_or(0);
+            let final_url = req["final_url"].as_str().unwrap_or("").to_string();
+            let timestamp = req["timestamp"].as_u64().unwrap_or(0);
+
+            let content = serde_json::json!({
+                "session_id": session_id,
+                "total_steps": total_steps,
+                "duration_ms": duration_ms,
+                "final_url": final_url,
+                "timestamp": timestamp,
+                "status": "completed"
+            }).to_string();
+
+            let mut msg = crate::chat::new_message(
+                &task_id,
+                "event",
+                "browser_session_completed",
+                content,
+                None,
+                None,
+                true,
+            );
+            let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut msg);
+            let _ = app_handle.emit("browser_session_completed", &req);
+
+            let res = serde_json::json!({ "status": "ok" });
+            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
+            let _ = writer.flush().await;
+            line.clear();
+            continue;
+        }
         
         let verdict = match req_type {
             "file" => {
@@ -436,7 +830,12 @@ async fn handle_ipc_connection(
                 } else if req_type == "command" {
                     crate::orchestrator::Directive::RunCommand { command: req["command"].as_str().unwrap_or("").to_string(), cwd: None }
                 } else {
-                    crate::orchestrator::Directive::ReadFile { path: req["path"].as_str().unwrap_or("").to_string() }
+                    crate::orchestrator::Directive::ReadFile {
+                        path: req["path"].as_str().unwrap_or("").to_string(),
+                        start_line: req["start_line"].as_u64().map(|v| v as usize),
+                        end_line: req["end_line"].as_u64().map(|v| v as usize),
+                        limit: req["limit"].as_u64().map(|v| v as usize),
+                    }
                 };
                 
                 let existing_id: Option<String> = {

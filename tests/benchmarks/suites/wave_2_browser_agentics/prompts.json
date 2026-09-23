@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "name": "wordle_unlimited_10_wins",
+    "title": "Autonomous Wordle Solver: 10 Consecutive Wins in Unlimited Mode",
+    "criteria": [
+      "Navigate to https://wordlegame.org/ and switch to Unlimited mode",
+      "Successfully win 10 games of Wordle using letter feedback (green, yellow, gray)",
+      "Never guess words blindly without incorporating previous tile feedback",
+      "Save a structured report wordle_10_wins_report.json detailing each game (game number, target word, number of attempts, list of guesses)",
+      "Session Replay and Live View must record valid actions and non-empty screenshots"
+    ],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "You MUST launch the browser using Playwright, go to \"https://wordlegame.org/\", switch to unlimited mode, and play until you win 10 games of wordle in the browser. Do NOT fabricate, hardcode, or simulate the game data in Python — you must actually solve each game in the browser by typing guesses and reading tile feedback (green, yellow, gray). After winning 10 games in the browser, save a structured report named \"wordle_10_wins_report.json\" summarizing each game (game number, target word, number of attempts, list of guesses) and report back to me how each game went.",
+        "expected_artifacts": [
+          "wordle_10_wins_report.json"
+        ],
+        "python_check": "import os, json, glob\nassert os.path.exists('wordle_10_wins_report.json'), 'Report wordle_10_wins_report.json not found on disk'\nwith open('wordle_10_wins_report.json', 'r', encoding='utf-8') as f:\n    data = json.load(f)\ngames = data if isinstance(data, list) else data.get('games', [])\nassert len(games) >= 10, f'Expected at least 10 won games, got {len(games)}'\nfor i, g in enumerate(games[:10]):\n    target = (g.get('target_word') or g.get('word') or '').strip().lower()\n    assert len(target) == 5, f'Game {i+1} invalid target word: {target}'\n    attempts = g.get('attempts') or g.get('num_attempts') or len(g.get('guesses', []))\n    assert 1 <= attempts <= 6, f'Game {i+1} invalid attempts: {attempts}'\n    guesses = [str(x).strip().lower() for x in g.get('guesses', [])]\n    assert len(guesses) >= 1, f'Game {i+1} has no guesses recorded'\n    assert guesses[-1] == target, f'Game {i+1} winning guess {guesses[-1]} does not match target {target}'\n\nworkspace = os.getcwd()\nroot = os.path.abspath(os.path.join(workspace, '..', '..', '..'))\nsession_dirs = glob.glob(os.path.join(root, '.zeus', 'browser_history', '*', '*'))\nassert len(session_dirs) > 0, 'No browser sessions were recorded! The agent did not use the browser.'\nfound_wordle = False\nfor sdir in session_dirs:\n    mfile = os.path.join(sdir, 'manifest.json')\n    if os.path.exists(mfile):\n        with open(mfile, 'r', encoding='utf-8') as mf:\n            mdata = json.load(mf)\n        for step in mdata.get('steps', []):\n            if 'wordle' in str(step.get('url', '')).lower() or 'wordle' in str(step.get('target', '')).lower():\n                found_wordle = True\n                break\n    if found_wordle:\n        break\nassert found_wordle, 'No browser session interacted with wordlegame.org!'\nprint('WORDLE_10_WINS_VERIFICATION_PASSED')"
+      }
+    ]
+  }
+]

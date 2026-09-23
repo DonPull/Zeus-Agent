@@ -12,4 +12,6 @@ This file serves as a secondary persistent memory store for the Zeus-Agent proje
 - This allows the Worker Agent to write natural Python code without needing complex mocked directives, while still triggering our zero-knowledge permission UI synchronously via Tauri IPC.
 
 ## 3. UI Component Details
-- **Settings Modal:** The Model dropdown uses a standard `<datalist>` rather than a custom select component. This is intentional to allow free-form text input (in case a specific model isn't yet in the auto-fetched list from RouteLLM). Company identifiers are added using Emojis directly into the `option` text.
+- **Settings & Task Modals:** The Model dropdown uses a custom searchable dropdown component (`ModelDropdown` in `SettingsModal.jsx`) with brand icons (`CompanyIcon`) and search filtering, supporting both auto-fetched models and custom IDs.
+- **Reasoning Effort Selector:** Configured per-role or per-task. Maps to `reasoning_effort` in Chat Completions and `"reasoning": { "effort": "..." }` in the Responses API. Supported on RouteLLM / Abacus AI for OpenAI reasoning models (`o1`, `o3-mini`, `gpt-5`).
+

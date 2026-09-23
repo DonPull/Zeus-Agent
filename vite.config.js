@@ -30,8 +30,8 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // tell vite to ignore watching backend and test workspaces
+      ignored: ["**/src-tauri/**", "**/tests/**", "**/.zeus/**", "**/.test_workspace/**"],
     },
   },
 }));

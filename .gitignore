@@ -41,3 +41,16 @@ codebase-export.txt
 debug-log.txt
 chat-log.txt
 extract_msgs.py
+
+# Editor & Agent Local Runtimes
+.mimocode/
+
+# Sensitive User & Auth Info
+chat-llm-user-info.json
+*.session.json
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/

@@ -41,12 +41,18 @@ CREATE TABLE IF NOT EXISTS tasks (
     spent_credits REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    master_model TEXT NOT NULL,
-    worker_model TEXT NOT NULL,
-    verifier_model TEXT NOT NULL,
-    watcher_model TEXT NOT NULL,
+    master_model TEXT NOT NULL DEFAULT 'gemini-1.5-pro',
+    worker_model TEXT NOT NULL DEFAULT 'gemini-1.5-pro',
+    verifier_model TEXT NOT NULL DEFAULT 'gemini-1.5-pro',
+    watcher_model TEXT NOT NULL DEFAULT 'grok-4.5',
     browser_mode TEXT NOT NULL DEFAULT 'sandboxed',
-    browser_executable_path TEXT
+    browser_executable_path TEXT,
+    master_effort TEXT NOT NULL DEFAULT 'default',
+    worker_effort TEXT NOT NULL DEFAULT 'default',
+    verifier_effort TEXT NOT NULL DEFAULT 'default',
+    watcher_effort TEXT NOT NULL DEFAULT 'default',
+    vision_model TEXT NOT NULL DEFAULT 'gemini-3.8-flash',
+    vision_effort TEXT NOT NULL DEFAULT 'default'
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -235,6 +241,44 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
             "UPDATE tasks SET browser_mode = ?1, browser_executable_path = ?2",
             rusqlite::params![browser_mode, browser_executable],
         );
+    }
+
+    // Migration: add effort columns to tasks table
+    let has_master_effort: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'master_effort' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_master_effort {
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN master_effort TEXT NOT NULL DEFAULT 'default'", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN worker_effort TEXT NOT NULL DEFAULT 'default'", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN verifier_effort TEXT NOT NULL DEFAULT 'default'", []);
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN watcher_effort TEXT NOT NULL DEFAULT 'default'", []);
+    }
+
+    // Migration: add vision_model column to tasks table
+    let has_vision_model: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'vision_model' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_vision_model {
+        let vision = crate::settings::read_settings(connection)
+            .map(|s| s.vision_model)
+            .unwrap_or_else(|_| "gemini-3.8-flash".into());
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN vision_model TEXT NOT NULL DEFAULT 'gemini-3.8-flash'", []);
+        let _ = connection.execute("UPDATE tasks SET vision_model = ?1", rusqlite::params![vision]);
+    }
+
+    // Migration: add vision_effort column to tasks table
+    let has_vision_effort: bool = connection
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'vision_effort' LIMIT 1")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    if !has_vision_effort {
+        let vision_effort = crate::settings::read_settings(connection)
+            .map(|s| s.vision_effort)
+            .unwrap_or_else(|_| "default".into());
+        let _ = connection.execute("ALTER TABLE tasks ADD COLUMN vision_effort TEXT NOT NULL DEFAULT 'default'", []);
+        let _ = connection.execute("UPDATE tasks SET vision_effort = ?1", rusqlite::params![vision_effort]);
     }
 
     // One-off migration: the first build's credit_events table had a different

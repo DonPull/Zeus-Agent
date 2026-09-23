@@ -2,8 +2,41 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use crate::db::AppState;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundingBox {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserStep {
+    pub step: usize,
+    pub action: String,
+    pub target: Option<String>,
+    pub value: Option<String>,
+    pub url: String,
+    pub timestamp: u64,
+    pub bounding_box: Option<BoundingBox>,
+    pub screenshot_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserSessionData {
+    pub session_id: String,
+    pub task_id: String,
+    pub started_at: u64,
+    pub completed_at: Option<u64>,
+    pub duration_ms: Option<u64>,
+    pub final_url: Option<String>,
+    pub total_steps: usize,
+    pub steps: Vec<BrowserStep>,
+}
 
 pub struct BrowserState {
     pub process: Option<Child>,
@@ -175,7 +208,7 @@ impl BrowserManager {
             actual_user_data_dir = Some(state_user_data_dir.clone());
         };
         
-        let is_headless = std::env::var("ZEUS_HEADLESS_BROWSER").is_ok();
+        let is_headless = !std::env::var("ZEUS_HEADFUL_BROWSER").is_ok() && mode != "main";
         let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), is_headless)?;
         let pid = child.id();
         
@@ -318,30 +351,98 @@ pub async fn finish_browser_handoff(
 
 #[tauri::command]
 pub async fn get_browser_history(task_id: String) -> Result<Vec<String>, String> {
-    let mut history_dir = crate::utils::workspace_root()?;
-    history_dir.push(".zeus");
-    history_dir.push("browser_history");
-    history_dir.push(&task_id);
-    
-    if !history_dir.exists() {
-        return Ok(Vec::new());
-    }
+    let mut root_history = crate::utils::workspace_root()?;
+    root_history.push(".zeus");
+    root_history.push("browser_history");
+    root_history.push(&task_id);
     
     let mut files = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(history_dir) {
-        for entry in entries.filter_map(Result::ok) {
-            if let Some(path_str) = entry.path().to_str() {
-                if path_str.ends_with(".png") || path_str.ends_with(".jpg") {
-                    files.push(path_str.to_string());
+    if root_history.exists() {
+        if let Ok(entries) = std::fs::read_dir(&root_history) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(path_str) = path.to_str() {
+                        if path_str.ends_with(".png") || path_str.ends_with(".jpg") {
+                            files.push(path_str.to_string());
+                        }
+                    }
+                } else if path.is_dir() {
+                    if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                        for sub_entry in sub_entries.filter_map(Result::ok) {
+                            let sub_path = sub_entry.path();
+                            if let Some(sub_path_str) = sub_path.to_str() {
+                                if sub_path_str.ends_with(".png") || sub_path_str.ends_with(".jpg") {
+                                    files.push(sub_path_str.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(ws) = crate::utils::task_workspace(&task_id) {
+        let legacy_dir = ws.join(".zeus").join("browser_history");
+        if legacy_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(legacy_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    if let Some(path_str) = entry.path().to_str() {
+                        if (path_str.ends_with(".png") || path_str.ends_with(".jpg")) && !files.contains(&path_str.to_string()) {
+                            files.push(path_str.to_string());
+                        }
+                    }
                 }
             }
         }
     }
     
-    // Sort by name (which includes timestamp)
     files.sort();
-    
     Ok(files)
+}
+
+#[tauri::command]
+pub async fn get_browser_session(
+    task_id: String,
+    session_id: String,
+) -> Result<BrowserSessionData, String> {
+    let mut session_dir = crate::utils::workspace_root()?;
+    session_dir.push(".zeus");
+    session_dir.push("browser_history");
+    session_dir.push(&task_id);
+    session_dir.push(&session_id);
+
+    let manifest_path = session_dir.join("manifest.json");
+    if !manifest_path.exists() {
+        return Err(format!("Session manifest not found at {:?}", manifest_path));
+    }
+
+    let content = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Failed to read session manifest: {}", e))?;
+    let mut data: BrowserSessionData = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse session manifest: {}", e))?;
+
+    for step in &mut data.steps {
+        if step.screenshot_path.is_empty() {
+            continue;
+        }
+        let p = std::path::Path::new(&step.screenshot_path);
+        let full_path = if p.is_absolute() {
+            p.to_path_buf()
+        } else {
+            session_dir.join(&step.screenshot_path)
+        };
+        if full_path.exists() {
+            if let Ok(bytes) = std::fs::read(&full_path) {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                step.screenshot_path = format!("data:image/png;base64,{}", b64);
+            }
+        }
+    }
+
+    Ok(data)
 }
 
 #[cfg(test)]

@@ -11,7 +11,8 @@ import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import SettingsModal from "./components/SettingsModal";
 import TaskSettingsModal from "./components/TaskSettingsModal";
-import BrowserHistoryModal from "./components/BrowserHistoryModal";
+import BrowserSessionReplayModal from "./components/BrowserSessionReplayModal";
+import BrowserLiveViewModal from "./components/BrowserLiveViewModal";
 import ChatLogModal from "./components/ChatLogModal";
 import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
@@ -46,14 +47,17 @@ function App() {
     // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isTaskSettingsOpen, setIsTaskSettingsOpen] = useState(false);
-    const [isBrowserHistoryOpen, setIsBrowserHistoryOpen] = useState(false);
+    const [replayModalState, setReplayModalState] = useState({ isOpen: false, sessionId: null, taskId: null });
+    const [liveViewModalState, setLiveViewModalState] = useState({ isOpen: false, sessionId: null, taskId: null });
     const [isTaskPermsOpen, setIsTaskPermsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
     const [isActionPlanOpen, setIsActionPlanOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
     const [inputValue, setInputValue] = useState("");
-    const [toastObj, setToastObj] = useState({ show: false, message: null, duration: 3000, type: "error" });
+    const [attachments, setAttachments] = useState([]);
+    const [toastObj, setToastObj] = useState({ show: false, message: null, duration: 3000, type: "error", key: 0 });
 
+    const fileInputRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const streamTextRef = useRef("");
     const reasoningTextRef = useRef("");
@@ -71,7 +75,23 @@ function App() {
     const spendRatio = spend.budget_credits > 0 ? spend.spent_credits / spend.budget_credits : 0;
 
     const showToast = (message, type = "error", duration = 5000) => {
-        setToastObj({ show: true, message, type, duration });
+        setToastObj({ show: true, message, type, duration, key: Date.now() });
+    };
+
+    const handleOpenReplay = (sessionId, taskId) => {
+        setReplayModalState({
+            isOpen: true,
+            sessionId,
+            taskId: taskId || activeTaskIdRef.current,
+        });
+    };
+
+    const handleOpenLiveView = (sessionId, taskId) => {
+        setLiveViewModalState({
+            isOpen: true,
+            sessionId,
+            taskId: taskId || activeTaskIdRef.current,
+        });
     };
 
     const refreshTasks = async () => {
@@ -235,8 +255,9 @@ function App() {
         }
         
         try {
-            await bridge.resolvePendingApprovals(activeTaskIdRef.current, approved, permData && permData.messageId, note);
-            await reconcileMessages(activeTaskIdRef.current);
+            const targetTaskId = permData?.taskId || activeTaskIdRef.current;
+            await bridge.resolvePendingApprovals(targetTaskId, approved, permData && permData.messageId, note);
+            await reconcileMessages(targetTaskId);
         } catch (err) {
             console.error("Failed to resolve pending approvals", err);
         }
@@ -286,9 +307,81 @@ function App() {
         }
     };
 
+    const readFileAsBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handlePaste = async (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type.indexOf("image") !== -1) {
+                const file = item.getAsFile();
+                if (file) {
+                    e.preventDefault();
+                    try {
+                        const b64 = await readFileAsBase64(file);
+                        const ext = file.type.split("/")[1] || "png";
+                        const filename = `screenshot_${Date.now()}.${ext}`;
+                        setAttachments((prev) => [
+                            ...prev,
+                            {
+                                id: String(Date.now()) + Math.random(),
+                                file,
+                                name: filename,
+                                size: file.size,
+                                isImage: true,
+                                previewUrl: b64,
+                                base64Data: b64,
+                            }
+                        ]);
+                    } catch (err) {
+                        console.error("Failed to read pasted image", err);
+                    }
+                }
+            }
+        }
+    };
+
+    const handleFilesSelected = async (e) => {
+        const files = Array.from(e.target.files || []);
+        for (const file of files) {
+            try {
+                const b64 = await readFileAsBase64(file);
+                const isImage = file.type.startsWith("image/");
+                setAttachments((prev) => [
+                    ...prev,
+                    {
+                        id: String(Date.now()) + Math.random(),
+                        file,
+                        name: file.name,
+                        size: file.size,
+                        isImage,
+                        previewUrl: isImage ? b64 : null,
+                        base64Data: b64,
+                    }
+                ]);
+            } catch (err) {
+                console.error("Failed to read selected file", err);
+            }
+        }
+        e.target.value = "";
+    };
+
+    const removeAttachment = (id) => {
+        setAttachments((prev) => prev.filter((a) => a.id !== id));
+    };
+
     const handleSend = async (overrideContent) => {
-        const content = (typeof overrideContent === "string" ? overrideContent : inputValue).trim();
-        if (!content || sendLockRef.current || !activeTaskId) return;
+        let rawContent = (typeof overrideContent === "string" ? overrideContent : inputValue).trim();
+        const pendingAttachments = typeof overrideContent === "string" ? [] : [...attachments];
+        if ((!rawContent && pendingAttachments.length === 0) || sendLockRef.current || !activeTaskId) return;
 
         // Lock synchronously before React commits the state update.
         sendLockRef.current = true;
@@ -297,7 +390,10 @@ function App() {
         // events are already guarded using the task ID.
         const taskAtSend = activeTaskId;
 
-        if (typeof overrideContent !== "string") setInputValue("");
+        if (typeof overrideContent !== "string") {
+            setInputValue("");
+            setAttachments([]);
+        }
         setSending(true);
         setSendingTaskId(taskAtSend);
         setThinkingStage("connecting");
@@ -310,6 +406,27 @@ function App() {
         setDirectiveMode(false);
 
         try {
+            let content = rawContent;
+            if (pendingAttachments.length > 0) {
+                const notes = [];
+                for (const att of pendingAttachments) {
+                    try {
+                        const savedPath = await bridge.saveTaskAttachment(taskAtSend, att.name, att.base64Data);
+                        if (att.isImage) {
+                            notes.push(`[Attached Image: '${savedPath}' (inspect with analyze_visual if needed)]`);
+                        } else {
+                            notes.push(`[Attached File: '${savedPath}']`);
+                        }
+                    } catch (uploadErr) {
+                        console.error("Failed to save attachment:", uploadErr);
+                        showToast(`Failed to upload attachment ${att.name}: ${uploadErr}`, "error", 5000);
+                    }
+                }
+                if (notes.length > 0) {
+                    content = content ? `${content}\n\n${notes.join("\n")}` : notes.join("\n");
+                }
+            }
+
             const requestId = createRequestId();
             const result = await bridge.sendUserMessage(
                 taskAtSend,
@@ -410,6 +527,7 @@ function App() {
     };
 
     useEffect(() => {
+        window.__ZEUS_REFRESH_TASKS__ = refreshTasks;
         (async () => {
             try {
                 const keySet = await bridge.hasApiKey();
@@ -422,6 +540,9 @@ function App() {
                 showToast(String(err));
             }
         })();
+        return () => {
+            delete window.__ZEUS_REFRESH_TASKS__;
+        };
     }, []);
 
     useEffect(() => {
@@ -665,6 +786,7 @@ function playNotificationChime(type = "complete") {
         <main id="app-container">
             {toastObj.show && (
                 <Toast
+                    key={toastObj.key}
                     closeToastCallbackFunction={() => setToastObj((prev) => ({ ...prev, show: false }))}
                     position="bottom right"
                     toastMessage={toastObj.message}
@@ -693,6 +815,7 @@ function playNotificationChime(type = "complete") {
                     <TaskSettingsModal
                         task={activeTask}
                         onClose={() => setIsTaskSettingsOpen(false)}
+                        onToast={showToast}
                         onSave={(updatedTask) => {
                             setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
                             setIsTaskSettingsOpen(false);
@@ -754,13 +877,10 @@ function playNotificationChime(type = "complete") {
                                 <button id="chat-log-button" title="View the full chat log and copy it" onClick={() => setIsChatLogOpen(true)}>
                                     <label>Chat log</label>
                                 </button>
-                                <button className="settings-button" title="View Browser History" onClick={() => setIsBrowserHistoryOpen(true)}>
-                                    <label>Browser History</label>
-                                </button>
                                 <button className="settings-button" title="Chat-scoped File Permissions" onClick={() => setIsTaskPermsOpen(true)}>
                                     <label>Permissions</label>
                                 </button>
-                                <button className="settings-button" title="Chat-scoped Settings" onClick={() => setIsTaskSettingsOpen(true)}>
+                                <button id="chat-task-settings-button" className="settings-button" title="Chat-scoped Settings" onClick={() => setIsTaskSettingsOpen(true)}>
                                     <label>Settings</label>
                                 </button>
                                 <button className={`settings-button ${isActionPlanOpen ? 'active' : ''}`} title="Toggle Action Plan" onClick={() => setIsActionPlanOpen(!isActionPlanOpen)}>
@@ -778,15 +898,32 @@ function playNotificationChime(type = "complete") {
                             </div>
                         </div>
 
-                        <BrowserHistoryModal
-                            isOpen={isBrowserHistoryOpen}
-                            onClose={() => setIsBrowserHistoryOpen(false)}
-                            taskId={activeTaskIdRef.current}
+                        <BrowserSessionReplayModal
+                            isOpen={replayModalState.isOpen}
+                            onClose={() => setReplayModalState({ isOpen: false, sessionId: null, taskId: null })}
+                            taskId={replayModalState.taskId}
+                            sessionId={replayModalState.sessionId}
+                        />
+
+                        <BrowserLiveViewModal
+                            isOpen={liveViewModalState.isOpen}
+                            onClose={() => setLiveViewModalState({ isOpen: false, sessionId: null, taskId: null })}
+                            taskId={liveViewModalState.taskId}
+                            sessionId={liveViewModalState.sessionId}
+                            onOpenReplay={handleOpenReplay}
                         />
 
                         <div ref={messagesContainerRef} id="chat-messages" className="column gap-15" onScroll={handleMessagesScroll}>
                             {visibleMessages.map((message) => (
-                                <ChatMessage key={message.id} message={message} onApprovalDecision={handleApprovalDecision} onHandoffDecision={handleHandoffDecision} onChoiceDecision={handleChoiceDecision} />
+                                <ChatMessage
+                                    key={message.id}
+                                    message={message}
+                                    onApprovalDecision={handleApprovalDecision}
+                                    onHandoffDecision={handleHandoffDecision}
+                                    onChoiceDecision={handleChoiceDecision}
+                                    onOpenReplay={handleOpenReplay}
+                                    onOpenLiveView={handleOpenLiveView}
+                                />
                             ))}
                             {activeTaskIsSending && (
                                 <div className="chat-message assistant">
@@ -820,14 +957,53 @@ function playNotificationChime(type = "complete") {
                             </button>
                         )}
 
+                        {attachments.length > 0 && (
+                            <div id="attachment-tray" className="attachment-tray">
+                                {attachments.map((att) => (
+                                    <div key={att.id} className="attachment-chip">
+                                        {att.isImage ? (
+                                            <img src={att.previewUrl} alt={att.name} className="attachment-thumb" />
+                                        ) : (
+                                            <span className="attachment-doc-icon">📄</span>
+                                        )}
+                                        <span className="attachment-name" title={att.name}>{att.name}</span>
+                                        <button
+                                            type="button"
+                                            className="attachment-remove-btn"
+                                            onClick={() => removeAttachment(att.id)}
+                                            title="Remove attachment"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         <div id="chat-input-bar" className={`align-center gap-15 ${inputExpanded ? "expanded" : ""}`}>
+                            <button
+                                id="chat-attach-button"
+                                type="button"
+                                title="Attach images or files (or paste screenshots with Ctrl+V)"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <span style={{ fontSize: "22px", fontWeight: "bold", lineHeight: 1 }}>+</span>
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                style={{ display: "none" }}
+                                onChange={handleFilesSelected}
+                            />
                             <div id="chat-input-wrapper" className="relative">
                                 <textarea
                                     id="chat-input"
                                     rows={3}
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
-                                    placeholder="Describe the goal for Zeus... (Enter to send, Shift+Enter for a new line)"
+                                    onPaste={handlePaste}
+                                    placeholder="Describe the goal for Zeus... (Enter to send, Shift+Enter for a new line, paste images with Ctrl+V)"
                                     onKeyDown={handleInputKeyDown}
                                 ></textarea>
                                 <button
