@@ -12,6 +12,8 @@
     "test:backend": "node scripts/run_regression.js --backend",
     "test:ui": "node scripts/run_regression.js --ui",
     "test:regression": "node scripts/run_regression.js",
+    "bench:validate": "node scripts/run_regression.js --missions",
+    "bench:diagnose": "node scripts/eval_harness/diagnose_mission.js",
     "eval:benchmark": "node scripts/eval_harness/run_eval_loop.js",
     "eval:score": "node scripts/eval_harness/run_score_only.js",
     "eval:dashboard": "node scripts/eval_harness/generate_dashboard.js",

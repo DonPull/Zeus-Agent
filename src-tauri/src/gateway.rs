@@ -107,7 +107,7 @@ pub fn get_local_model_ids() -> Result<Vec<String>, String> {
     }
 }
 
-fn get_api_config(model: &str) -> Result<(String, String), String> {
+pub(crate) fn get_api_config(model: &str) -> Result<(String, String), String> {
     if std::env::var("ZEUS_OFFLINE_TEST").as_deref() == Ok("1") {
         let url = std::env::var("ZEUS_API_BASE_URL").map_err(|_| "Offline tests require a mock API endpoint".to_string())?;
         let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
@@ -549,6 +549,14 @@ fn extract_error_message(status: reqwest::StatusCode, text: &str) -> String {
     format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg)
 }
 
+fn provider_failure(request: &mut Option<crate::accounting::RequestGuard>, status: reqwest::StatusCode,
+    text: &str, api_key: &str) -> Result<String, String> {
+    let message = extract_error_message(status, text);
+    let message = if api_key.is_empty() { message } else { message.replace(api_key, "[redacted]") };
+    crate::accounting::failed(request, &message)?;
+    Ok(message)
+}
+
 /// Non-streaming call, kept for simple internal uses later (M1b verifier).
 pub async fn chat_completion(
     model: &str,
@@ -564,7 +572,6 @@ pub async fn chat_completion(
         .map(|s| s.to_string());
 
     loop {
-        let mut request = crate::accounting::begin(model, &base_url)?;
         let mut body = json!({ "model": model, "messages": normalized });
         if let Some(ref eff) = current_effort {
             if !is_local_model(model) {
@@ -575,6 +582,8 @@ pub async fn chat_completion(
             body["options"] = json!({ "num_ctx": 32768 });
         }
 
+        crate::evaluation::output_cap(&mut body, false)?;
+        let mut request = crate::accounting::begin(model, &base_url, &body)?;
         let response = tokio::time::timeout(
             std::time::Duration::from_secs(180),
             client
@@ -594,6 +603,10 @@ pub async fn chat_completion(
             .map_err(|e| format!("Failed to read the API response: {}", e))?;
 
         if !status.is_success() {
+            let error = provider_failure(&mut request, status, &text, &api_key)?;
+            // Missing usage closes the bounded evaluation gate. Return the
+            // actual error instead of masking it with a blocked retry.
+            if crate::evaluation::active()? { return Err(error); }
             let code = status.as_u16();
             if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
                 let next = match current_effort.as_deref() {
@@ -609,7 +622,7 @@ pub async fn chat_completion(
                 current_effort = next;
                 continue;
             }
-            return Err(extract_error_message(status, &text));
+            return Err(error);
         }
 
         let json: serde_json::Value = serde_json::from_str(&text)
@@ -655,7 +668,6 @@ where
     let response;
     let mut request;
     loop {
-        let attempt = crate::accounting::begin(model, &base_url)?;
         let mut body = json!({ "model": model, "messages": normalized, "stream": true, "stream_options": { "include_usage": true } });
         if let Some(ref eff) = current_effort {
             if !is_local_model(model) {
@@ -666,6 +678,8 @@ where
             body["options"] = json!({ "num_ctx": 32768 });
         }
 
+        crate::evaluation::output_cap(&mut body, false)?;
+        let mut attempt = crate::accounting::begin(model, &base_url, &body)?;
         let resp_res = tokio::time::timeout(
             std::time::Duration::from_secs(timeout_secs),
             client
@@ -680,6 +694,9 @@ where
 
         let status = resp_res.status();
         if !status.is_success() {
+            let text = resp_res.text().await.unwrap_or_default();
+            let error = provider_failure(&mut attempt, status, &text, &api_key)?;
+            if crate::evaluation::active()? { return Err(error); }
             let code = status.as_u16();
             if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
                 let next = match current_effort.as_deref() {
@@ -695,8 +712,7 @@ where
                 current_effort = next;
                 continue;
             }
-            let text = resp_res.text().await.unwrap_or_default();
-            return Err(extract_error_message(status, &text));
+            return Err(error);
         }
 
         request = attempt;
@@ -820,7 +836,9 @@ where
     let normalized = normalize_chat_messages(messages);
 
     // Convert chat messages -> Responses input items. The system prompt becomes
-    // `instructions`; the rest become input items with content parts.
+    // `instructions`; plain-string message content is valid for both user and
+    // assistant history. Reusing input_text parts for an assistant turn is
+    // rejected by Responses providers (assistant parts require output_text).
     let mut instructions = String::new();
     let mut input_items: Vec<serde_json::Value> = Vec::new();
     for m in &normalized {
@@ -831,9 +849,8 @@ where
             instructions.push_str(&m.content);
         } else {
             input_items.push(json!({
-                "type": "message",
                 "role": m.role,
-                "content": [{ "type": "input_text", "text": m.content }]
+                "content": m.content
             }));
         }
     }
@@ -848,19 +865,21 @@ where
     let response;
     let mut request;
     loop {
-        let attempt = crate::accounting::begin(model, &base_url)?;
         let reasoning_val = match current_effort.as_deref() {
             Some(e) => json!({ "effort": e, "summary": "auto" }),
             None => json!({ "summary": "auto" }),
         };
 
-        let body = json!({
+        let mut body = json!({
             "model": model,
             "instructions": instructions,
             "input": input_items,
             "stream": true,
             "reasoning": reasoning_val
         });
+
+        crate::evaluation::output_cap(&mut body, true)?;
+        let mut attempt = crate::accounting::begin(model, &base_url, &body)?;
 
         let resp_res = tokio::time::timeout(
             std::time::Duration::from_secs(timeout_secs),
@@ -876,6 +895,9 @@ where
 
         let status = resp_res.status();
         if !status.is_success() {
+            let text = resp_res.text().await.unwrap_or_default();
+            let error = provider_failure(&mut attempt, status, &text, &api_key)?;
+            if crate::evaluation::active()? { return Err(error); }
             let code = status.as_u16();
             if (code == 400 || code == 403 || code == 422) && current_effort.is_some() {
                 let next = match current_effort.as_deref() {
@@ -891,16 +913,7 @@ where
                 current_effort = next;
                 continue;
             }
-            let text = resp_res.text().await.unwrap_or_default();
-            let extracted_msg = serde_json::from_str::<serde_json::Value>(&text)
-                .ok()
-                .and_then(|v| {
-                    v["error"]["message"].as_str().map(|s| s.to_string())
-                        .or_else(|| v["error"].as_str().map(|s| s.to_string()))
-                        .or_else(|| v["message"].as_str().map(|s| s.to_string()))
-                })
-                .unwrap_or_else(|| text.clone());
-            return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
+            return Err(error);
         }
 
         request = attempt;
@@ -1009,7 +1022,7 @@ where
                         });
                     }
                 }
-                "response.completed" => {
+                "response.completed" | "response.incomplete" | "response.failed" => {
                     let resp = &json["response"];
                     if model_used.is_none() {
                         model_used = resp["model"].as_str().map(|s| s.to_string());
@@ -1042,6 +1055,9 @@ where
                     }
                     crate::accounting::complete(&mut request, &mut usage)?;
                     on_event(StreamEventPayload::Done);
+                    if ev_type != "response.completed" {
+                        return Err(format!("Provider response ended with {}", ev_type));
+                    }
                     if full_text.is_empty() && reasoning_summary.is_empty() {
                         return Err("RouteLLM stream ended without any content.".into());
                     }
@@ -1123,6 +1139,7 @@ where
         match attempt {
             Ok(v) => return Ok(v),
             Err(e) => {
+                if crate::evaluation::active()? { return Err(e); }
                 if emitted_any.load(Ordering::Relaxed) {
                     return Err(format!(
                         "{} (stream produced output or completed; not retried to avoid duplicate requests)",
@@ -1507,7 +1524,8 @@ pub async fn analyze_visual(
         }
     }
 
-    let mut request = crate::accounting::begin(model, &base_url)?;
+    crate::evaluation::output_cap(&mut body, false)?;
+    let mut request = crate::accounting::begin(model, &base_url, &body)?;
     let resp = tokio::time::timeout(
         std::time::Duration::from_secs(180),
         client
@@ -1523,7 +1541,7 @@ pub async fn analyze_visual(
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(extract_error_message(status, &text));
+        return Err(provider_failure(&mut request, status, &text, &api_key)?);
     }
 
     let json: serde_json::Value = serde_json::from_str(&text)

@@ -1,6 +1,6 @@
 # Zeus Agent: stabilization and development plan
 
-Status: **Roadmap and Phase 1 implementation packet approved in conversation. Later phases require their own focused design review.**
+Status: **Roadmap, Phase 1, Phase 2A and native Phase 2B diagnostics approved in conversation. Subsequent major implementation work requires its focused design/environment decisions.**
 
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).
 
@@ -16,6 +16,8 @@ This plan records the agreed product direction and delivery order. It is the cur
 - Compare earlier and current Zeus versions under controlled conditions. Published model leaderboard scores are optional context, not a required baseline.
 - Wordle is a historical diagnostic example, not a product priority, dedicated subsystem, or central benchmark. General browser competence is the objective.
 - Current priorities: trustworthy regression tests and capability benchmarks, current functionality, execution reliability, durable task state, context/memory, and authorization.
+- Before implementing a phase, give a short plain-language description of its tangible effect: user-visible features, specific fixes, or developer/reliability improvements, including what the phase does not yet resolve.
+- Efficient live models may be used when they materially improve testing; there is no blanket prohibition on live inference. Keep deterministic regression checks where appropriate, choose economical models for targeted integration checks, and retain usage/results. Expensive frontier-model sweeps and substantial benchmark runs still need a bounded plan.
 - Later capabilities: image generation/editing, audio and video analysis, transcription, voice interaction, automatic model selection, supervised improvement, and unrestricted operation inside a real sandbox.
 
 ## 2. How each major topic will be handled
@@ -87,6 +89,8 @@ Phases are delivery order, not a prohibition on fixing a directly observed criti
 Exit: the known measurement defects have reproducing tests; intentional failures cannot be reported as passes; one offline command produces an honest report and exit status. Establish the contract and a small working suite before expanding coverage.
 
 ## 5. Phase 2: a capability benchmark we can believe
+
+Focused design prepared after the Phase 1 commit: [Phase 2 benchmark design](PHASE_2_BENCHMARK_DESIGN.md). The user approved its first implementation packet, six missions with proven graders (2A), and permits efficient live models where useful. This grader-validation slice needs no inference; later runtime/environment work and larger baselines remain separate decisions. The rest of this section records the approved roadmap direction.
 
 ### Initial task portfolio
 
@@ -403,3 +407,23 @@ Implemented on 2026-10-27:
 The command and result contracts are documented in [the evaluation guide](../scripts/eval_harness/README.md). CI is configured but has not been executed remotely. The broader browser/session/replay regression coverage described in section 4 belongs with the Phase 3 repair work; Phase 1's small smoke set does not establish those features as reliable. Attachment storage coverage does not establish model perception. Live suites still need independent authorization and quality graders in Phase 2 before they can produce a fully verified pass. Artifacts are retained locally in ignored directories and are not comprehensively redacted for publication.
 
 Local validation: `npm run build` passed; the combined offline command passed **26 JavaScript tests, 46 Rust tests, and 10 desktop/integration tests**. The demonstration retained five scenarios and reported exactly one verified pass, as expected. Dashboard rebuilding and a capability dry run completed without model calls. `git diff --check` passed. The baseline checkpoint remains `3b43f38`. The user reviewed Phase 1 and requested its commit on 2026-10-27; the next deliverable is the focused Phase 2 benchmark design.
+
+## 17. Phase 2A delivery record
+
+Phase 1 was committed as `818eb67`. The user approved the focused Phase 2A packet and requested a short tangible-impact explanation before every phase. Efficient live models are permitted when they materially help testing; there is no general inference ban.
+
+Phase 2A adds six versioned mission contracts (B01/C01/C02/D01/D02/V01), deployable synthetic inputs, known reference solutions, independent outcome graders with expected/observed evidence, and negative controls. It changes developer measurement capabilities, not the app UI or production agent behavior. Browser/image bugs remain for their repair phase.
+
+`npm run bench:validate` validates the graders. The full regression command now includes that group, plus two real headless-browser reference runs for the local ticket portal. Code execution in this authoring slice is limited to explicitly trusted reference/control programs; grading arbitrary agent programs still needs the Phase 2B execution boundary. No agent capability score or global authorization guarantee is claimed. See [mission usage and limits](../tests/benchmarks/missions/README.md).
+
+Validation: **26 JavaScript unit tests, 37 mission/grader tests, 46 Rust tests, and 12 browser/desktop integration tests passed**. The image fixture pixels were visually inspected. The portal reference initially hung while reading a response body; the fixture now consumes its response, supplies Content-Length, and the reference binds observed browser requests directly to the server mutation audit. No model inference was needed for this grader-validation slice. The user subsequently reviewed and authorized committing Phase 2A with the native Phase 2B work.
+
+## 18. Phase 2B native diagnostic delivery record
+
+The user selected native supervised diagnostics on 2026-10-28. Tangible developer changes: all six missions can run through the actual bridge with ordinary permissions, retain journals/debug logs/screenshots/artifacts, and receive independent outcome assessments. Model requests, concurrency, output, estimated tokens, directives, and runtime are bounded across roles/retries. Tests use a separate feature-gated executable linked to the production library, fresh storage and no inherited browser profile; they leave the user's running app and manual conversations alone. Efficient live diagnostics remain explicit opt-in and use the user's Abacus provider, not a newly required direct provider account.
+
+Three bounded `gpt-5-nano` diagnostics exposed and confirmed a production gateway repair: Responses history incorrectly labeled previous assistant output as `input_text`, causing a provider HTTP 400 on the next step. The gateway now sends valid plain-string history, retains original provider errors, and preserves billed usage on incomplete/failed Responses events. The final confirmation completed four requests without that protocol error and created its file; the independent grader rejected the incorrect amounts, duplicate handling, and totals key despite the agent's completion claim. All failures remain recorded. Total live usage: eight requests, 20,475 known tokens, two unknown-usage requests, unknown provider credits. One single synthetic-file read received a recorded supervisor approval through normal policy. No model/prompt/grader tuning loop or broad baseline was run.
+
+Current validation: **31 JavaScript unit tests, 37 mission/grader tests, 53 Rust tests, and 28 browser/desktop integration tests passed (149 total)**. The complete offline command passed with 52 Rust tests, followed by a passing backend run after adding the provider-failure state-transition test. The strict mock rejects the old history format; a two-turn runtime check covers the fix. Coverage includes deadline cancellation, shared-role request limits, unknown usage, directive limits, partial collection errors, false completion claims, and exact image bytes delivered to the mocked vision helper. Browser preview/replay and live image perception remain unproven.
+
+This completes the native diagnostic slice of 2B, not the whole benchmark phase. Native actors share host permissions and authorization remains unverified. Live executable submissions are exported without host-side execution; only exact known scripted controls can be executed by graders. A Windows path-normalization bug causing unnecessary approvals remains a dedicated production repair. Isolated execution/grading, independent authorization observations, a larger frozen pilot, core expansion, and repeated baselines remain pending. Details, actual operational limits, experiment IDs and research references are in [the Phase 2 packet](PHASE_2_BENCHMARK_DESIGN.md). The user reviewed the zero-pass diagnostic report, accepted the explanation, and authorized committing these changes and proceeding on 2026-10-28. Frontend build and `git diff --check` also passed.

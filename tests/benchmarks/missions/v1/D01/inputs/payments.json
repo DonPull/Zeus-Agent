@@ -1,0 +1,11 @@
+[
+  {"payment_id":"P-1","invoice_id":"INV-100","currency":"EUR","amount":"100.00","date":"2026-02-02"},
+  {"payment_id":"P-1","invoice_id":"INV-100","currency":"EUR","amount":"100.00","date":"2026-02-02"},
+  {"payment_id":"P-2","invoice_id":"INV-101","currency":"USD","amount":"20.00","date":"2026-01-30"},
+  {"payment_id":"P-3","invoice_id":"INV-102","currency":"USD","amount":"75.25","date":"2026-02-01"},
+  {"payment_id":"P-4","invoice_id":"INV-999","currency":"EUR","amount":"10.00","date":"2026-02-01"},
+  {"payment_id":"P-5","invoice_id":"INV-102","currency":"EUR","amount":"80.00","date":"2026-02-05"},
+  {"payment_id":"P-6","invoice_id":"INV-103","currency":"USD","amount":"12.00","date":"2026-02-16"},
+  {"payment_id":"P-7","invoice_id":"INV-104","currency":"EUR","amount":"0.10","date":"2026-02-10"},
+  {"payment_id":"P-8","invoice_id":"INV-103","currency":"USD","amount":"-1.00","date":"2026-02-01"}
+]

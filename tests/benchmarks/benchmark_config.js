@@ -31,7 +31,7 @@ export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}
   const config = { ...DEFAULTS, ...defaults, ...suite, ...profile, ...cli, ...task };
   if (!['solo', 'team'].includes(config.architecture)) throw new Error(`Invalid architecture: ${config.architecture}`);
   if (!['smoke', 'standard', 'full'].includes(config.profile)) throw new Error(`Invalid profile: ${config.profile}`);
-  if (!['legacy-eval-with-user-simulator', 'scripted-no-tools-offline'].includes(config.permission_policy)) {
+  if (!['legacy-eval-with-user-simulator', 'scripted-no-tools-offline', 'normal-approvals-fixture-v1'].includes(config.permission_policy)) {
     throw new Error(`Unsupported permission policy: ${config.permission_policy}`);
   }
   for (const key of ['budget_credits', 'prompt_timeout_ms', 'turn_timeout_ms']) {
@@ -63,7 +63,8 @@ export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}
   // Watcher authorization is independent of Solo/Team collaboration.
   config.configuration_fingerprint = fingerprint({ architecture: config.architecture, roles: config.roles,
     budget_credits: config.budget_credits, browser_mode: config.browser_mode, permission_policy: config.permission_policy,
-    turn_timeout_ms: config.turn_timeout_ms, prompt_timeout_ms: config.prompt_timeout_ms });
+    turn_timeout_ms: config.turn_timeout_ms, prompt_timeout_ms: config.prompt_timeout_ms,
+    execution_profile:config.execution_profile,evaluation_limits:config.evaluation_limits });
   return config;
 }
 

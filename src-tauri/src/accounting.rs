@@ -16,24 +16,28 @@ struct Context {
 tokio::task_local! { static CONTEXT: Context; }
 
 pub async fn scope<T>(db: &Arc<Mutex<Connection>>, task_id: Option<&str>, role: &str,
-    future: impl std::future::Future<Output = T>) -> T {
+    future: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
     let run_id = task_id.and_then(|id| db.lock().ok().and_then(|conn| conn.query_row(
         "SELECT id FROM runs WHERE task_id = ?1 AND status = 'running' ORDER BY rowid DESC LIMIT 1",
         [id], |row| row.get(0)).ok()));
-    CONTEXT.scope(Context { db: db.clone(), task_id: task_id.map(str::to_owned), run_id, role: role.into() }, future).await
+    CONTEXT.scope(Context { db: db.clone(), task_id: task_id.map(str::to_owned), run_id, role: role.into() },
+        crate::evaluation::within_deadline(future)).await
 }
 
 pub struct RequestGuard {
-    context: Context,
+    context: Option<Context>,
     id: String,
     requested_model: String,
     completed: bool,
+    allowance: Option<crate::evaluation::Lease>,
 }
 
-pub fn begin(model: &str, endpoint: &str) -> Result<Option<RequestGuard>, String> {
-    let Ok(context) = CONTEXT.try_with(Clone::clone) else { return Ok(None); };
+pub fn begin(model: &str, endpoint: &str, body: &serde_json::Value) -> Result<Option<RequestGuard>, String> {
+    let allowance = crate::evaluation::reserve(body)?;
+    let context = CONTEXT.try_with(Clone::clone).ok();
+    if context.is_none() && allowance.is_none() { return Ok(None); }
     let id = new_id();
-    {
+    if let Some(context) = &context {
         let conn = context.db.lock().map_err(|e| e.to_string())?;
         let provider = reqwest::Url::parse(endpoint).map(|url| url.origin().ascii_serialization())
             .unwrap_or_else(|_| "unknown".into());
@@ -42,15 +46,18 @@ pub fn begin(model: &str, endpoint: &str) -> Result<Option<RequestGuard>, String
             VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?5, ?6, 0, 0, 'in_flight', '', ?7)",
             params![id, context.task_id, context.run_id, context.role, model, provider, now_iso()]).map_err(|e| e.to_string())?;
     }
-    Ok(Some(RequestGuard { context, id, requested_model: model.into(), completed: false }))
+    Ok(Some(RequestGuard { context, id, requested_model: model.into(), completed: false, allowance }))
 }
 
 pub fn observe(guard: &mut Option<RequestGuard>, usage: &mut UsageInfo, raw: &str, reported_model: Option<&str>) -> Result<(), String> {
     if let Some(guard) = guard {
-        usage.request_id = Some(guard.id.clone());
-        let conn = guard.context.db.lock().map_err(|e| e.to_string())?;
-        record_usage(&conn, guard.context.task_id.as_deref(), guard.context.run_id.as_deref(), &guard.context.role,
-            &guard.requested_model, reported_model.unwrap_or(&guard.requested_model), usage, raw)?;
+        if let Some(context) = &guard.context {
+            usage.request_id = Some(guard.id.clone());
+            let conn = context.db.lock().map_err(|e| e.to_string())?;
+            record_usage(&conn, context.task_id.as_deref(), context.run_id.as_deref(), &context.role,
+                &guard.requested_model, reported_model.unwrap_or(&guard.requested_model), usage, raw)?;
+        }
+        if usage.usage_known { if let Some(allowance) = &mut guard.allowance { allowance.observe(usage.units() as u64)?; } }
     }
     Ok(())
 }
@@ -59,10 +66,29 @@ pub fn complete(guard: &mut Option<RequestGuard>, usage: &mut UsageInfo) -> Resu
     if let Some(guard) = guard {
         // Even a successful response with missing usage belongs to this request.
         // Attaching its ID prevents a caller from creating a second unknown row.
-        usage.request_id = Some(guard.id.clone());
-        let conn = guard.context.db.lock().map_err(|e| e.to_string())?;
-        conn.execute("UPDATE credit_events SET request_status = 'completed' WHERE id = ?1", [&guard.id])
-            .map_err(|e| e.to_string())?;
+        if let Some(context) = &guard.context {
+            usage.request_id = Some(guard.id.clone());
+            let conn = context.db.lock().map_err(|e| e.to_string())?;
+            conn.execute("UPDATE credit_events SET request_status = 'completed' WHERE id = ?1", [&guard.id])
+                .map_err(|e| e.to_string())?;
+        }
+        guard.completed = true;
+    }
+    Ok(())
+}
+
+/// Retain the original provider error before compatibility retries or budget
+/// checks can replace it. The gateway must redact credentials before calling.
+pub fn failed(guard: &mut Option<RequestGuard>, message: &str) -> Result<(), String> {
+    if let Some(guard) = guard {
+        if let Some(context) = &guard.context {
+            if let Some(task) = &context.task_id {
+                crate::logger::log(task, "gateway_error", message);
+            }
+            let conn = context.db.lock().map_err(|e| e.to_string())?;
+            conn.execute("UPDATE credit_events SET request_status = 'failed' WHERE id = ?1", [&guard.id])
+                .map_err(|e| e.to_string())?;
+        }
         guard.completed = true;
     }
     Ok(())
@@ -71,10 +97,10 @@ pub fn complete(guard: &mut Option<RequestGuard>, usage: &mut UsageInfo) -> Resu
 impl Drop for RequestGuard {
     fn drop(&mut self) {
         if !self.completed {
-            if let Ok(conn) = self.context.db.lock() {
+            if let Some(context) = &self.context { if let Ok(conn) = context.db.lock() {
                 // Dropping a model future on cancellation still leaves an unknown-usage request.
                 let _ = conn.execute("UPDATE credit_events SET request_status = 'interrupted' WHERE id = ?1", [&self.id]);
-            }
+            } }
         }
     }
 }
@@ -216,11 +242,28 @@ mod tests {
         assert_eq!(request, None);
     }
     #[tokio::test]
+    async fn provider_failure_remains_failed_after_guard_drop_without_inventing_usage() {
+        let db = Arc::new(Mutex::new(database()));
+        scope(&db, Some("task"), "master", async {
+            let mut guard = begin("m", "http://127.0.0.1:1234", &serde_json::json!({}))?;
+            failed(&mut guard, "LLM Provider Error (400): invalid history")?;
+            drop(guard);
+            Ok(())
+        }).await.unwrap();
+        let conn = db.lock().unwrap();
+        let status: String = conn.query_row("SELECT request_status FROM credit_events", [], |row| row.get(0)).unwrap();
+        assert_eq!(status, "failed");
+        assert_eq!(summarize(&conn, "task").unwrap().unknown_requests, 1);
+        assert_eq!(task_spend(&conn, "task").unwrap(), 0.0);
+        assert!(crate::logger::get_debug_log("task".into()).contains("invalid history"));
+    }
+    #[tokio::test]
     async fn cancelled_request_preserves_unknown_usage() {
         let db = Arc::new(Mutex::new(database()));
         scope(&db, Some("task"), "watcher", async {
-            let guard = begin("m", "http://127.0.0.1:1234").unwrap(); drop(guard);
-        }).await;
+            let guard = begin("m", "http://127.0.0.1:1234", &serde_json::json!({})).unwrap(); drop(guard);
+            Ok(())
+        }).await.unwrap();
         let summary = summarize(&db.lock().unwrap(), "task").unwrap();
         assert_eq!(summary.unknown_requests, 1);
         assert_eq!(summary.provider_credits, None);

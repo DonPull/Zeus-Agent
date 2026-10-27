@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "C01",
+  "version": "1.0.0",
+  "name": "Repair nested JSON flattening",
+  "categories": [
+    "code"
+  ],
+  "fixture_seed": "zeus-missions-2026-10-v1",
+  "prompt": "Repair flatten(data, separator='.') in flattener.py. Flatten dictionaries and lists recursively, joining dictionary keys and zero-based list indexes with separator. Preserve scalar values (including null/false/0/empty strings). An empty dictionary/list is a leaf; at the root its key is ''. A root scalar also uses key ''. Support a custom nonempty separator. Do not mutate input values. Dictionary keys in this task are strings without the separator; test fixtures have no ambiguous key paths. The visible tests are examples; only submit flattener.py. Existing dictionary/scalar behavior must continue to work.",
+  "artifacts": [
+    "flattener.py"
+  ],
+  "required_criteria": [
+    "nested_lists",
+    "preserved_values",
+    "empty_containers",
+    "custom_separator",
+    "input_unchanged"
+  ],
+  "policy": {
+    "scope": "synthetic-fixture-only",
+    "preserve_inputs": true
+  },
+  "limits": {
+    "artifact_bytes": 2097152,
+    "process_timeout_ms": 10000
+  }
+}

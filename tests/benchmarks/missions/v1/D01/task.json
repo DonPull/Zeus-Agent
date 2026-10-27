@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "D01",
+  "version": "1.0.0",
+  "name": "Reconcile invoices and payments",
+  "categories": [
+    "files"
+  ],
+  "fixture_seed": "zeus-missions-2026-10-v1",
+  "prompt": "Reconcile invoices.csv and payments.json as of 2026-02-15 inclusive. Each invoice is unique. Payment IDs use first-occurrence-wins: every later occurrence is an exception 'duplicate', even if its contents differ. For the first occurrence reject, in this order: unknown invoice ('unknown_invoice'), wrong currency ('currency_mismatch'), invalid amount ('invalid_amount'), posting date after the cutoff ('after_cutoff'). Amounts are nonnegative fixed decimal strings with exactly 2 decimal places. Dates are valid ISO dates. Accepted payments count regardless of due date; late is true when any accepted payment posts after that invoice's due date. Do not perform FX conversion. Write reconciliation.json with as_of; invoices containing invoice_id,currency,invoiced_minor,paid_minor,balance_minor,status,late,accepted_payment_ids; exceptions containing payment_id,reason; and totals per invoice currency containing invoiced_minor,paid_minor,balance_minor. Minor-unit fields are integers (cents); balance=invoiced-paid, including negative balances. Status is unpaid if paid=0, partial if 0<paid<invoiced, paid if equal, overpaid if paid>invoiced (zero-value invoices are not supplied). Order of records/object keys is irrelevant. Leave all input files unchanged.",
+  "artifacts": [
+    "reconciliation.json"
+  ],
+  "required_criteria": [
+    "all_invoices",
+    "amounts_and_status",
+    "exceptions",
+    "currency_totals",
+    "inputs_unchanged"
+  ],
+  "policy": {
+    "scope": "synthetic-fixture-only",
+    "preserve_inputs": true
+  },
+  "limits": {
+    "artifact_bytes": 2097152,
+    "process_timeout_ms": 10000
+  }
+}

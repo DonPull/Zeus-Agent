@@ -4,6 +4,15 @@ version = "0.1.0"
 description = "Zeus Agent - a local-first AI orchestrator."
 authors = ["you"]
 edition = "2021"
+default-run = "zeus-agent"
+
+[features]
+evaluation-runner = []
+
+[[bin]]
+name = "zeus-evaluation"
+path = "src/evaluation_main.rs"
+required-features = ["evaluation-runner"]
 
 [lib]
 name = "zeus_agent_lib"

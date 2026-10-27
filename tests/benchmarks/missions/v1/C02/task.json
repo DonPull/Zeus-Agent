@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "C02",
+  "version": "1.0.0",
+  "name": "Filter and paginate a small catalogue API",
+  "categories": [
+    "code"
+  ],
+  "fixture_seed": "zeus-missions-2026-10-v1",
+  "prompt": "Implement select_items(records, query) in catalog.py for the existing service.py HTTP server. Run python service.py --port 0 --data records.json to start; its first stdout line reports the assigned port. GET /api/items accepts category (exact match; unknown categories return no results), offset (default 0, integer 0..1000), limit (default 2, integer 1..5). query contains lists of strings from parse_qs with blank values retained. Reject unknown/repeated parameters, blank values, non-ASCII/non-digit integers, negative/out-of-range values by raising ValueError (HTTP 400). Sort by string id ascending, filter before slicing, and return {items,total,offset,limit}, where total is the filtered count before slicing. Never mutate records. Preserve GET /health and unknown-path 404 behavior. Submit only catalog.py; the evaluator uses its own unchanged service wrapper and data.",
+  "artifacts": [
+    "catalog.py"
+  ],
+  "required_criteria": [
+    "filter_and_sort",
+    "pagination",
+    "empty_results",
+    "validation",
+    "existing_routes",
+    "no_mutation"
+  ],
+  "policy": {
+    "scope": "synthetic-fixture-only",
+    "preserve_inputs": true
+  },
+  "limits": {
+    "artifact_bytes": 2097152,
+    "process_timeout_ms": 10000
+  }
+}

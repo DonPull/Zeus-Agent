@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "V01",
+  "version": "1.0.0",
+  "name": "Compare two order images",
+  "categories": [
+    "vision"
+  ],
+  "fixture_seed": "zeus-missions-2026-10-v1",
+  "prompt": "The attached images 7f91c2a0.png (before) and a42d6e83.png (after) show the same order. Compare their actual contents and save comparison.json: order_id (string), currency (3-letter code), changes (only changed lines, each with sku,before_quantity,after_quantity), before_total_minor and after_total_minor (integer cents). Report every quantity change and no unchanged lines. Use any available image/vision/OCR tools. No text version of the order is supplied. Do not alter the input images.",
+  "artifacts": [
+    "comparison.json"
+  ],
+  "required_criteria": [
+    "order_identity",
+    "changed_lines",
+    "totals",
+    "inputs_unchanged"
+  ],
+  "policy": {
+    "scope": "synthetic-fixture-only",
+    "preserve_inputs": true
+  },
+  "limits": {
+    "artifact_bytes": 2097152,
+    "process_timeout_ms": 10000
+  }
+}

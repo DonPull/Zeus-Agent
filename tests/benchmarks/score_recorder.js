@@ -51,10 +51,11 @@ export function buildScoreRecord({ suiteTitle, suiteDir, promptSpec, runMeta = {
   authorizationChecks = [], efficiencyScore = null, manualScores = null,
   mode = process.env.ZEUS_BENCH_MODE ?? 'score-only' }) {
   const status = executionStatus(runMeta.execution_status ?? runMeta.status);
-  const checked = pythonCheckDetails.length ? pythonCheckDetails.every(c => c.passed === true) : pythonCheckPassed;
+  const verdict = checks => checks.some(c => c.passed === false) ? false : checks.every(c => c.passed === true) ? true : undefined;
+  const checked = pythonCheckDetails.length ? verdict(pythonCheckDetails) : pythonCheckPassed;
   const outcome = checked === true ? 'passed' : checked === false ? 'failed' : 'not_evaluated';
-  const authorization = unauthorizedActions > 0 ? 'failed' : authorizationChecks.length ?
-    (authorizationChecks.every(c => c.passed === true) ? 'passed' : 'failed') : 'not_evaluated';
+  const authorizationVerdict = authorizationChecks.length ? verdict(authorizationChecks) : undefined;
+  const authorization = unauthorizedActions > 0 || authorizationVerdict === false ? 'failed' : authorizationVerdict === true ? 'passed' : 'not_evaluated';
   const diagnostic = mergeManualScores(scoreFromHarnessObservation({ pythonCheckPassed: checked, pythonCheckDetails,
     toolErrors, unauthorizedActions, authorizationChecks, efficiencyScore }), manualScores);
   return {
@@ -66,6 +67,9 @@ export function buildScoreRecord({ suiteTitle, suiteDir, promptSpec, runMeta = {
     evaluation_kind: runMeta.evaluation_kind ?? 'capability', architecture: runMeta.architecture ?? process.env.ZEUS_BENCH_ARCH ?? 'unknown',
     configuration_fingerprint: runMeta.configuration_fingerprint ?? fingerprint(runMeta.configuration ?? runMeta.model_set ?? {}),
     configuration: runMeta.configuration ?? null, build: runMeta.build ?? null,
+    execution_profile: runMeta.execution_profile ?? null, mission_assessment: runMeta.mission_assessment ?? null,
+    evaluation_limits: runMeta.evaluation_limits ?? null, interventions: runMeta.interventions ?? [],
+    authorization_coverage: runMeta.authorization_coverage ?? null,
     model_set: runMeta.model_set ?? { master: runMeta.master_model ?? null, worker: runMeta.worker_model ?? null,
       verifier: runMeta.verifier_model ?? null, watcher: runMeta.watcher_model ?? null, vision: runMeta.vision_model ?? null,
       models_used: modelsUsed },
@@ -200,9 +204,9 @@ export function renderDashboardHtml(payload) {
 <style>body{font:15px system-ui;background:#111827;color:#e5e7eb;margin:32px}table{border-collapse:collapse;width:100%}td,th{padding:10px;text-align:left;border-bottom:1px solid #374151}.scroll{overflow:auto}small{color:#9ca3af}</style>
 <h1>Zeus evaluation records</h1><p>${payload.runs.length} retained trials; ${payload.aggregate.prompt_count} distinct tasks.
 Verified passes: ${payload.aggregate.overall.pass_count}. Outcome checks passed: ${payload.aggregate.overall.outcome_pass_count}.</p>
-<p><small>Unknown quality, safety, and cost are not perfect scores or zero cost. Historical and scripted records retain their labels. Compare matched experiment/configuration cells.</small></p>
+<p><small>Unknown quality, safety, and cost are not perfect scores or zero cost. Historical, scripted, and native supervised records retain their labels. Native diagnostics are not isolated benchmarks. Compare matched experiment/configuration cells.</small></p>
 <div class="scroll"><table><thead><tr><th>Experiment / trial</th><th>Suite / task</th><th>Kind / architecture</th><th>Execution</th><th>Outcome</th><th>Authorization</th><th>Quality</th><th>Token equivalents</th><th>Provider credits</th><th>Seconds</th></tr></thead><tbody>
-${payload.runs.map(r => `<tr><td>${escapeHtml(r.experiment_id)} / ${escapeHtml(r.trial_id ?? 'historical')}</td><td>${escapeHtml(r.suite)} / ${escapeHtml(r.name ?? r.prompt_id)}</td><td>${escapeHtml(r.evaluation_kind ?? 'historical')} / ${escapeHtml(r.architecture)}</td><td>${escapeHtml(r.execution_status ?? r.status)}</td><td>${escapeHtml(r.outcome_status ?? 'historical')}</td><td>${escapeHtml(r.authorization_status ?? 'not evaluated')}</td><td>${display(r.total_score)}</td><td>${display(r.units_used)}</td><td>${display(r.provider_credits)}</td><td>${display(r.duration_seconds)}</td></tr>`).join('\n')}
+${payload.runs.map(r => `<tr><td>${escapeHtml(r.experiment_id)} / ${escapeHtml(r.trial_id ?? 'historical')}</td><td>${escapeHtml(r.suite)} / ${escapeHtml(r.name ?? r.prompt_id)}</td><td>${escapeHtml(r.evaluation_kind ?? 'historical')} / ${escapeHtml(r.execution_profile ?? 'unspecified profile')} / ${escapeHtml(r.architecture)}</td><td>${escapeHtml(r.execution_status ?? r.status)}</td><td>${escapeHtml(r.outcome_status ?? 'historical')}</td><td>${escapeHtml(r.authorization_status ?? 'not evaluated')}</td><td>${display(r.total_score)}</td><td>${display(r.units_used)}</td><td>${display(r.provider_credits)}</td><td>${display(r.duration_seconds)}</td></tr>`).join('\n')}
 </tbody></table></div><h2>Comparison cells</h2><pre>${escapeHtml(JSON.stringify(payload.aggregate.by_configuration, null, 2))}</pre></html>`;
 }
 

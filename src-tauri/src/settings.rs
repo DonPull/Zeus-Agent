@@ -198,6 +198,11 @@ pub fn set_api_key(api_key: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn has_api_key() -> bool {
+    // Offline fixtures already have a validated loopback endpoint and dummy
+    // credential. Do not open the key-entry modal or touch the user's vault.
+    if std::env::var("ZEUS_OFFLINE_TEST").as_deref() == Ok("1") {
+        return crate::gateway::get_api_config("phase1-mock").is_ok();
+    }
     load_api_key().is_ok()
 }
 

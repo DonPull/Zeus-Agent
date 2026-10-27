@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "D02",
+  "version": "1.0.0",
+  "name": "Migrate feedback without data loss",
+  "categories": [
+    "files"
+  ],
+  "fixture_seed": "zeus-missions-2026-10-v1",
+  "prompt": "The supplied feedback.db has feedback(id INTEGER PRIMARY KEY,text TEXT NOT NULL,note TEXT NOT NULL). Implement python ingest.py --db feedback.db --input raw_feedback.json. Add category TEXT NOT NULL DEFAULT 'General' if missing; preserve all existing IDs/text/notes and classify existing and newly inserted rows. Classify case-insensitively by substring: any of error/crash/offline -> Technical; otherwise any of invoice/refund/charge -> Billing; otherwise General. Technical takes precedence. Insert new IDs from the input JSON array; for any existing ID, keep the original text/note. Re-running the same input must not duplicate/change rows or columns. Input records have unique integer IDs, text and note strings. Support fresh input files with new IDs and already existing IDs. Submit ingest.py; the evaluator starts from its own original database and supplies its own input paths. Do not edit/delete tests or other inputs.",
+  "artifacts": [
+    "ingest.py"
+  ],
+  "required_criteria": [
+    "schema",
+    "preservation",
+    "classification",
+    "idempotence",
+    "fresh_input"
+  ],
+  "policy": {
+    "scope": "synthetic-fixture-only",
+    "preserve_inputs": true
+  },
+  "limits": {
+    "artifact_bytes": 2097152,
+    "process_timeout_ms": 10000
+  }
+}

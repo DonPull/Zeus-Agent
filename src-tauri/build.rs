@@ -11,5 +11,6 @@ fn main() {
         // Tauri already embeds the app manifest in resource.lib for the main
         // binary. Keep that manifest and avoid a second linker-generated one.
         println!("cargo:rustc-link-arg-bin=zeus-agent=/MANIFEST:NO");
+        println!("cargo:rustc-link-arg-bin=zeus-evaluation=/MANIFEST:NO");
     }
 }

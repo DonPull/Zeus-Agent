@@ -107,6 +107,7 @@ pub struct SpendDto {
     pub spent_credits: f64,
     pub budget_credits: i64,
     pub usage: crate::accounting::UsageSummary,
+    pub evaluation: Option<crate::evaluation::Snapshot>,
 }
 
 #[derive(Serialize, Clone)]
@@ -769,6 +770,7 @@ pub async fn get_task_spend(
         spent_credits: task.spent_credits,
         budget_credits: task.budget_credits,
         usage: crate::accounting::summarize(&connection, &task_id)?,
+        evaluation: crate::evaluation::snapshot()?,
     })
 }
 
@@ -1644,6 +1646,7 @@ async fn execute_user_turn(
                 // Loop: call the master again with the error feedback.
             }
             orchestrator::MasterReply::Directive(preamble, directive, raw) => {
+                if !matches!(directive, Directive::FinalAnswer { .. }) { crate::evaluation::directive()?; }
                 crate::logger::log(
                     &task_id,
                     "orchestrator",

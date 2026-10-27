@@ -76,3 +76,12 @@ test('new records cannot silently replace an existing historical history', t => 
   assert.throws(() => appendScore(dir, { trial_id: 'new' }), /historical/);
   assert.equal(fs.readFileSync(path.join(dir, 'scores.json'), 'utf8'), history);
 });
+
+test('partial collection evidence and usage survive a later grader error',async()=>{
+  const record=await runTrial({...base,collect:async context=>{
+    context.observation={runMeta:{usage:{known_tokens:42}}};
+    context.artifacts.push({path:'messages.json',sha256:'fixture'});
+    throw Object.assign(new Error('grader failed'),{code:'INFRASTRUCTURE_ERROR'});
+  }});
+  assert.equal(record.execution_status,'infrastructure_error');assert.equal(record.usage.known_tokens,42);assert.equal(record.artifacts.length,1);
+});

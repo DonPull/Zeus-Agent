@@ -11,18 +11,40 @@ npm run build
 npm run test:unit         # Node configuration, runner, grader, and recorder tests
 npm run test:backend      # cargo test --lib --locked
 npm run test:ui           # Explicit offline desktop allowlist
-npm run test:regression   # All three groups; nonzero if any group fails
+npm run test:regression   # All offline groups; nonzero if any group fails
+npm run bench:validate    # Six mission graders with known references/wrong submissions
 npm run eval:demo         # Controlled mixed pass/failure report; no models
 npm run eval:dashboard    # Rebuild combined report from retained records
 ```
 
-The orchestrator runs only `tests/unit/*.test.js`, backend library tests, and `playwright.offline.config.js`. It does not include the existing live advanced E2E specs. The offline runtime requires an explicit HTTP loopback mock endpoint, uses a dummy key, and cannot fall back to a hosted provider. Each desktop launch gets a unique ignored workspace and test database. It does not delete or use manual conversations. Windows helpers and the test app run hidden.
+The orchestrator runs only `tests/unit/*.test.js`, `tests/missions/graders.test.js`, backend library tests, and `playwright.offline.config.js`. It does not include the existing live advanced E2E specs. The offline runtime requires an explicit HTTP loopback mock endpoint, uses a dummy key, and cannot fall back to a hosted provider. Each desktop launch gets a unique ignored workspace and test database. It does not delete or use manual conversations. Windows helpers and the test app run hidden.
+
+Phase 2A adds [six mission contracts and validated graders](../../tests/benchmarks/missions/README.md). Their reference solutions and deliberately incorrect controls test the evaluator, not agent intelligence. Efficient live-model tests may be used separately when useful; ordinary offline regression remains repeatable without credentials.
 
 Desktop coverage currently checks real bridge calls, streaming Chat/Responses usage, missing usage, empty replies, message ordering/reload, cancellation, shared Master/Worker/Verifier spend, an interactive command approval, attachment bytes/path persistence, and a scripted trial through the benchmark pipeline. Browser preview/session/replay and actual image perception are not established by this smoke set. Existing Rust tests additionally cover run recovery, policy rules, message visibility/order, directive parsing, Python restrictions, and cancellation. This is an initial regression suite, not exhaustive production certification.
 
 The Windows workflow in `.github/workflows/regression.yml` builds and runs these offline commands without provider secrets. Its remote execution has not yet been verified.
 
-## Capability evaluation commands
+## Native supervised mission diagnostic
+
+The Phase 2 driver runs the production Rust library in a separate feature-gated `zeus-evaluation` executable. It uses fresh test data, normal permissions, and no inherited browser profiles/extensions. The live/mock provider choice is independent of policy; old suites explicitly request their legacy evaluation policy. Offline credential readiness uses only the validated mock configuration and does not touch the user's credential vault.
+
+The first diagnostic is deliberately limited to synthetic **D01**, which grades JSON data without executing submitted programs. The user selected native supervised execution rather than preparing a VM. This shares the host's permissions; it is not an isolated benchmark or proof of adversarial safety.
+
+```powershell
+npm run bench:diagnose -- --dry-run
+npm run bench:diagnose -- --live --model gpt-5-nano
+```
+
+The default is a dry run. Live preflight checks the exact model against the app's Abacus catalogue and refuses missing credentials or a locally registered ID. Each invocation permits one task attempt, no automatic trial retries, six model requests across all roles/retries, one in flight, twelve directives, 4,096 output tokens per request, 100,000 token equivalents including input reservations, and 180 seconds. These are operational bounds, not a dollar/subscription-credit ceiling. Reserve estimates use serialized request bytes divided by three; actual reported usage can exceed the estimate. Unknown usage stops later dispatch rather than becoming a free retry. During bounded diagnostics, an HTTP provider failure is returned directly instead of being obscured by compatibility retries blocked by that safeguard.
+
+The separate Zeus window shows normal approval cards. The controller records requests/decisions and waits for user or external supervisor review; it does not broadly approve commands or Python scripts. A known Windows path-normalization problem can request approval even for intended workspace writes. That remains a production-policy bug to repair with dedicated tests; the benchmark does not bypass it.
+
+Each experiment retains its preflight manifest, source/configuration hashes, immutable trial, journal, bounded debug log, screenshot, exported files/hashes, criterion assessment, interventions, and rebuildable dashboard. Startup/preflight failures also produce failure records. Exit codes: `0` fully verified pass, `2` independently passed outcome with authorization unverified, `1` failure/error. Native authorization coverage is partial and currently cannot produce a fully verified pass. Live executable outputs are never graded on the evaluator host; only exact known scripted-control hashes permit executable reference grading.
+
+The scripted desktop suite drives all six missions through the bridge, including a false B01 completion claim which correctly fails and V01 uploads whose exact PNG bytes reach the mocked vision helper. These are regression checks, not capability results. See [mission details](../../tests/benchmarks/missions/README.md). A repeated capability baseline, isolated execution, and authorization proof remain later work.
+
+## Capability evaluation commands (legacy suites)
 
 Inspect resolved settings first; this makes no model calls:
 
@@ -93,4 +115,4 @@ npm run eval:dashboard -- .zeus/evaluations/<first> .zeus/evaluations/<second>
 
 The combined report is written to `.zeus/evaluations/dashboard/index.html`. Missing, empty, and corrupt inputs fail explicitly. Raw records survive report-generation failures. Historical score directories may be passed explicitly for inspection; their provenance is preserved, not upgraded to schema-v2 evidence. Append new trials to a fresh experiment, not an old historical score directory.
 
-The next phase will define independently checked capability missions, authorization graders, held-out cases, repeated baselines, and the live cost envelope. No hosted benchmark was run as part of Phase 1.
+Phase 1 made no hosted calls. Phase 2 adds independently checked missions and a small native diagnostic; isolated execution, authorization graders, held-out cases, and a repeated baseline remain pending. Neither the legacy suites nor the native diagnostic are that baseline.

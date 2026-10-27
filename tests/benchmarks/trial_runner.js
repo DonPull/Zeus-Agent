@@ -7,7 +7,7 @@ export async function runTrial({ suiteTitle, suiteDir, promptSpec, runMeta = {},
   const started = Date.now();
   const meta = { ...runMeta, trial_id: runMeta.trial_id ?? crypto.randomUUID(), started_at: new Date(started).toISOString() };
   const controller = new AbortController();
-  const context = { checks: [], authorizationChecks: [], artifacts: [], signal: controller.signal };
+  const context = { checks: [], authorizationChecks: [], artifacts: [], observation: {}, signal: controller.signal };
   async function bounded(work, milliseconds) {
     let timer;
     try {
@@ -30,9 +30,10 @@ export async function runTrial({ suiteTitle, suiteDir, promptSpec, runMeta = {},
     failure = error;
     if (/timeout|timed out/i.test(`${error.name} ${error.message}`)) status = 'timed_out';
     else if (error.code === 'RUN_CANCELLED') status = 'cancelled';
+    else if (error.code === 'INFRASTRUCTURE_ERROR') status = 'infrastructure_error';
   }
-  try { observation = await bounded(collect(context), 10000); }
-  catch (error) { failure ??= error; status = 'infrastructure_error'; }
+  try { observation = {...context.observation, ...await bounded(collect(context), 10000)}; }
+  catch (error) { observation=context.observation; failure ??= error; status = 'infrastructure_error'; }
   try { await bounded(cleanup(context), 15000); }
   catch (error) { failure ??= error; status = 'infrastructure_error'; }
   const record = buildScoreRecord({ suiteTitle, suiteDir, promptSpec, ...observation,

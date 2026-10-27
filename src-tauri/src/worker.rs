@@ -351,6 +351,7 @@ pub async fn run_worker(
                     history.push(ChatMessage { role: "user".into(), content: feedback });
                 }
                 orchestrator::MasterReply::Directive(_preamble, directive, raw) => {
+                    if !matches!(directive, Directive::FinalAnswer { .. }) { crate::evaluation::directive()?; }
                     let preamble = if let Some(idx) = raw.find("```zeus-directive") {
                         raw[..idx].trim().to_string()
                     } else if let Some(idx) = raw.find('{') {

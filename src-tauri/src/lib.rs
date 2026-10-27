@@ -2,6 +2,7 @@
 
 pub mod cookie_vault;
 pub mod accounting;
+pub mod evaluation;
 pub mod db;
 pub mod chat;
 pub mod browser_manager;

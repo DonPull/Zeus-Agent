@@ -1,0 +1,5 @@
+[
+  {"id":"T-101","customer_id":"C-205","customer":"Elena Petrov","subject":"Offline printer","priority":"low","notes":["Waiting for details"],"status":"open"},
+  {"id":"T-102","customer_id":"C-204","customer":"Elena Petrova","subject":"Offline printer","priority":"normal","notes":["Initial report received"],"status":"open"},
+  {"id":"T-103","customer_id":"C-204","customer":"Elena Petrova","subject":"Invoice question","priority":"normal","notes":[],"status":"open"}
+]

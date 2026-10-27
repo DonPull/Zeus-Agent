@@ -56,7 +56,7 @@ export function registerBenchmarkSuite(suiteTitle, suiteDir) {
             evaluation_kind: offline ? 'scripted_runtime' : 'capability' },
           setup: async context => {
             if (offline) await startMockServer();
-            const { page } = await launchTauri(!offline);
+            const { page } = await launchTauri(!offline, {policy:offline?'standard':'legacy-evaluation'});
             context.page = page;
             await expect(page.locator('#app-container')).toBeVisible({ timeout: 15000 });
             context.task = await page.evaluate(async () => window.__ZEUS_BRIDGE__.createTask('Benchmark trial'));

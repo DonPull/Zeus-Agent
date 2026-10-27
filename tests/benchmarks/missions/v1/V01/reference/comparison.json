@@ -1,0 +1,7 @@
+{
+  "order_id":"ZA-7419",
+  "currency":"EUR",
+  "changes":[{"sku":"CAB-240","before_quantity":2,"after_quantity":5}],
+  "before_total_minor":11800,
+  "after_total_minor":15550
+}

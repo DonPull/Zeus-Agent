@@ -1,0 +1,8 @@
+[
+  {"id":"I-004","category":"hardware","name":"Hub"},
+  {"id":"I-001","category":"software","name":"Editor"},
+  {"id":"I-003","category":"hardware","name":"Cable"},
+  {"id":"I-006","category":"software","name":"Backup"},
+  {"id":"I-002","category":"hardware","name":"Keyboard"},
+  {"id":"I-005","category":"hardware","name":"Mouse"}
+]

@@ -1,0 +1,5 @@
+[
+  {"id":2,"text":"Overwrite attempt must be ignored","note":"Do not replace the original note"},
+  {"id":4,"text":"Refund requested","note":"New feedback"},
+  {"id":5,"text":"Offline and refund pending","note":"Technical takes precedence"}
+]
