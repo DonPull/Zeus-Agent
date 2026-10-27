@@ -1,6 +1,6 @@
 {
   "architecture": "solo",
-  "description": "Single unified master (local_master-style) on one cloud model. For A/B vs team multi-agent. Use ZEUS_BENCH_ARCH=solo.",
+  "description": "Historical hosted Solo example: disables Worker and Verifier. System-prompt routing still follows the existing runtime's model classification.",
   "master_model": "zai-org/GLM-5.3-Flash",
   "worker_model": "None",
   "verifier_model": "None",
@@ -10,6 +10,5 @@
   "browser_mode": "sandboxed",
   "prompt_timeout_ms": 1500000,
   "turn_timeout_ms": 900000,
-  "execution_mode": "unified",
-  "notes": "Prefer single-agent prompt path when available (local_master or equivalent)."
+  "notes": "Used by run_matrix.js. Watcher differs from the Team example, so these defaults do not isolate collaboration quality. Phase 2 must define matched baseline configurations."
 }

@@ -151,7 +151,7 @@ pub async fn run_worker(
     run_id: &str,
     cancellation_token: &CancellationToken,
     delegate: &DelegateSpec,
-    mut current_spend: f64,
+    _initial_spend: f64,
 ) -> Result<String, String> {
     let worker_id = new_id();
     let conversation = format!("worker:{}", worker_id);
@@ -243,6 +243,7 @@ pub async fn run_worker(
         (t.worker_model, t.verifier_model, t.budget_credits, t.worker_effort, t.verifier_effort)
     };
 
+    let mut current_spend;
     let max_retries = 3;
     let mut retry_count = 0;
 
@@ -251,6 +252,8 @@ pub async fn run_worker(
         let mut loop_iterations = 0;
         let mut transient_retries = 0;
         let worker_result = loop {
+            current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
+            if budget_units > 0 && current_spend >= budget_units as f64 { break Err("BUDGET_EXCEEDED".to_string()); }
             loop_iterations += 1;
             if loop_iterations > orchestrator::max_orchestration_iterations() {
                 break Err("Worker hit iteration cap without a final answer.".to_string());
@@ -265,9 +268,10 @@ pub async fn run_worker(
             let payload_size = serde_json::to_string(&history_clone).map(|s| s.len()).unwrap_or(0);
             crate::logger::log(task_id, "worker", &format!("Sending payload to model ({} messages, ~{} bytes)", history_clone.len(), payload_size));
 
-            let stream_future = gateway::chat_completion_stream(&model_clone, &history_clone, Some(&effort_clone), move |payload| {
+            let stream_future = crate::accounting::scope(&state.db, Some(task_id), "worker",
+                gateway::chat_completion_stream(&model_clone, &history_clone, Some(&effort_clone), move |payload| {
                 let _ = tx.send(payload);
-            });
+            }));
             tokio::pin!(stream_future);
 
             let stream_result = tokio::select! {
@@ -298,11 +302,11 @@ pub async fn run_worker(
             let actual_model = model_used.unwrap_or_else(|| worker_model.clone());
             let units = {
                 let conn = state.db.lock().unwrap();
-                record_spend(&conn, task_id, &actual_model, &usage, &usage_json).unwrap_or(0.0)
+                record_spend(&conn, task_id, &actual_model, &usage, &usage_json)?
             };
             current_spend += units;
 
-            if current_spend >= budget_units as f64 {
+            if budget_units > 0 && current_spend >= budget_units as f64 {
                 break Err("BUDGET_EXCEEDED".to_string());
             }
 
@@ -506,8 +510,11 @@ pub async fn run_worker(
             content: verifier_prompt,
         }];
 
+        current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
+        if budget_units > 0 && current_spend >= budget_units as f64 { return Err("BUDGET_EXCEEDED".into()); }
         let verification_response = tokio::select! {
-            res = gateway::chat_completion(&verifier_model, &verifier_messages, Some(&verifier_effort)) => res,
+            res = crate::accounting::scope(&state.db, Some(task_id), "verifier",
+                gateway::chat_completion(&verifier_model, &verifier_messages, Some(&verifier_effort))) => res,
             _ = cancellation_token.cancelled() => {
                 finish_cancelled_run(state, app_handle, task_id, run_id)?;
                 return Err("RUN_CANCELLED".into());
@@ -517,11 +524,10 @@ pub async fn run_worker(
         let verifier_output = match verification_response {
             Ok((text, u, uj, m)) => {
                 let actual_model = m.unwrap_or_else(|| verifier_model.to_string());
-                let units = {
+                {
                     let conn = state.db.lock().unwrap();
-                    record_spend(&conn, task_id, &actual_model, &u, &uj).unwrap_or(0.0)
-                };
-                current_spend += units;
+                    record_spend(&conn, task_id, &actual_model, &u, &uj)?;
+                }
                 text
             }
             Err(e) => {

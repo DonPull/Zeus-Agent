@@ -27,7 +27,7 @@ Unlike traditional chatbots or simple script wrappers, Zeus Agent:
 
 ---
 
-## 3. Proven Benchmark Maturity
+## 3. Historical Benchmark Exercises
 
 Zeus Agent is validated against an intensive 10-prompt agentic benchmark suite covering real-world workflows:
 - Localized marketing asset generation & image rendering
@@ -41,7 +41,7 @@ Zeus Agent is validated against an intensive 10-prompt agentic benchmark suite c
 - High-volume incident server log diagnostics & automated remediation
 - Long-running autonomous multi-stage workflow execution
 
-The runtime achieves a **100% pass rate (10 / 10)** on the benchmark suite, confirming production-grade reliability across local and cloud environments.
+An earlier development report claimed a **100% pass rate (10 / 10)** on these exercises. That result does not establish production reliability or comparable performance across local and cloud models. The current [development plan](IMPLEMENTATION_PLAN.md) replaces that assumption with offline regression checks and a separately designed, reproducible capability benchmark. See the [evaluation guide](../scripts/eval_harness/README.md) for current measurement contracts and limits.
 
 ---
 

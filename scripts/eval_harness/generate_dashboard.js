@@ -1,79 +1,42 @@
 #!/usr/bin/env node
-/**
- * Generate (or refresh) the Zeus Agent benchmark score dashboard.
- *
- * Usage:
- *   node scripts/eval_harness/generate_dashboard.js
- *   node scripts/eval_harness/generate_dashboard.js tests/benchmarks/suites/wave_1_foundation
- *   node scripts/eval_harness/generate_dashboard.js tests/benchmarks/suites/wave_1_foundation tests/benchmarks/suites/wave_2_browser_agentics
- *
- * Output (default):
- *   scripts/eval_harness/dashboard/index.html
- *   scripts/eval_harness/dashboard/scores_data.json
- */
+/** Rebuild derived reports from retained trials. Never launches an agent. */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { writeDashboard, loadScores } from '../../tests/benchmarks/score_recorder.js';
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { writeDashboard, collectDashboardData } from '../../tests/benchmarks/score_recorder.js';
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '..', '..');
-
-function discoverSuiteDirs() {
-  const root = path.join(repoRoot, 'tests', 'benchmarks', 'suites');
-  if (!fs.existsSync(root)) return [];
-  return fs
-    .readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => path.join(root, d.name));
-}
-
-function main() {
-  const args = process.argv.slice(2).filter((a) => a !== '--all');
-  let suiteDirs = args
-    .map((a) => (path.isAbsolute(a) ? a : path.join(repoRoot, a)))
-    .filter((p) => fs.existsSync(p));
-
-  if (suiteDirs.length === 0) {
-    suiteDirs = discoverSuiteDirs().filter((dir) => {
-      return (
-        fs.existsSync(path.join(dir, 'scores.json')) ||
-        fs.existsSync(path.join(dir, 'prompts.json'))
-      );
-    });
-  }
-
-  if (suiteDirs.length === 0) {
-    console.error('No suite directories found. Pass suite paths or run benchmarks first.');
-    process.exit(1);
-  }
-
-  const outDir = path.join(repoRoot, 'scripts', 'eval_harness', 'dashboard');
-  fs.mkdirSync(outDir, { recursive: true });
-  const htmlPath = path.join(outDir, 'index.html');
-  const jsonPath = path.join(outDir, 'scores_data.json');
-
-  const { payload } = writeDashboard(suiteDirs, htmlPath);
-  fs.writeFileSync(jsonPath, JSON.stringify(payload, null, 2), 'utf8');
-
-  console.log(`Dashboard: ${htmlPath}`);
-  console.log(`Data:      ${jsonPath}`);
-  console.log(
-    `Suites: ${payload.suites.map((s) => s.name).join(', ') || '(none)'} · runs: ${payload.runs.length}`
-  );
-  console.log(
-    `Overall avg total: ${payload.aggregate.overall.avg_total} · pass rate: ${Math.round(
-      (payload.aggregate.pass_rate || 0) * 100
-    )}%`
-  );
-  const cats = Object.entries(payload.aggregate.by_category || {});
-  if (cats.length) {
-    console.log('Categories:');
-    for (const [cat, agg] of cats) {
-      console.log(`  ${cat}: avg ${agg.avg_total} (${agg.count} prompts, ${agg.pass_count} pass)`);
+export function discoverResultDirs(roots) {
+  const found = new Set();
+  const visit = dir => {
+    if (fs.existsSync(path.join(dir, 'trials')) || fs.existsSync(path.join(dir, 'scores.json'))) {
+      if (loadScores(dir).runs.length) found.add(fs.realpathSync(dir));
+      return;
     }
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) visit(path.join(dir, entry.name));
+    }
+  };
+  for (const root of roots) {
+    if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) throw new Error(`Missing results directory: ${root}`);
+    visit(root);
   }
+  if (!found.size) throw new Error('No retained trials found. Run eval:demo or an explicitly authorized evaluation first.');
+  return [...found].sort();
 }
 
-main();
+export function generateDashboard(inputs = [], root = repoRoot) {
+  if (inputs.some(arg => arg.startsWith('-'))) throw new Error('Usage: npm run eval:dashboard -- [results-directory ...]');
+  const evaluationRoot = path.join(root, '.zeus/evaluations');
+  const dirs = discoverResultDirs((inputs.length ? inputs : [evaluationRoot]).map(dir => path.resolve(root, dir)));
+  return writeDashboard(dirs, path.join(evaluationRoot, 'dashboard/index.html'));
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const { out, payload } = generateDashboard(process.argv.slice(2));
+    console.log(JSON.stringify({ report: out, trials: payload.runs.length,
+      verified_passes: payload.aggregate.overall.pass_count, outcome_passes: payload.aggregate.overall.outcome_pass_count }, null, 2));
+  } catch (error) { console.error(error.message); process.exitCode = 1; }
+}

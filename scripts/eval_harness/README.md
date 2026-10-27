@@ -1,64 +1,96 @@
-# Eval harness — score-only benchmarks & dashboard
+# Zeus evaluation and regression guide
 
-Official score recording for Zeus Agent (architecture A/B, continuous improvement, regression tracking).
+The approved [development plan](../../docs/IMPLEMENTATION_PLAN.md) starts with trustworthy measurement. Ordinary regression checks use controlled replies to test the software. Capability evaluations let a model attempt a task and need separate task graders and a cost budget. Passing scripted checks is not evidence of agent intelligence.
 
-## Modes
+## Safe local checks
 
-| Mode | Behavior |
-|---|---|
-| **score-only** (`ZEUS_SCORE_ONLY=1`) | Run prompts, record scores, **do not** patch Zeus source. Failed `python_check` is logged and the suite continues. |
-| **score-and-fix** | Continuous improvement skill workflow: score, diagnose, general engine fix, re-run same prompt until pass (≥ **9.0/10**). |
-
-## Rubric (pass ≥ 9.0 / 10)
-
-| Dimension | Weight |
-|---|---|
-| Accuracy | 35% |
-| Tools | 25% |
-| Safety | 20% |
-| Efficiency | 20% |
-
-All `python_check` assertions must also pass for a prompt to `passed: true`.
-
-## Commands
+Install dependencies with `npm ci`; install Rust/MSVC, Python 3.10+, and WebView2 for Windows desktop checks. CI pins Node 22, Python 3.11, and Rust 1.94.1. The Cargo lockfile is retained.
 
 ```powershell
-# Single suite, score-only
-npm run eval:score -- tests/benchmarks/suites/wave_1_foundation
-
-# Filter one prompt
-npm run eval:score -- tests/benchmarks/suites/wave_1_foundation -g "Prompt 1"
-
-# Architecture A/B matrix (team multi-agent vs solo unified)
-npm run eval:matrix -- tests/benchmarks/suites/wave_1_foundation
-
-# Refresh dashboard only (all suites)
-npm run eval:dashboard
-
-# Label architecture on the score record
-$env:ZEUS_BENCH_ARCH = "team"   # or "solo"
+npm run build
+npm run test:unit         # Node configuration, runner, grader, and recorder tests
+npm run test:backend      # cargo test --lib --locked
+npm run test:ui           # Explicit offline desktop allowlist
+npm run test:regression   # All three groups; nonzero if any group fails
+npm run eval:demo         # Controlled mixed pass/failure report; no models
+npm run eval:dashboard    # Rebuild combined report from retained records
 ```
 
-## Outputs (per suite)
+The orchestrator runs only `tests/unit/*.test.js`, backend library tests, and `playwright.offline.config.js`. It does not include the existing live advanced E2E specs. The offline runtime requires an explicit HTTP loopback mock endpoint, uses a dummy key, and cannot fall back to a hosted provider. Each desktop launch gets a unique ignored workspace and test database. It does not delete or use manual conversations. Windows helpers and the test app run hidden.
 
-- `scores.json` — full run history + `latest_by_prompt` + `aggregate`
-- `scores_aggregate.json` — overall / category / architecture rollups
-- `scores_dashboard.html` — local HTML dashboard
-- `units_ledger.json` — token/units accounting (existing)
-- `scripts/eval_harness/dashboard/index.html` — combined multi-suite dashboard
-- `scripts/eval_harness/dashboard/scores_data.json` — combined JSON
+Desktop coverage currently checks real bridge calls, streaming Chat/Responses usage, missing usage, empty replies, message ordering/reload, cancellation, shared Master/Worker/Verifier spend, an interactive command approval, attachment bytes/path persistence, and a scripted trial through the benchmark pipeline. Browser preview/session/replay and actual image perception are not established by this smoke set. Existing Rust tests additionally cover run recovery, policy rules, message visibility/order, directive parsing, Python restrictions, and cancellation. This is an initial regression suite, not exhaustive production certification.
 
-## Architecture matrix configs
+The Windows workflow in `.github/workflows/regression.yml` builds and runs these offline commands without provider secrets. Its remote execution has not yet been verified.
 
-See `tests/benchmarks/matrix/`:
+## Capability evaluation commands
 
-- `team_cloud.suite_config.json` — Master + Worker + Verifier (cloud)
-- `solo_cloud.suite_config.json` — single unified master (cloud)
+Inspect resolved settings first; this makes no model calls:
 
-## Categories
+```powershell
+npm run bench:smoke -- --dry-run
+npm run eval:score -- tests/benchmarks/suites/wave_1_foundation --arch solo --model route-llm --dry-run
+npm run eval:matrix -- tests/benchmarks/suites/wave_1_foundation --dry-run
+```
 
-Scores are tagged (`browser`, `code`, `files`, `memory`, `research`, `vision`, `general`) for per-area rollups on the dashboard.
+Only after choosing models, trials, tasks, and a cost envelope, opt in explicitly:
 
-## Manual / LLM overlay
+```powershell
+npm run bench:smoke -- --suite wave1 --arch solo --model route-llm --trials 2 --live
+```
 
-Automated scores come from harness observations (checks, units, duration). Override dimensions after review via `mergeManualScores` or by editing `scores.json` entries (`scores.accuracy` etc.) and re-running `npm run eval:dashboard`.
+`--live` or `ZEUS_ALLOW_LIVE_EVAL=1` permits real provider requests. It is not a provider-credit cap. The task allowance is expressed in token equivalents; provider usage may arrive after a request completes and can exceed remaining allowance. Deadlines bound execution, while unknown interrupted usage remains unknown. Account/experiment credit ceilings and pricing reconciliation are not implemented.
+
+Supported flags are `--suite wave1|wave2|gaia|swe|all`, `--suite-dir`, `--profile smoke|standard|full`, `--arch solo|team`, `--model`, `--matrix-config`, `--trials 1..100`, `--output`, `--grep`/`-g`, `--supervised`, `--dry-run`, and `--live`. Unknown flags fail. The old `--smoke` shorthand is replaced by `--profile smoke` or the npm script.
+
+The GAIA/SWE aliases and historically named `official_*_mini` directories select local synthetic exercises. They do not implement the official GAIA or SWE-bench benchmarks. The legacy `eval:benchmark` script prepares an older evaluator workflow; it is not part of the new regression or capability baseline.
+
+## Effective configuration
+
+Resolution order is built-in defaults -> suite JSON -> matrix/profile JSON -> environment/explicit CLI overrides -> task overrides. A CLI flag overrides its corresponding environment value. The same resolver supplies preflight output and runtime settings; the runner reads persisted task settings back and fails on mismatches. Solo disables Worker and Verifier. Watcher is configured independently of collaboration mode.
+
+All matrix settings are passed through, including role models, effort, limits, browser mode, and permission policy. The gateway still selects provider endpoints using its existing model routing and local registry. Configuration labels this `runtime_selected`; arbitrary provider overrides are rejected. Actual request endpoint origins and roles appear in the task usage summary, without query strings or credentials. This phase does not introduce new provider routing.
+
+The checked-in matrix files are historical examples, not tuned recommendations. Their Watcher settings differ, and Solo does not yet force the local single-agent system prompt for a hosted model. They are insufficient for a controlled architecture comparison until Phase 2 selects matched configurations.
+
+Live suites retain their historical evaluation privilege bypasses and approval simulator, explicitly labeled `legacy-eval-with-user-simulator`. They do not represent production authorization behavior. Offline desktop smoke checks do not enable those bypasses. The scripted no-tools suite uses its own restricted evaluation policy; neither policy can be relabeled arbitrarily.
+
+## Records and pass criteria
+
+New output goes under ignored `.zeus/evaluations/<experiment>/`. Each suite has:
+
+- `trials/<trial_id>.json`: immutable schema-v2 raw trial records, exclusively published without overwriting an existing trial.
+- `scores.json`: derived history/aggregates rebuilt from raw records.
+- `index.html` and `scores_data.json`: derived reports.
+- `artifacts/`: persisted runtime journal and actual desktop screenshot, with integrity hashes.
+
+Records include experiment/trial/task/run identity, suite and task hashes, grader version, fixture hash, source commit, dirty diff hash (including untracked source), effective configuration and fingerprint, execution/outcome/authorization status, raw check evidence, usage, and timing. Provider model snapshots remain unavailable unless supplied by the provider. Local artifacts can contain task content; they are ignored by git and are not comprehensively redacted for publication.
+
+Execution statuses include succeeded, failed, timed out, cancelled, interrupted, infrastructure error, unsupported, and unknown. Startup and missing-trial failures produce records. Result-write failures propagate rather than being swallowed. A bad task result does not suppress later trials.
+
+A fully verified `passed` requires successful execution, passed independent outcome checks, and passed independent authorization checks. `outcome_passed` is reported separately. No check means not evaluated. Existing live suites still lack independent authorization graders, so even correct outputs remain unverified and the command returns nonzero. Phase 2 must add those graders before claiming a verified capability baseline; do not loosen the recorder to make legacy suites green.
+
+Accuracy/tools/safety/efficiency retain the old diagnostic rubric fields for compatibility. Unobserved dimensions and totals remain null. Fewer approval prompts do not imply better safety, and a legitimate denial is not automatically a penalty. Manual diagnostic scores cannot override execution, outcome, or authorization failure. The demo deliberately retains five scenarios (one verified pass, a failed check, startup error, timeout, and ungraded task), and is labeled `scripted_runtime`.
+
+All trials, including failures, remain in aggregates. Distinct suites, configurations, architectures, experiments, and repeated attempts do not collide on a bare prompt ID. Duplicate trial identities with conflicting content are errors. Compare matched experiment/configuration cells; the combined all-history pass rate is not a release comparison.
+
+## Usage and budgets
+
+A durable row is created for each actual gateway attempt, scoped to task/run/role. The same request is updated idempotently, while a billed retry has a new identity. Usage and task spend update atomically. Master, Worker, Verifier, Watcher, vision, and global policy-editor requests are instrumented; global calls have no task owner. The next acting agent reads shared spend instead of relying on a stale parent counter.
+
+Reasoning tokens are an output subset and cached tokens are an input subset. For input=75, output=1,186, reasoning=1,024, the counted total is 1,261 tokens. Tool/image counts do not become invented credit fees. Raw provider usage is retained. A missing usage object differs from an explicit zero, and cancelled/error attempts retain unknown usage rather than becoming free requests.
+
+The API/database names `spent_credits` and `budget_credits` are retained for compatibility. New accounting treats these as token equivalents, not Abacus subscription credits or currency. Historical values remain unchanged and unclassified; new measurements are not silently comparable to old inflated units. Authoritative provider credits and estimates are null until supported pricing/usage reconciliation exists.
+
+## Rebuild and inspect
+
+```powershell
+# All new retained experiments
+npm run eval:dashboard
+
+# Only chosen experiment directories; no provider requests
+npm run eval:dashboard -- .zeus/evaluations/<first> .zeus/evaluations/<second>
+```
+
+The combined report is written to `.zeus/evaluations/dashboard/index.html`. Missing, empty, and corrupt inputs fail explicitly. Raw records survive report-generation failures. Historical score directories may be passed explicitly for inspection; their provenance is preserved, not upgraded to schema-v2 evidence. Append new trials to a fresh experiment, not an old historical score directory.
+
+The next phase will define independently checked capability missions, authorization graders, held-out cases, repeated baselines, and the live cost envelope. No hosted benchmark was run as part of Phase 1.

@@ -1,0 +1,6 @@
+{
+  "default_model": "route-llm",
+  "budget_credits": 40000,
+  "prompt_timeout_ms": 600000,
+  "turn_timeout_ms": 360000
+}

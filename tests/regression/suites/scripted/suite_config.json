@@ -1,0 +1,11 @@
+{
+  "architecture": "solo",
+  "master_model": "phase1-mock",
+  "worker_model": "None",
+  "verifier_model": "None",
+  "watcher_model": "None",
+  "vision_model": "None",
+  "permission_policy": "scripted-no-tools-offline",
+  "prompt_timeout_ms": 120000,
+  "turn_timeout_ms": 30000
+}

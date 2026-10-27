@@ -396,7 +396,7 @@ fn parse_directive_json(json_str: &str) -> Result<Directive, String> {
         }
     }
     // Return the serde error for diagnostics
-    serde_json::from_str::<Directive>(trimmed).map_err(|e| e.to_string())
+    serde_json::from_str::<Directive>(trimmed).map_err(|e| format!("invalid JSON directive: {}", e))
 }
 
 /// Extracts a directive from the master's reply, if present.
@@ -767,10 +767,11 @@ pub async fn execute_directive_bypass_gatekeeper(
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 ).unwrap_or_else(|_| ("gemini-3.8-flash".to_string(), "default".to_string()))
             };
-            let res = match crate::gateway::analyze_visual(&vision_model, task_id, &image_path, &query, Some(&vision_effort)).await {
+            let res = match crate::accounting::scope(&_state.db, Some(task_id), "vision",
+                crate::gateway::analyze_visual(&vision_model, task_id, &image_path, &query, Some(&vision_effort))).await {
                 Ok((analysis, usage, usage_json)) => {
                     if let Ok(conn) = _state.db.lock() {
-                        let _ = crate::chat::record_spend(&conn, task_id, &vision_model, &usage, &usage_json);
+                        crate::chat::record_spend(&conn, task_id, &vision_model, &usage, &usage_json)?;
                     }
                     analysis
                 }

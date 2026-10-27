@@ -272,7 +272,7 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                             onChange={(e) => updateSetting("budget_credits", parseInt(e.target.value) || 0)}
                         />
                     </div>
-                    <label className="settings-hint">Hard cap enforced by the Rust core for this specific task. 1 unit = 1 token or 1 tool call.</label>
+                    <label className="settings-hint">Token allowance checked between model requests. Usage from all roles counts toward this task. A request can exceed the remaining allowance. Units are not provider credits.</label>
                 </div>
             </div>
 

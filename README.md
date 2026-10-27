@@ -2,7 +2,7 @@
 
 > **An observable, recoverable, and secure desktop autonomous-agent runtime.**
 
-Zeus Agent is a desktop autonomous-agent runtime engineered to execute open-ended, complex computer tasks directly on the host operating system. Unlike traditional chatbots or simple script wrappers, Zeus Agent plans, delegates, compiles code, runs terminal commands, manipulates workspaces, and automates real web browsers while enforcing strict zero-trust permission boundaries and complete crash recoverability.
+Zeus Agent is a desktop autonomous-agent runtime for open-ended computer tasks. It plans, delegates, compiles code, runs terminal commands, manages workspaces, and automates browsers, with permission checks and a durable SQLite execution journal. The current development priority is stabilizing those capabilities and measuring reliability.
 
 ---
 
@@ -21,8 +21,8 @@ Zeus Agent is a desktop autonomous-agent runtime engineered to execute open-ende
 
 ### Prerequisites
 
-- **Node.js**: v18 or later
-- **Rust**: 1.75+ (Cargo)
+- **Node.js**: v22 (used by CI)
+- **Rust**: 1.94.1 (CI toolchain), with Cargo and the Windows MSVC build tools
 - **Python**: 3.10+ (for dynamic script execution sandboxes)
 - **OS**: Windows 10/11 (with Windows Credential Manager support)
 
@@ -44,14 +44,17 @@ Zeus Agent is a desktop autonomous-agent runtime engineered to execute open-ende
    npm run tauri dev
    ```
 
-4. **Run benchmark and E2E test suites**:
+4. **Run offline regression checks**:
    ```bash
-   # Run all benchmark suites
-   cmd.exe /c "npx playwright test tests/benchmarks/"
-
-   # Run score-only benchmark runner
-   node scripts/eval_harness/run_benchmark.js --smoke
+   npm run build
+   npm run test:regression
+   # Validate reporting with controlled passes and failures, without model calls
+   npm run eval:demo
+   # Inspect a capability evaluation configuration without running it
+   npm run bench:smoke -- --dry-run
    ```
+
+   Offline checks use isolated workspaces and a loopback mock provider. Live evaluations require explicit opt-in and can consume hosted credits. See the [evaluation guide](scripts/eval_harness/README.md) for commands, coverage, and limitations.
 
 5. **Configure API Keys / Endpoints**:
    - Click the **Settings** (⚙️) icon in the UI.
@@ -63,6 +66,8 @@ Zeus Agent is a desktop autonomous-agent runtime engineered to execute open-ende
 ## 📚 Documentation
 
 For in-depth architecture, design invariants, implementation roadmaps, and evaluation history, refer to:
+
+- [**`docs/IMPLEMENTATION_PLAN.md`**](docs/IMPLEMENTATION_PLAN.md): Current agreed stabilization plan and delivery order; takes precedence over historical milestone claims.
 
 - [**`docs/PRODUCT_VISION.md`**](docs/PRODUCT_VISION.md): Core vision, user autonomy model, non-negotiable architectural invariants, and engineering principles.
 - [**`docs/SYSTEM_ARCHITECTURE.md`**](docs/SYSTEM_ARCHITECTURE.md): Comprehensive technical specification covering the Dual Execution Engine, LLM Gateway, Watcher AI, Gatekeeper, Python Sandbox, and IPC Bridge contract.

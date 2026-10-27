@@ -209,7 +209,8 @@ pub async fn negotiate_watcher_policy(
         GatewayMsg { role: "user".into(), content: prompt },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages, Some("low")).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = crate::accounting::scope(&state.db, if scope == "global" { None } else { Some(scope.as_str()) }, "policy_editor",
+        chat_completion(&model, &messages, Some("low"))).await.map_err(|e| e.to_string())?;
     Ok(text)
 }
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -750,7 +751,8 @@ pub async fn evaluate_network_action(
         GatewayMsg { role: "user".into(), content: action_desc },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages, Some(&effort)).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = crate::accounting::scope(&state.db, Some(task_id), "watcher",
+        chat_completion(&model, &messages, Some(&effort))).await.map_err(|e| e.to_string())?;
     
     let verdict_str = text.trim().to_uppercase();
     
@@ -864,7 +866,8 @@ pub async fn evaluate_browser_action(
         GatewayMsg { role: "user".into(), content: action_desc.clone() },
     ];
 
-    let (text, _, _, _) = chat_completion(&model, &messages, Some(&effort)).await.map_err(|e| e.to_string())?;
+    let (text, _, _, _) = crate::accounting::scope(&state.db, Some(task_id), "watcher",
+        chat_completion(&model, &messages, Some(&effort))).await.map_err(|e| e.to_string())?;
     
     let verdict_str = text.trim().to_uppercase();
     
@@ -945,13 +948,13 @@ mod tests {
         // Add Regex rules
         conn.execute(
             "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
-             VALUES ('p4', 'global', '^D:/Projects/.*\\.bak$', 'deny', 'write', ?1, ?1)",
+             VALUES ('p4', 'global', '^D:/Projects/.*\\.bak$', 'deny', 'write', 'regex', ?1, ?1)",
             params![now],
         ).unwrap();
         
         conn.execute(
             "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
-             VALUES ('p5', 'global', '^D:/Projects/allowed_folder/.*\\.log$', 'allow', 'write', ?1, ?1)",
+             VALUES ('p5', 'global', '^D:/Projects/allowed_folder/.*\\.log$', 'allow', 'write', 'regex', ?1, ?1)",
             params![now],
         ).unwrap();
 
@@ -1074,7 +1077,7 @@ mod tests {
         // Exact match STILL works for shell injection IF explicitly approved!
         conn.execute(
             "INSERT INTO permissions (id, scope, path, action, permission_type, match_type, created_at, updated_at) 
-             VALUES ('c8', 'global', 'npm run dev | grep error', 'allow', 'command', 'exact', ?1, ?1)",
+             VALUES ('c10', 'global', 'npm run dev | grep error', 'allow', 'command', 'exact', ?1, ?1)",
             params![now],
         ).unwrap();
         assert_eq!(check("task-2", "npm run dev | grep error"), PermissionVerdict::Allow);

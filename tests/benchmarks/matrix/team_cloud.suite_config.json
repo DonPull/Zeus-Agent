@@ -1,6 +1,6 @@
 {
   "architecture": "team",
-  "description": "Frontier/strong Master plans + orchestrates; cheap Workers execute; Verifier (prefer different model) gates with tools. Cloud-only. Use ZEUS_BENCH_ARCH=team.",
+  "description": "Historical hosted Team example: Master, Worker, Verifier, Watcher, and vision. Model availability and task graders must be checked before a live baseline.",
   "master_model": "zai-org/GLM-5.3-Flash",
   "worker_model": "gpt-5.6-luna",
   "verifier_model": "zai-org/GLM-5.3-Flash",
@@ -10,5 +10,5 @@
   "browser_mode": "sandboxed",
   "prompt_timeout_ms": 1500000,
   "turn_timeout_ms": 900000,
-  "notes": "Copy fields into a suite_config.json or use with run_matrix.js. Cloud-only per user preference."
+  "notes": "Used by run_matrix.js. Provisional configuration, not a measured quality/cost recommendation. Match authorization settings before comparing collaboration modes."
 }

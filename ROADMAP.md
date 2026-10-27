@@ -1,6 +1,6 @@
 # Zeus Agent — Project Roadmap & Implementation Source of Truth
 
-This document serves as the authoritative, persistent source of truth for the Zeus Agent project roadmap, architecture, completed capabilities, active evaluation phases, and deferred future features.
+Current development follows the approved [stabilization and development plan](docs/IMPLEMENTATION_PLAN.md). Phase 1 delivers the offline regression and measurement foundation; later major phases require focused design review. The milestones and evaluation claims below are historical implementation records, not current reliability guarantees. In particular, the GAIA/SWE-named directories contain synthetic exercises, and the old 10/10 result is not a reproducible production certification.
 
 ---
 

@@ -1,197 +1,128 @@
-import { _electron as electron, chromium } from '@playwright/test';
-import { spawn, execSync } from 'child_process';
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { chromium } from '@playwright/test';
+import { spawn } from 'node:child_process';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const testRoot = path.join(root, 'tests/e2e/.test_workspace');
+let tauriProcess, mockServer, mockServerPort = 0, mockResponses = [], requests = [];
+const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
-const testWorkspaceDir = path.join(__dirname, '.test_workspace');
+export function queueMockResponse(response) { mockResponses.push(response); }
+export function getMockRequests() { return structuredClone(requests); }
 
-let tauriProcess;
-let mockServer;
-let mockServerPort = 0; // dynamic port
-let mockResponses = [];
-
-// Allows tests to queue up responses for the LLM
-function queueMockResponse(responseJson) {
-  mockResponses.push(responseJson);
-}
-
-// Start the mock LLM server
-function startMockServer() {
-  return new Promise((resolve) => {
-    mockServer = http.createServer((req, res) => {
-      // CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-      if (req.method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
-        return;
-      }
-
-      let body = '';
-      req.on('data', chunk => {
-        body += chunk.toString();
-      });
-      req.on('end', () => {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-        if (mockResponses.length > 0) {
-          const nextResponse = mockResponses.shift();
-          // Send it as a stream chunk
-          res.write(`data: ${JSON.stringify(nextResponse)}\n\n`);
-          res.write("data: [DONE]\n\n");
-          res.end();
-        } else {
-          res.write(`data: ${JSON.stringify({
-            choices: [{ delta: { content: "Mock Server Error: No response queued" } }]
-          })}\n\n`);
-          res.write("data: [DONE]\n\n");
-          res.end();
+export async function startMockServer() {
+  if (mockServer) throw new Error('A mock server is already active');
+  mockResponses = []; requests = [];
+  mockServer = http.createServer((request, response) => {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
+    let body = '';
+    request.on('data', chunk => { body += chunk; if (body.length > 2 * 1024 * 1024) request.destroy(); });
+    request.on('end', () => {
+      let parsed;
+      try { parsed = body ? JSON.parse(body) : {}; }
+      catch { response.writeHead(400); response.end('{}'); return; }
+      requests.push({ url: request.url, body: parsed });
+      const queued = mockResponses.shift();
+      if (!queued) { response.writeHead(503, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ error: { message: 'No mock response queued' } })); return; }
+      const send = () => {
+        if (response.destroyed) return;
+        const { _http_status = 200, _delay_ms, ...next } = queued;
+        if (_http_status !== 200 || !parsed.stream) {
+          response.writeHead(_http_status, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify(next)); return;
         }
-      });
-    });
-
-    mockServer.listen(0, () => {
-      mockServerPort = mockServer.address().port;
-      resolve();
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        if (request.url.endsWith('/responses')) {
+          const content = next.choices?.[0]?.delta?.content ?? '';
+          response.write(`event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', delta: content })}\n\n`);
+          response.write(`event: response.completed\ndata: ${JSON.stringify({ type: 'response.completed', response: {
+            id: next.id ?? crypto.randomUUID(), model: next.model ?? parsed.model, usage: next.usage } })}\n\n`);
+        } else response.write(`data: ${JSON.stringify(next)}\n\n`);
+        response.end('data: [DONE]\n\n');
+      };
+      if (queued._delay_ms) {
+        const timer = setTimeout(send, queued._delay_ms);
+        response.on('close', () => clearTimeout(timer));
+      } else send();
     });
   });
+  await new Promise((resolve, reject) => { mockServer.once('error', reject); mockServer.listen(0, '127.0.0.1', resolve); });
+  mockServerPort = mockServer.address().port;
 }
 
-// Stop the mock server
-function stopMockServer() {
-  return new Promise((resolve) => {
-    if (mockServer) {
-      mockServer.close(() => {
-        mockResponses = [];
-        resolve();
-      });
-    } else {
-      mockResponses = [];
-      resolve();
-    }
-  });
-}
-
-// Launch Tauri using CDP
-async function launchTauri(useRealApi = false) {
-  return new Promise(async (resolve, reject) => {
-    // Robust cleanup: Always clear the test DB before running tests
-    if (fs.existsSync(testWorkspaceDir)) {
-      fs.rmSync(testWorkspaceDir, { recursive: true, force: true });
-    }
-    
-    const cdpPort = Math.floor(Math.random() * (9999 - 9222 + 1)) + 9222;
-
-    console.log(`Starting cargo run with CDP port ${cdpPort}...`);
-
-    const env = {
-      ...process.env,
-      ZEUS_TEST_WORKSPACE_ROOT: testWorkspaceDir,
-      ZEUS_EVAL_MODE: "1",
-      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`, // Ensure WebView2 gets the port
-      WEBVIEW2_USER_DATA_FOLDER: path.join(testWorkspaceDir, `wv2_${cdpPort}`)
-    };
-
-    if (!useRealApi) {
-      env.ZEUS_API_BASE_URL = `http://localhost:${mockServerPort}/`;
-    }
-    
-    // Ensure the Node process also knows the test workspace root so it creates files in the right place
-    process.env.ZEUS_TEST_WORKSPACE_ROOT = testWorkspaceDir;
-
-    tauriProcess = spawn('cargo', ['run', '--', '--remote-debugging-port', cdpPort.toString()], {
-      cwd: path.join(__dirname, '..', '..', 'src-tauri'),
-      env,
-      shell: process.platform === 'win32'
-    });
-
-    tauriProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log(`[Tauri] ${output.trim()}`);
-    });
-
-    tauriProcess.stderr.on('data', (data) => {
-      const output = data.toString();
-      console.error(`[Tauri ERR] ${output.trim()}`);
-    });
-
-    // We have to wait for the port to be open. Polling CDP port.
-    let connected = false;
-    let attempts = 0;
-    
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 240) { // 120 seconds
-        clearInterval(interval);
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', tauriProcess.pid, '/f', '/t']);
-        } else {
-          tauriProcess.kill();
-        }
-        reject(new Error("Timeout waiting for Tauri WebView2 CDP"));
-      }
-      try {
-        const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
-        clearInterval(interval);
-        connected = true;
-        
-        // Find the main window
-        const defaultContext = browser.contexts()[0];
-        // Wait until at least one page is available
-        while (defaultContext.pages().length === 0) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-        const page = defaultContext.pages()[0];
-        resolve({ browser, page });
-      } catch (e) {
-        // Not ready yet
-      }
-    }, 500);
-  });
-}
-async function stopTauri() {
-  if (tauriProcess) {
-    if (process.platform === 'win32') {
-      await new Promise(resolve => {
-        const killer = spawn('taskkill', ['/pid', tauriProcess.pid, '/f', '/t']);
-        killer.on('close', resolve);
-      });
-    } else {
-      tauriProcess.kill();
-    }
-    // Wait a brief moment for the port to actually free up
-    await new Promise(resolve => setTimeout(resolve, 2000));
+export async function stopMockServer() {
+  const server = mockServer;
+  mockServer = null; mockServerPort = 0; mockResponses = [];
+  if (server) {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
   }
 }
 
-async function cleanupTasks(page) {
-  if (!page) return;
+export async function launchTauri(useRealApi = false) {
+  if (tauriProcess && tauriProcess.exitCode === null) throw new Error('A test app is already running');
+  const offline = process.env.ZEUS_OFFLINE_TEST === '1';
+  if (offline && useRealApi) throw new Error('Offline tests cannot launch a live-provider runtime');
+  if (!useRealApi && !mockServerPort) throw new Error('Start the mock server before launching an offline app');
+  const workspace = path.join(testRoot, crypto.randomUUID());
+  fs.mkdirSync(workspace, { recursive: true });
+  const cdpPort = 15000 + Math.floor(Math.random() * 20000);
+  const env = { ...process.env, ZEUS_TEST_WORKSPACE_ROOT: workspace,
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
+    WEBVIEW2_USER_DATA_FOLDER: path.join(workspace, 'webview'), ZEUS_TEST_HIDE_WINDOW: '1' };
+  if (!useRealApi) {
+    env.ZEUS_API_BASE_URL = `http://127.0.0.1:${mockServerPort}`;
+    env.ZEUS_OFFLINE_TEST = '1';
+    // Offline regression must not inherit eval privilege/iteration bypasses.
+    delete env.ZEUS_EVAL_MODE; delete env.ZEUS_AUTO_ALLOW_COMMANDS; delete env.ZEUS_AUTO_ALLOW_NEW_FILES;
+  } else env.ZEUS_EVAL_MODE = '1'; // Historical live suite policy is recorded, not called production policy.
+  process.env.ZEUS_TEST_WORKSPACE_ROOT = workspace;
+  let stderr = '', spawnError;
+  tauriProcess = spawn('cargo', ['run'], { cwd: path.join(root, 'src-tauri'), env, shell: false, windowsHide: true });
+  tauriProcess.once('error', error => { spawnError = error; });
+  tauriProcess.stdout.on('data', data => { if (process.env.ZEUS_TEST_VERBOSE) process.stdout.write(data); });
+  tauriProcess.stderr.on('data', data => { stderr = (stderr + data).slice(-12000); });
+  const deadline = Date.now() + 120000;
   try {
-    await page.evaluate(async () => {
-      if (!window.__TAURI__ || !window.__TAURI__.core) return;
-      const { invoke } = window.__TAURI__.core;
-      const tasks = await invoke('list_tasks');
-      for (const t of tasks) {
-        await invoke('delete_task', { taskId: t.id });
-      }
-    });
-  } catch (e) {
-    console.error("Cleanup failed:", e);
-  }
+    while (Date.now() < deadline) {
+      if (spawnError) throw spawnError;
+      if (tauriProcess.exitCode !== null) throw new Error(`Test app exited ${tauriProcess.exitCode}: ${stderr}`);
+      try {
+        const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 1000 });
+        const page = browser.contexts()[0]?.pages()[0];
+        if (page) return { browser, page, workspace };
+        await browser.close();
+      } catch { /* Bounded wait for the test app's own CDP listener. */ }
+      await pause(250);
+    }
+    throw new Error(`Timeout starting test app: ${stderr}`);
+  } catch (error) { await stopTauri(); throw error; }
 }
 
-export {
-  queueMockResponse,
-  startMockServer,
-  stopMockServer,
-  launchTauri,
-  stopTauri,
-  cleanupTasks
-};
+export async function stopTauri() {
+  const child = tauriProcess;
+  tauriProcess = null;
+  if (!child || child.exitCode !== null || !child.pid) return;
+  await new Promise((resolve, reject) => {
+    if (process.platform === 'win32') {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/f', '/t'], { windowsHide: true });
+      killer.once('error', reject); killer.once('exit', resolve);
+    } else { child.kill('SIGTERM'); child.once('exit', resolve); }
+  });
+}
+
+export async function cleanupTasks(page) {
+  if (!page || page.isClosed()) return;
+  await page.evaluate(async () => {
+    const bridge = window.__ZEUS_BRIDGE__;
+    if (!bridge) throw new Error('Missing test bridge');
+    for (const task of await bridge.listTasks()) await bridge.deleteTask(task.id);
+  });
+}

@@ -35,6 +35,7 @@ playwright-report/
 .zeus/browser_profiles/
 .zeus/browser_history/
 .zeus/browsers/
+.zeus/evaluations/
 
 # Misc
 codebase-export.txt

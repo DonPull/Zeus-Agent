@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub db: Mutex<Connection>,
+    pub db: std::sync::Arc<Mutex<Connection>>,
 
     /// Process-lifetime run registry.
     ///
@@ -302,6 +302,24 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(SCHEMA)
         .map_err(|e| format!("Failed to initialize the database schema: {}", e))?;
+
+    // Additive accounting migration. Preserve historical rows and raw provider usage.
+    for (column, definition) in [
+        ("request_id", "TEXT"), ("run_id", "TEXT"), ("role", "TEXT"),
+        ("requested_model", "TEXT"), ("provider_request_id", "TEXT"),
+        ("provider", "TEXT"),
+        ("cached_tokens", "INTEGER"), ("usage_known", "INTEGER"), ("request_status", "TEXT"),
+    ] {
+        let exists = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('credit_events') WHERE name = ?1", [column], |r| r.get::<_, i64>(0)
+        ).map_err(|e| e.to_string())? > 0;
+        if !exists {
+            connection.execute_batch(&format!("ALTER TABLE credit_events ADD COLUMN {} {}", column, definition))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    connection.execute_batch("CREATE UNIQUE INDEX IF NOT EXISTS idx_credit_events_request ON credit_events(request_id)")
+        .map_err(|e| e.to_string())?;
 
     // P0 migration: add messages.visible to databases created before Bedrock,
     // then backfill: pipeline kinds (and legacy content-sniffed rows) become

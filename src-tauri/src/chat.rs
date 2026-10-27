@@ -106,6 +106,7 @@ pub struct SendResultDto {
 pub struct SpendDto {
     pub spent_credits: f64,
     pub budget_credits: i64,
+    pub usage: crate::accounting::UsageSummary,
 }
 
 #[derive(Serialize, Clone)]
@@ -767,6 +768,7 @@ pub async fn get_task_spend(
     Ok(SpendDto {
         spent_credits: task.spent_credits,
         budget_credits: task.budget_credits,
+        usage: crate::accounting::summarize(&connection, &task_id)?,
     })
 }
 
@@ -1043,34 +1045,16 @@ pub async fn cancel_task_run(
 /// Records a model call in the ledger and bumps the task's spend. Returns the
 /// unit cost so the caller can attach it to the assistant message.
 pub(crate) fn record_spend(
-    connection: &Connection,
-    task_id: &str,
-    model: &str,
-    usage: &gateway::UsageInfo,
-    usage_json: &str,
+    connection: &Connection, task_id: &str, model: &str,
+    usage: &gateway::UsageInfo, usage_json: &str,
 ) -> Result<f64, String> {
-    let units = usage.units();
-    let now = now_iso();
-    connection
-        .execute(
-            "INSERT INTO credit_events (id, task_id, model, input_tokens, output_tokens, reasoning_tokens, total_tokens, units, tool_calls, images, credits, raw_usage_json, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11, ?12)",
-            params![
-                new_id(), task_id, model,
-                usage.input_tokens, usage.output_tokens, usage.reasoning_tokens, usage.total_tokens,
-                units, usage.tool_calls, usage.images, usage_json, now
-            ],
-        )
-        .map_err(|e| format!("Failed to log the credit event: {}", e))?;
-
-    connection
-        .execute(
-            "UPDATE tasks SET spent_credits = spent_credits + ?1, updated_at = ?2 WHERE id = ?3",
-            params![units, now_iso(), task_id],
-        )
-        .map_err(|e| format!("Failed to update the task spend: {}", e))?;
-
-    Ok(units)
+    if let Some(id) = &usage.request_id {
+        if let Some(units) = connection.query_row(
+            "SELECT units FROM credit_events WHERE request_id = ?1 AND task_id = ?2",
+            params![id, task_id], |row| row.get::<_, f64>(0),
+        ).optional().map_err(|e| e.to_string())? { return Ok(units); }
+    }
+    crate::accounting::record_usage(connection, Some(task_id), None, "unscoped", model, model, usage, usage_json)
 }
 
 #[tauri::command]
@@ -1132,14 +1116,14 @@ async fn execute_user_turn(
     cancellation_token: tokio_util::sync::CancellationToken,
 ) -> Result<SendResultDto, String> {
     // 1) Lock the DB only for local reads/writes, never across network calls.
-    let (history, user_message, task, master_model, mut current_spend, updated_approval) = {
+    let (history, user_message, task, master_model, updated_approval) = {
         let connection = state
             .db
             .lock()
             .map_err(|e| format!("Database lock error: {}", e))?;
         let mut task = load_task(&connection, task_id)?;
 
-        if task.spent_credits >= task.budget_credits as f64 {
+        if task.budget_credits > 0 && task.spent_credits >= task.budget_credits as f64 {
             let mut warning = new_message(
                 task_id, "assistant", "chat",
                 "Zeus paused because this task reached its unit budget. Increase the budget (per-task editing lands in M1b) or start a new task.".into(),
@@ -1257,14 +1241,12 @@ async fn execute_user_turn(
         }
 
         let history = load_master_history(&connection, task_id, &task.master_model, Some(&task.master_effort))?;
-        let current_spend = task.spent_credits;
         let master_model = task.master_model.clone();
         (
             history,
             user_message,
             task,
             master_model,
-            current_spend,
             updated_approval,
         )
     };
@@ -1275,6 +1257,7 @@ async fn execute_user_turn(
         emit_message(app_handle, task_id, msg);
     }
 
+    let mut current_spend;
     let budget_units = task.budget_credits;
     let mut history = history;
     let mut produced_final = false;
@@ -1337,6 +1320,7 @@ async fn execute_user_turn(
             return Err("RUN_CANCELLED".into());
         }
 
+        current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
         if !is_unlimited_budget && current_spend >= budget_units as f64 {
             let mut note = new_message(
                 &task_id, "event", "chat",
@@ -1412,6 +1396,7 @@ async fn execute_user_turn(
             crate::logger::log(task_id, "orchestrator", &format!("Sending payload to master model '{}' ({} messages, ~{} bytes)", master_model, history.len(), payload_size));
 
             let stream_future =
+                crate::accounting::scope(&state.db, Some(task_id), "master",
                 gateway::stream_model_reply(&master_model, &history, Some(&task.master_effort), move |event| {
                     if let gateway::StreamEventPayload::Delta { text } = &event {
                         if let Ok(mut lock) = partial_text_clone.lock() {
@@ -1425,7 +1410,7 @@ async fn execute_user_turn(
                             "event": event,
                         }),
                     );
-                });
+                }));
 
             tokio::pin!(stream_future);
 
@@ -2566,6 +2551,7 @@ async fn execute_user_turn(
     };
     emit_run_state(&app_handle, &completed_run);
 
+    current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
     Ok(SendResultDto {
         spent_credits: current_spend,
         budget_credits: budget_units,
@@ -2997,7 +2983,7 @@ mod tests {
 
     fn test_state() -> AppState {
         AppState {
-            db: Mutex::new(Connection::open_in_memory().unwrap()),
+            db: std::sync::Arc::new(Mutex::new(Connection::open_in_memory().unwrap())),
             active_runs: Mutex::new(HashMap::new()),
             browser_manager: crate::browser_manager::BrowserManager::new(),
         }

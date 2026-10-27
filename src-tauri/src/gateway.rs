@@ -108,6 +108,14 @@ pub fn get_local_model_ids() -> Result<Vec<String>, String> {
 }
 
 fn get_api_config(model: &str) -> Result<(String, String), String> {
+    if std::env::var("ZEUS_OFFLINE_TEST").as_deref() == Ok("1") {
+        let url = std::env::var("ZEUS_API_BASE_URL").map_err(|_| "Offline tests require a mock API endpoint".to_string())?;
+        let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
+        if parsed.scheme() != "http" || !matches!(parsed.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) || parsed.port().is_none() {
+            return Err("Offline tests may only call an explicit loopback mock endpoint".into());
+        }
+        return Ok((url.trim_end_matches('/').to_string(), "test_key".into()));
+    }
     if let Ok(mock_url) = std::env::var("ZEUS_API_BASE_URL") {
         return Ok((mock_url, "test_key".to_string()));
     }
@@ -138,12 +146,9 @@ fn get_api_config(model: &str) -> Result<(String, String), String> {
     }
 }
 
-/// Weights used to convert usage into "units": 1 unit = 1 token or 1 tool
-/// call. Images will get their own weight when image models arrive. Units are
-/// the billing-agnostic proxy the budget ledger runs on until real credits are
-/// computed from the /v1/models pricing map (planned for M1b).
+/// Historical "units" now count tokens only. They are not Abacus credits or money;
+/// modality/tool counts and reasoning subsets must not be added as token fees.
 const UNIT_PER_TOKEN: f64 = 1.0;
-const UNIT_PER_TOOL_CALL: f64 = 1.0;
 
 /// One shared HTTP client for the whole process. Creating a reqwest::Client
 /// per request pays a fresh TLS handshake on every message; a shared client
@@ -177,12 +182,12 @@ fn valid_utf8(bytes: &[u8]) -> bool {
 pub fn compute_units(
     input_tokens: i64,
     output_tokens: i64,
-    reasoning_tokens: i64,
-    tool_calls: i64,
-    images: i64,
+    _reasoning_tokens: i64,
+    _tool_calls: i64,
+    _images: i64,
 ) -> f64 {
-    (input_tokens + output_tokens + reasoning_tokens + images) as f64 * UNIT_PER_TOKEN
-        + tool_calls as f64 * UNIT_PER_TOOL_CALL
+    // Reasoning is a subset of output; tool/image counts are not token prices.
+    input_tokens.max(0).saturating_add(output_tokens.max(0)) as f64 * UNIT_PER_TOKEN
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -191,7 +196,7 @@ pub struct ChatMessage {
     pub content: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone, Serialize)]
 pub struct UsageInfo {
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -199,22 +204,26 @@ pub struct UsageInfo {
     pub total_tokens: i64,
     pub tool_calls: i64,
     pub images: i64,
+    pub cached_tokens: i64,
+    pub usage_known: bool,
+    pub request_id: Option<String>,
+    pub provider_request_id: Option<String>,
 }
 
 impl UsageInfo {
     pub fn units(&self) -> f64 {
-        compute_units(
+        (self.total_tokens.max(0) as f64).max(compute_units(
             self.input_tokens,
             self.output_tokens,
             self.reasoning_tokens,
             self.tool_calls,
             self.images,
-        )
+        ))
     }
 }
 
-fn parse_usage_value(usage: &serde_json::Value, fallback_content: &str) -> (UsageInfo, String) {
-    let get_i64 = |keys: &[&str]| keys.iter().find_map(|k| usage[*k].as_i64()).unwrap_or(0);
+fn parse_usage_value(usage: &serde_json::Value, _fallback_content: &str) -> (UsageInfo, String) {
+    let get_i64 = |keys: &[&str]| keys.iter().find_map(|k| usage[*k].as_i64()).unwrap_or(0).max(0);
 
     let input_tokens = get_i64(&["input_tokens", "prompt_tokens"]);
     let output_tokens = get_i64(&["output_tokens", "completion_tokens"]);
@@ -229,12 +238,17 @@ fn parse_usage_value(usage: &serde_json::Value, fallback_content: &str) -> (Usag
                 .as_i64()
                 .unwrap_or(0),
         );
-    let total_tokens = get_i64(&["total_tokens"]).max(input_tokens + output_tokens);
+    let total_tokens = get_i64(&["total_tokens"]).max(input_tokens.saturating_add(output_tokens));
+    let cached_tokens = usage["input_tokens_details"]["cached_tokens"].as_i64()
+        .or_else(|| usage["prompt_tokens_details"]["cached_tokens"].as_i64()).unwrap_or(0).max(0);
+    let usage_known = usage["total_tokens"].as_i64().is_some()
+        || ((usage["input_tokens"].as_i64().is_some() || usage["prompt_tokens"].as_i64().is_some())
+            && (usage["output_tokens"].as_i64().is_some() || usage["completion_tokens"].as_i64().is_some()));
 
     let tool_calls = usage["tool_calls"]
         .as_i64()
         .or_else(|| usage["tools_used"].as_i64())
-        .unwrap_or_else(|| fallback_content.matches("```").count() as i64 / 2);
+        .unwrap_or(0).max(0);
     let images = usage["images"].as_i64().unwrap_or(0);
 
     let usage_json = if usage.is_null() || usage.as_object().map(|o| o.is_empty()).unwrap_or(true) {
@@ -251,6 +265,10 @@ fn parse_usage_value(usage: &serde_json::Value, fallback_content: &str) -> (Usag
             total_tokens,
             tool_calls,
             images,
+            cached_tokens,
+            usage_known,
+            request_id: None,
+            provider_request_id: None,
         },
         usage_json,
     )
@@ -546,6 +564,7 @@ pub async fn chat_completion(
         .map(|s| s.to_string());
 
     loop {
+        let mut request = crate::accounting::begin(model, &base_url)?;
         let mut body = json!({ "model": model, "messages": normalized });
         if let Some(ref eff) = current_effort {
             if !is_local_model(model) {
@@ -596,6 +615,11 @@ pub async fn chat_completion(
         let json: serde_json::Value = serde_json::from_str(&text)
             .map_err(|e| format!("Failed to parse the API response: {}", e))?;
 
+        let (mut usage, usage_json) = parse_usage_value(&json["usage"], "");
+        usage.provider_request_id = json["id"].as_str().map(str::to_owned);
+        let model_used = json["model"].as_str().map(str::to_owned);
+        crate::accounting::observe(&mut request, &mut usage, &usage_json, model_used.as_deref())?;
+        crate::accounting::complete(&mut request, &mut usage)?;
         let raw_content = json["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or("")
@@ -605,8 +629,6 @@ pub async fn chat_completion(
         }
 
         let (content, _extracted_reasoning) = strip_think_tags(&raw_content);
-        let (usage, usage_json) = parse_usage_value(&json["usage"], &content);
-        let model_used = json["model"].as_str().map(|s| s.to_string());
         return Ok((content, usage, usage_json, model_used));
     }
 }
@@ -631,8 +653,10 @@ where
         .map(|s| s.to_string());
 
     let response;
+    let mut request;
     loop {
-        let mut body = json!({ "model": model, "messages": normalized, "stream": true });
+        let attempt = crate::accounting::begin(model, &base_url)?;
+        let mut body = json!({ "model": model, "messages": normalized, "stream": true, "stream_options": { "include_usage": true } });
         if let Some(ref eff) = current_effort {
             if !is_local_model(model) {
                 body["reasoning_effort"] = json!(eff);
@@ -675,6 +699,7 @@ where
             return Err(extract_error_message(status, &text));
         }
 
+        request = attempt;
         response = resp_res;
         break;
     }
@@ -716,8 +741,12 @@ where
             }
             let payload = line.trim_start_matches("data:").trim();
             if payload == "[DONE]" {
+                crate::accounting::complete(&mut request, &mut usage)?;
                 on_event(StreamEventPayload::Done);
                 let (full_text, reasoning_text) = think_filter.finish(&mut on_event);
+                if full_text.is_empty() && reasoning_text.is_empty() {
+                    return Err("RouteLLM stream ended without any content.".into());
+                }
                 return Ok((full_text, reasoning_text, usage, usage_json, model_used));
             }
 
@@ -732,7 +761,9 @@ where
             if !json["usage"].is_null() {
                 let (u, uj) = parse_usage_value(&json["usage"], &think_filter.full_text);
                 usage = u;
+                usage.provider_request_id = json["id"].as_str().map(str::to_owned);
                 usage_json = uj;
+                crate::accounting::observe(&mut request, &mut usage, &usage_json, model_used.as_deref())?;
             }
 
             let reasoning_piece = json["choices"][0]["delta"]["reasoning_content"]
@@ -760,6 +791,7 @@ where
         }
     }
 
+    crate::accounting::complete(&mut request, &mut usage)?;
     on_event(StreamEventPayload::Done);
     let (mut full_text, reasoning_text) = think_filter.finish(&mut on_event);
     if full_text.trim().is_empty() && !reasoning_text.trim().is_empty() {
@@ -814,7 +846,9 @@ where
         .map(|s| s.to_string());
 
     let response;
+    let mut request;
     loop {
+        let attempt = crate::accounting::begin(model, &base_url)?;
         let reasoning_val = match current_effort.as_deref() {
             Some(e) => json!({ "effort": e, "summary": "auto" }),
             None => json!({ "summary": "auto" }),
@@ -869,6 +903,7 @@ where
             return Err(format!("LLM Provider Error ({}): {}", status.as_u16(), extracted_msg));
         }
 
+        request = attempt;
         response = resp_res;
         break;
     }
@@ -924,7 +959,11 @@ where
             }
             let payload = line.trim_start_matches("data:").trim();
             if payload == "[DONE]" {
+                crate::accounting::complete(&mut request, &mut usage)?;
                 on_event(StreamEventPayload::Done);
+                if full_text.is_empty() && reasoning_summary.is_empty() {
+                    return Err("RouteLLM stream ended without any content.".into());
+                }
                 return Ok((full_text, reasoning_summary, usage, usage_json, model_used));
             }
             let json: serde_json::Value = match serde_json::from_str(payload) {
@@ -978,7 +1017,9 @@ where
                     if !resp["usage"].is_null() {
                         let (u, uj) = parse_usage_value(&resp["usage"], &full_text);
                         usage = u;
+                        usage.provider_request_id = resp["id"].as_str().map(str::to_owned);
                         usage_json = uj;
+                        crate::accounting::observe(&mut request, &mut usage, &usage_json, model_used.as_deref())?;
                     }
                     // If the stream delivered no deltas (rare), fall back to
                     // aggregating output_text parts from the final response.
@@ -999,7 +1040,11 @@ where
                             }
                         }
                     }
+                    crate::accounting::complete(&mut request, &mut usage)?;
                     on_event(StreamEventPayload::Done);
+                    if full_text.is_empty() && reasoning_summary.is_empty() {
+                        return Err("RouteLLM stream ended without any content.".into());
+                    }
                     return Ok((full_text, reasoning_summary, usage, usage_json, model_used));
                 }
                 "response.created" | "response.in_progress" => {
@@ -1013,6 +1058,7 @@ where
                         let (u, uj) = parse_usage_value(&json["item"]["usage"], &full_text);
                         usage = u;
                         usage_json = uj;
+                        crate::accounting::observe(&mut request, &mut usage, &usage_json, model_used.as_deref())?;
                     }
                 }
                 _ => {}
@@ -1021,6 +1067,7 @@ where
         }
     }
 
+    crate::accounting::complete(&mut request, &mut usage)?;
     on_event(StreamEventPayload::Done);
     if full_text.trim().is_empty() && !reasoning_summary.trim().is_empty() {
         full_text = reasoning_summary.clone();
@@ -1035,7 +1082,8 @@ where
 /// Only OpenAI reasoning families (gpt-5, o-series) are routed to the
 /// Responses API (RouteLLM documents it for those). Everything else uses
 /// Chat Completions; if a Responses call fails before the first token, we
-/// silently retry on Chat Completions for the rest of the session.
+/// retry on Chat Completions for the rest of the session. A completed response,
+/// including an empty one, is not a protocol rejection and must not be retried.
 /// Returns (text, reasoning_summary, usage, usage_json, model_used).
 pub async fn stream_model_reply<F>(
     model: &str,
@@ -1061,7 +1109,8 @@ where
             responses_stream(model, messages, effort, move |event| {
                 match &event {
                     StreamEventPayload::Delta { .. }
-                    | StreamEventPayload::ReasoningDelta { .. } => {
+                    | StreamEventPayload::ReasoningDelta { .. }
+                    | StreamEventPayload::Done => {
                         emitted_flag.store(true, Ordering::Relaxed);
                     }
                     _ => {}
@@ -1076,7 +1125,7 @@ where
             Err(e) => {
                 if emitted_any.load(Ordering::Relaxed) {
                     return Err(format!(
-                        "{} (stream failed mid-way; not retried to avoid duplicate output)",
+                        "{} (stream produced output or completed; not retried to avoid duplicate requests)",
                         e
                     ));
                 }
@@ -1208,6 +1257,9 @@ pub async fn test_xiaomi_endpoint(endpoint: String) -> Result<Vec<String>, Strin
 
 #[tauri::command]
 pub async fn fetch_available_models(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    if std::env::var("ZEUS_OFFLINE_TEST").as_deref() == Ok("1") {
+        return Ok(vec!["phase1-mock".into(), "gpt-5-mock".into()]);
+    }
     let mut models: Vec<String> = Vec::new();
 
     // 1) Query local endpoint if accessible
@@ -1455,6 +1507,7 @@ pub async fn analyze_visual(
         }
     }
 
+    let mut request = crate::accounting::begin(model, &base_url)?;
     let resp = tokio::time::timeout(
         std::time::Duration::from_secs(180),
         client
@@ -1476,6 +1529,10 @@ pub async fn analyze_visual(
     let json: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| format!("Failed to parse Vision API response: {}", e))?;
     
+    let (mut usage_info, usage_json) = parse_usage_value(&json["usage"], "");
+    usage_info.provider_request_id = json["id"].as_str().map(str::to_owned);
+    crate::accounting::observe(&mut request, &mut usage_info, &usage_json, json["model"].as_str())?;
+    crate::accounting::complete(&mut request, &mut usage_info)?;
     let content = json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
@@ -1485,15 +1542,40 @@ pub async fn analyze_visual(
         return Err("Vision API returned an empty response.".into());
     }
 
-    let (mut usage_info, usage_json) = if json["usage"].is_object() {
-        parse_usage_value(&json["usage"], &content)
-    } else {
-        (UsageInfo::default(), "{}".to_string())
-    };
+
     if usage_info.images == 0 {
         usage_info.images = 1;
     }
 
     let (clean_content, _) = strip_think_tags(&content);
     Ok((clean_content, usage_info, usage_json))
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+
+    #[test]
+    fn response_reasoning_and_cached_tokens_are_subsets() {
+        let raw = json!({ "input_tokens": 75, "output_tokens": 1186, "total_tokens": 1261,
+            "output_tokens_details": { "reasoning_tokens": 1024 }, "input_tokens_details": { "cached_tokens": 50 } });
+        let (usage, retained) = parse_usage_value(&raw, "```code``` and an image");
+        assert_eq!(usage.units(), 1261.0);
+        assert_eq!(usage.reasoning_tokens, 1024);
+        assert_eq!(usage.cached_tokens, 50);
+        assert!(usage.usage_known);
+        assert_eq!(usage.tool_calls, 0);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&retained).unwrap(), raw);
+    }
+
+    #[test]
+    fn chat_usage_and_zero_usage_are_distinct_from_missing_usage() {
+        let (usage, _) = parse_usage_value(&json!({"prompt_tokens": 75, "completion_tokens": 1186,
+            "completion_tokens_details": {"reasoning_tokens": 1024}}), "");
+        assert_eq!(usage.units(), 1261.0);
+        let (zero, _) = parse_usage_value(&json!({"total_tokens": 0}), "");
+        assert!(zero.usage_known);
+        let (missing, _) = parse_usage_value(&json!(null), "lots of output");
+        assert!(!missing.usage_known);
+    }
 }

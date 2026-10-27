@@ -1,410 +1,154 @@
 import { test, expect } from '@playwright/test';
-import { launchTauri, stopTauri, cleanupTasks } from '../e2e/testUtils.js';
-import { submitPromptAndWait, captureArtifacts, pruneResults, cleanIpcDir } from '../advanced_e2e/advancedUtils.js';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { execSync } from 'child_process';
-import {
-    buildScoreRecord,
-    appendScore,
-    writeDashboard,
-    inferCategories,
-    checkGaiaAnswer,
-} from './score_recorder.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { launchTauri, stopTauri, startMockServer, stopMockServer, queueMockResponse } from '../e2e/testUtils.js';
+import { submitPromptAndWait } from '../advanced_e2e/advancedUtils.js';
+import { environmentOverrides, resolveBenchmarkConfig, taskSettings, assertEffectiveSettings, selectPrompts, readJson, fingerprint } from './benchmark_config.js';
+import { appendScore, writeDashboard, checkGaiaAnswer, atomicWrite } from './score_recorder.js';
+import { runTrial } from './trial_runner.js';
 
-/**
- * Recursively copies a directory to destination.
- */
-function copyRecursive(src, dst) {
-    if (!fs.existsSync(src)) return;
-    if (!fs.existsSync(dst)) {
-        fs.mkdirSync(dst, { recursive: true });
-    }
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-    for (const entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const dstPath = path.join(dst, entry.name);
-        if (entry.isDirectory()) {
-            copyRecursive(srcPath, dstPath);
-        } else {
-            fs.copyFileSync(srcPath, dstPath);
-        }
-    }
+export function fixtureHash(dir) {
+  if (!fs.existsSync(dir)) return fingerprint([]);
+  const visit = (root, relative = '') => fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry => {
+    const file = path.join(root, entry.name), rel = path.join(relative, entry.name);
+    if (entry.isSymbolicLink()) throw new Error('Benchmark fixtures must not contain symbolic links');
+    return entry.isDirectory() ? visit(file, rel) : [[rel, crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]];
+  });
+  return fingerprint(visit(dir));
 }
 
-/**
- * Visual Evaluator: Opens Session Replay, steps through actions, captures visual artifacts, and toggles overlays.
- */
-async function runVisualEvaluation(page, suiteDir, taskId) {
-    const visualArtifactsDir = path.join(suiteDir, 'visual_artifacts');
-    if (!fs.existsSync(visualArtifactsDir)) {
-        fs.mkdirSync(visualArtifactsDir, { recursive: true });
-    }
+export function registerBenchmarkSuite(suiteTitle, suiteDir) {
+  if (process.env.ZEUS_ALLOW_LIVE_EVAL !== '1' && process.env.ZEUS_OFFLINE_TEST !== '1') {
+    throw new Error('Benchmark execution needs ZEUS_ALLOW_LIVE_EVAL=1 or explicit offline mode');
+  }
+  const suiteFile = path.join(suiteDir, 'suite_config.json');
+  const suite = fs.existsSync(suiteFile) ? readJson(suiteFile) : {};
+  const matrix = JSON.parse(process.env.ZEUS_BENCH_MATRIX ?? '{}');
+  const cli = environmentOverrides();
+  const initial = resolveBenchmarkConfig({ suite, profile: matrix, cli });
+  const offline = process.env.ZEUS_OFFLINE_TEST === '1';
+  const expectedPolicy = offline ? 'scripted-no-tools-offline' : 'legacy-eval-with-user-simulator';
+  if (initial.permission_policy !== expectedPolicy) throw new Error(`Unsupported runtime permission policy: ${initial.permission_policy}`);
+  const selectedIds = process.env.ZEUS_BENCH_SELECTED_IDS ? JSON.parse(process.env.ZEUS_BENCH_SELECTED_IDS) : null;
+  const prompts = selectPrompts(readJson(path.join(suiteDir, 'prompts.json')), initial.profile)
+    .filter(p => !selectedIds || selectedIds.includes(String(p.id)));
+  if (!prompts.length) throw new Error('No tasks selected');
+  const repetitions = Number(process.env.ZEUS_BENCH_TRIALS ?? 1);
+  if (!Number.isSafeInteger(repetitions) || repetitions < 1 || repetitions > 100) throw new Error('Invalid trial count');
+  const experiment = process.env.ZEUS_BENCH_EXPERIMENT ?? crypto.randomUUID();
+  const resultDir = process.env.ZEUS_BENCH_RESULTS_DIR ?? path.resolve('.zeus/evaluations', experiment, path.basename(suiteDir));
 
-    try {
-        const replayBtn = page.locator('#browser-session-replay-btn').last();
-        if (await replayBtn.count() > 0 && await replayBtn.isVisible()) {
-            console.log('\n[Visual Evaluator] Found completed browser session card. Opening Replay Modal...');
-            await replayBtn.click();
-            const replayModal = page.locator('.modal-container').filter({ hasText: 'Browser Session Replay' });
-            await expect(replayModal).toBeVisible({ timeout: 5000 });
-
-            // Capture Step 1
-            const step1Img = path.join(visualArtifactsDir, 'replay_step_1.png');
-            await page.screenshot({ path: step1Img });
-            console.log(`[Visual Evaluator] Captured Step 1 screenshot: ${step1Img}`);
-
-            // If next button is available, advance to Step 2
-            const nextBtn = page.locator('#replay-next-button');
-            if (await nextBtn.count() > 0 && !(await nextBtn.isDisabled())) {
-                await nextBtn.click();
-                await page.waitForTimeout(500);
-
-                const step2Img = path.join(visualArtifactsDir, 'replay_step_2_highlight_on.png');
-                await page.screenshot({ path: step2Img });
-                console.log(`[Visual Evaluator] Captured Step 2 (Highlight ON): ${step2Img}`);
-
-                // Toggle highlight OFF
-                const toggleBtn = page.locator('#replay-highlight-toggle');
-                if (await toggleBtn.count() > 0) {
-                    await toggleBtn.click();
-                    await page.waitForTimeout(300);
-                    const step2OffImg = path.join(visualArtifactsDir, 'replay_step_2_highlight_off.png');
-                    await page.screenshot({ path: step2OffImg });
-                    console.log(`[Visual Evaluator] Captured Step 2 (Highlight OFF): ${step2OffImg}`);
-                    // Toggle back ON
-                    await toggleBtn.click();
-                }
+  test.describe(suiteTitle, () => {
+    test.describe.configure({ mode: 'default', retries: 0 });
+    for (const prompt of prompts) for (let repetition = 0; repetition < repetitions; repetition++) {
+      const config = resolveBenchmarkConfig({ suite, profile: matrix, cli,
+        task: { ...(prompt.budget_credits !== undefined ? { budget_credits: prompt.budget_credits } : {}), ...prompt.config_overrides } });
+      if (config.permission_policy !== expectedPolicy) throw new Error(`Unsupported runtime permission policy: ${config.permission_policy}`);
+      test(`[Prompt ${prompt.id}] ${prompt.title} (${prompt.name}) trial ${repetition + 1}`, async ({}, testInfo) => {
+        test.setTimeout(config.prompt_timeout_ms + 45000); // Leave bounded time for cancellation and record finalization.
+        const settings = taskSettings(config);
+        const record = await runTrial({ suiteTitle, suiteDir, promptSpec: prompt, timeoutMs: config.prompt_timeout_ms,
+          runMeta: { experiment_id: experiment, configuration: config, configuration_fingerprint: config.configuration_fingerprint,
+            architecture: config.architecture, suite_version: fingerprint(readJson(path.join(suiteDir, 'prompts.json'))),
+            fixture_hash: fixtureHash(path.join(suiteDir, 'fixtures')), build: JSON.parse(process.env.ZEUS_BENCH_BUILD ?? 'null'),
+            evaluation_kind: offline ? 'scripted_runtime' : 'capability' },
+          setup: async context => {
+            if (offline) await startMockServer();
+            const { page } = await launchTauri(!offline);
+            context.page = page;
+            await expect(page.locator('#app-container')).toBeVisible({ timeout: 15000 });
+            context.task = await page.evaluate(async () => window.__ZEUS_BRIDGE__.createTask('Benchmark trial'));
+            const tid = context.task.id;
+            await page.evaluate(({ tid, settings }) => window.__ZEUS_BRIDGE__.updateTaskSettings(tid, settings), { tid, settings });
+            const actual = await page.evaluate(async tid => (await window.__ZEUS_BRIDGE__.listTasks()).find(t => t.id === tid), tid);
+            assertEffectiveSettings(settings, actual);
+            const root = process.env.ZEUS_TEST_WORKSPACE_ROOT;
+            if (!root) throw new Error('Test workspace was not initialized; refusing manual app-data fallback');
+            context.workspace = path.join(root, 'tasks', tid, 'workspace');
+            fs.mkdirSync(context.workspace, { recursive: true });
+            const fixtures = path.join(suiteDir, 'fixtures');
+            if (fs.existsSync(fixtures)) fs.cpSync(fixtures, context.workspace, { recursive: true, errorOnExist: true, force: false });
+            const deploy = path.join(suiteDir, 'deploy_fixtures.js');
+            if (fs.existsSync(deploy)) {
+              const child = spawnSync(process.execPath, [deploy, '--dest', context.workspace], { timeout: 30000, windowsHide: true });
+              if (child.error || child.status !== 0) throw new Error('Fixture deployment failed');
             }
-
-            // Close Replay Modal
-            await page.locator('#replay-modal-close-button').click();
-            await expect(replayModal).not.toBeVisible();
-            console.log('[Visual Evaluator] Session Replay modal verified and closed cleanly.\n');
-        }
-    } catch (err) {
-        console.warn('[Visual Evaluator] Warning during visual evaluation:', err.message);
-    }
-}
-
-/**
- * Registers an autonomous Playwright benchmark suite for a given suite folder.
- * 
- * @param {string} suiteTitle - Human-readable suite name (e.g. 'Wave 1: Foundation Benchmarks')
- * @param {string} suiteDir - Absolute path to the suite folder
- * @param {object} [customOptions] - Optional overrides for model configs and timeouts
- */
-export function registerBenchmarkSuite(suiteTitle, suiteDir, customOptions = {}) {
-    // 1. Locate prompts.json
-    const promptsFile = path.join(suiteDir, 'prompts.json');
-    if (!fs.existsSync(promptsFile)) {
-        console.warn(`[Benchmark Engine] No prompts.json found in ${suiteDir}`);
-        return;
-    }
-    const prompts = JSON.parse(fs.readFileSync(promptsFile, 'utf8'));
-
-    // 2. Load optional suite_config.json
-    const configFile = path.join(suiteDir, 'suite_config.json');
-    const suiteConfig = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {};
-    const options = { ...suiteConfig, ...customOptions };
-
-    const promptTimeoutMs = options.prompt_timeout_ms || (15 * 60 * 1000);
-    const turnTimeoutMs = options.turn_timeout_ms || (10 * 60 * 1000);
-
-    // Profile filtering: smoke, standard, full
-    const activeProfile = process.env.ZEUS_BENCH_PROFILE || options.profile || 'standard';
-    const activePrompts = prompts.filter(p => {
-        if (activeProfile === 'full') return true;
-        if (activeProfile === 'smoke') {
-            return p.profile === 'smoke' || p.id === 1 || String(p.id) === '1';
-        }
-        if (activeProfile === 'standard') {
-            return p.profile !== 'full_only';
-        }
-        return true;
-    });
-
-    test.describe(suiteTitle, () => {
-        test.setTimeout(promptTimeoutMs);
-
-        let browser;
-        let page;
-
-        test.beforeAll(async () => {
-            pruneResults();
-            cleanIpcDir();
-        });
-
-        for (const promptSpec of activePrompts) {
-            test(`[Prompt ${promptSpec.id}] ${promptSpec.title} (${promptSpec.name})`, async ({}, testInfo) => {
-                test.setTimeout(Math.max(promptTimeoutMs, turnTimeoutMs * promptSpec.turns.length + 60000));
-                console.log(`\n================================================================`);
-                console.log(`🚀 [${suiteTitle}] PROMPT ${promptSpec.id}: ${promptSpec.title} [Profile: ${promptSpec.profile || 'standard'}]`);
-                console.log(`================================================================\n`);
-
-                // 1. Launch Tauri in real mode
-                const tauri = await launchTauri(true);
-                browser = tauri.browser;
-                page = tauri.page;
-
-                let taskId = null;
-                try {
-                    // 2. Wait for UI to boot
-                    await expect(page.locator('#app-container')).toBeVisible({ timeout: 15000 });
-
-                    // 3. Snapshot initial task IDs before creation
-                    const initialTaskIds = await page.evaluate(async () => {
-                        if (!window.__ZEUS_BRIDGE__) return [];
-                        const list = await window.__ZEUS_BRIDGE__.listTasks().catch(() => []);
-                        return (list || []).map(t => t.id);
-                    });
-
-                    // Create fresh task
-                    await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
-
-                    // Wait for new task to appear and capture its unique ID
-                    let newTask = null;
-                    for (let i = 0; i < 25; i++) {
-                        await page.waitForTimeout(200);
-                        const currentTasks = await page.evaluate(async () => {
-                            if (!window.__ZEUS_BRIDGE__) return [];
-                            return await window.__ZEUS_BRIDGE__.listTasks().catch(() => []);
-                        });
-                        newTask = (currentTasks || []).find(t => !initialTaskIds.includes(t.id));
-                        if (newTask) break;
-                    }
-                    if (!newTask) {
-                        const currentTasks = await page.evaluate(async () => window.__ZEUS_BRIDGE__ ? window.__ZEUS_BRIDGE__.listTasks().catch(() => []) : []);
-                        newTask = currentTasks && currentTasks.length > 0 ? currentTasks[0] : null;
-                    }
-                    taskId = newTask ? newTask.id : null;
-
-                    // 4. Configure task models & calibrated budget
-                    const defaultModel = process.env.ZEUS_BENCHMARK_MODEL || options.default_model || "Qwen3.8-27B";
-                    const taskBudget = Number(promptSpec.budget_credits) || Number(options.budget_credits) || Number(options.budget_units) || 50000;
-                    const modelSettings = {
-                        master_model: options.master_model || defaultModel,
-                        worker_model: options.worker_model !== undefined ? options.worker_model : defaultModel,
-                        verifier_model: options.verifier_model !== undefined ? options.verifier_model : defaultModel,
-                        watcher_model: options.watcher_model !== undefined ? options.watcher_model : defaultModel,
-                        vision_model: options.vision_model || "gemini-3.8-flash",
-                        budget_credits: taskBudget,
-                        browser_mode: options.browser_mode || "sandboxed",
-                        master_effort: options.master_effort || "medium",
-                        worker_effort: options.worker_effort || "medium",
-                        verifier_effort: options.verifier_effort || "medium",
-                        watcher_effort: options.watcher_effort || "medium",
-                        vision_effort: options.vision_effort || "medium"
-                    };
-
-                    if (taskId) {
-                        await page.evaluate(async ({ tid, settings }) => {
-                            if (window.__ZEUS_BRIDGE__) {
-                                await window.__ZEUS_BRIDGE__.updateTaskSettings(tid, settings);
-                            }
-                        }, { tid: taskId, settings: modelSettings });
-                    }
-
-                    const testWorkspaceRoot = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
-                    const taskWorkspace = taskId ? path.join(testWorkspaceRoot, 'tasks', taskId, 'workspace') : null;
-
-                    // 5. Automatic Fixture Deployment
-                    if (taskWorkspace) {
-                        if (!fs.existsSync(taskWorkspace)) {
-                            fs.mkdirSync(taskWorkspace, { recursive: true });
-                        }
-
-                        // A. Check for custom deploy_fixtures.js script
-                        const customDeployScript = path.join(suiteDir, 'deploy_fixtures.js');
-                        const fixturesDir = path.join(suiteDir, 'fixtures');
-                        if (fs.existsSync(customDeployScript)) {
-                            try {
-                                execSync(`node "${customDeployScript}" --dest "${taskWorkspace}"`, { stdio: 'pipe' });
-                                console.log(`[Benchmark Engine] Executed custom deploy_fixtures.js into: ${taskWorkspace}`);
-                            } catch (e) {
-                                console.warn('[Benchmark Engine] Custom fixture deploy warning:', e.message);
-                            }
-                        } else if (fs.existsSync(fixturesDir)) {
-                            // B. Default convention: auto-copy suiteDir/fixtures/ if present
-                            copyRecursive(fixturesDir, taskWorkspace);
-                            console.log(`[Benchmark Engine] Auto-deployed suite fixtures from ${fixturesDir} into: ${taskWorkspace}`);
-                        }
-
-                        // Ensure 'workspace' subdir exists within taskWorkspace if fixtures were deployed
-                        const workspaceSubdir = path.join(taskWorkspace, 'workspace');
-                        if (!fs.existsSync(workspaceSubdir) && fs.existsSync(fixturesDir)) {
-                            copyRecursive(fixturesDir, workspaceSubdir);
-                            console.log(`[Benchmark Engine] Mirrored fixtures into: ${workspaceSubdir}`);
-                        }
-                    }
-
-                    // 6. Execute turns in order
-                    const visualArtifactsDir = path.join(suiteDir, 'visual_artifacts');
-                    if (fs.existsSync(visualArtifactsDir)) {
-                        process.env.ZEUS_VISUAL_EVAL_DIR = visualArtifactsDir;
-                    }
-
-                    const promptStartTime = Date.now();
-                    const pythonCheckDetails = [];
-                    for (const turn of promptSpec.turns) {
-                        console.log(`\n[Prompt ${promptSpec.id} | Turn ${turn.turn}] Sending prompt:\n"${turn.user_prompt}"\n`);
-                        await submitPromptAndWait(page, turn.user_prompt, testInfo, turnTimeoutMs);
-
-                        // 6.5 Visual Evaluator: Inspect completed session replay if available
-                        await runVisualEvaluation(page, suiteDir, taskId);
-
-                        // 7. Deterministic Python Verification Check
-                        if (turn.python_check && taskWorkspace) {
-                            const checkScriptPath = path.join(taskWorkspace, `__eval_check_turn_${turn.turn}.py`);
-                            fs.writeFileSync(checkScriptPath, turn.python_check, 'utf8');
-                            try {
-                                execSync(`python "${checkScriptPath}"`, { cwd: taskWorkspace, stdio: 'pipe' });
-                                console.log(`✅ [Prompt ${promptSpec.id} | Turn ${turn.turn}] Python verification check passed!`);
-                                pythonCheckDetails.push({ turn: turn.turn, passed: true, error: null });
-                            } catch (err) {
-                                console.error(`❌ [Prompt ${promptSpec.id} | Turn ${turn.turn}] Python check failed:`, err.message);
-                                pythonCheckDetails.push({ turn: turn.turn, passed: false, error: err.message });
-                                if (process.env.ZEUS_SCORE_ONLY !== '1' && process.env.ZEUS_BENCH_CONTINUE !== '1') {
-                                    throw new Error(`Python check assertion failed for Prompt ${promptSpec.id} (Turn ${turn.turn}): ${err.message}`);
-                                }
-                            } finally {
-                                if (fs.existsSync(checkScriptPath)) {
-                                    fs.unlinkSync(checkScriptPath);
-                                }
-                            }
-                        }
-
-                        // 7.5 Deterministic GAIA Ground-Truth Check
-                        if (turn.ground_truth !== undefined && taskId) {
-                            const lastAssistantMsg = await page.evaluate(async (tid) => {
-                                if (!window.__ZEUS_BRIDGE__) return null;
-                                const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(tid, false).catch(() => []);
-                                const assistantMsgs = (msgs || []).filter(m => m.role === 'assistant' && m.visible);
-                                return assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].content : '';
-                            }, taskId);
-
-                            const gaiaResult = checkGaiaAnswer(lastAssistantMsg, turn.ground_truth);
-                            if (gaiaResult.passed) {
-                                console.log(`✅ [Prompt ${promptSpec.id} | Turn ${turn.turn}] GAIA answer check passed! (Match: "${gaiaResult.normPred}" == "${gaiaResult.normTruth}")`);
-                                pythonCheckDetails.push({ turn: turn.turn, passed: true, error: null, gaia: true });
-                            } else {
-                                console.error(`❌ [Prompt ${promptSpec.id} | Turn ${turn.turn}] GAIA answer check failed: expected "${gaiaResult.normTruth}", got "${gaiaResult.normPred}"`);
-                                pythonCheckDetails.push({ turn: turn.turn, passed: false, error: `GAIA mismatch: expected ${gaiaResult.normTruth}, got ${gaiaResult.normPred}`, gaia: true });
-                                if (process.env.ZEUS_SCORE_ONLY !== '1' && process.env.ZEUS_BENCH_CONTINUE !== '1') {
-                                    throw new Error(`GAIA answer check failed for Prompt ${promptSpec.id} (Turn ${turn.turn}): expected ${gaiaResult.normTruth}, got ${gaiaResult.normPred}`);
-                                }
-                            }
-                        }
-                    }
-                } finally {
-                    delete process.env.ZEUS_VISUAL_EVAL_DIR;
-                    // 8. Track exact token units consumed
-                    let promptUnits = 0;
-                    let messageCount = 0;
-                    let modelsUsed = [];
-                    if (page && !page.isClosed()) {
-                        try {
-                            const usageData = await page.evaluate(async (tid) => {
-                                if (!window.__ZEUS_BRIDGE__ || !tid) return null;
-                                const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(tid, true).catch(() => []);
-                                const totalFromMsgs = (msgs || []).reduce((acc, m) => acc + (m.units || m.credits_used || 0), 0);
-                                const spend = await window.__ZEUS_BRIDGE__.getTaskSpend(tid).catch(() => null);
-                                const finalUnits = (spend && typeof spend.spent_credits === 'number' && spend.spent_credits > 0)
-                                    ? spend.spent_credits
-                                    : totalFromMsgs;
-                                const models = [...new Set((msgs || []).map(m => m.model).filter(Boolean))];
-                                return { totalUnits: Math.round(finalUnits), count: (msgs || []).length, models };
-                            }, taskId);
-                            if (usageData) {
-                                promptUnits = usageData.totalUnits;
-                                messageCount = usageData.count;
-                                modelsUsed = usageData.models || [];
-                            }
-                        } catch (e) {
-                            console.warn('[Benchmark Engine] Could not query task units:', e.message);
-                        }
-                    }
-
-                    // Record in suite's units_ledger.json
-                    const ledgerFile = path.join(suiteDir, 'units_ledger.json');
-                    let ledger = {};
-                    if (fs.existsSync(ledgerFile)) {
-                        try { ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')); } catch (_) {}
-                    }
-                    ledger[promptSpec.id] = {
-                        id: promptSpec.id,
-                        name: promptSpec.name,
-                        title: promptSpec.title,
-                        units_used: promptUnits,
-                        message_count: messageCount,
-                        models_used: modelsUsed,
-                        duration_seconds: typeof promptStartTime === 'number' ? Math.round((Date.now() - promptStartTime) / 1000) : 0,
-                        timestamp: new Date().toISOString(),
-                        status: testInfo.status || 'unknown'
-                    };
-                    const totalSuiteUnits = Object.entries(ledger)
-                        .filter(([k]) => k !== '__total_suite_units')
-                        .reduce((acc, [_, entry]) => acc + (entry.units_used || 0), 0);
-                    ledger.__total_suite_units = totalSuiteUnits;
-                    try {
-                        fs.writeFileSync(ledgerFile, JSON.stringify(ledger, null, 2), 'utf8');
-                    } catch (e) {
-                        console.warn('[Benchmark Engine] Failed to write units_ledger.json:', e.message);
-                    }
-
-                    console.log(`\n📊 [UNITS LEDGER] Prompt ${promptSpec.id} (${promptSpec.name}): ${promptUnits.toLocaleString()} units consumed (${messageCount} messages).`);
-                    console.log(`📊 [UNITS LEDGER] Cumulative Total for Suite: ${totalSuiteUnits.toLocaleString()} units.\n`);
-
-                    // 8.5 Record rubric score (score-only or score-and-fix)
-                    try {
-                        const pythonCheckPassed =
-                            pythonCheckDetails.length === 0
-                                ? true
-                                : pythonCheckDetails.every((c) => c.passed);
-                        const durationSeconds = Math.round((Date.now() - promptStartTime) / 1000);
-                        const scoreRecord = buildScoreRecord({
-                            suiteTitle,
-                            suiteDir,
-                            promptSpec: { ...promptSpec, categories: promptSpec.categories || inferCategories(promptSpec) },
-                            runMeta: {
-                                master_model: modelSettings.master_model,
-                                worker_model: modelSettings.worker_model,
-                                verifier_model: modelSettings.verifier_model,
-                                watcher_model: modelSettings.watcher_model,
-                                vision_model: modelSettings.vision_model,
-                                status: testInfo.status || 'unknown',
-                            },
-                            pythonCheckPassed,
-                            pythonCheckDetails,
-                            unitsUsed: promptUnits,
-                            messageCount,
-                            modelsUsed,
-                            durationSeconds,
-                        });
-                        appendScore(suiteDir, scoreRecord);
-                        writeDashboard([suiteDir], path.join(suiteDir, 'scores_dashboard.html'));
-                        console.log(
-                            `🏁 [SCORE] Prompt ${promptSpec.id} (${promptSpec.name}): ${scoreRecord.total_score}/10 ` +
-                            `(acc ${scoreRecord.scores.accuracy} tools ${scoreRecord.scores.tools} ` +
-                            `safety ${scoreRecord.scores.safety} effic ${scoreRecord.scores.efficiency}) ` +
-                            `→ ${scoreRecord.passed ? 'PASS' : 'FAIL'} [${scoreRecord.mode}]`
-                        );
-                    } catch (scoreErr) {
-                        console.warn('[Benchmark Engine] Failed to record score:', scoreErr.message);
-                    }
-
-                    // 9. Capture test artifacts and clean up
-                    try {
-                        await captureArtifacts(page, testInfo, testInfo.status);
-                    } catch (e) {
-                        console.error('[Benchmark Engine] Failed to capture artifacts:', e);
-                    }
-
-                    await cleanupTasks(page);
-                    await stopTauri();
+          },
+          execute: async context => {
+            for (const turn of prompt.turns) {
+              if (offline) {
+                if (!turn.mock_responses?.length) throw new Error('Offline tasks require explicit mock responses');
+                for (const response of turn.mock_responses) queueMockResponse(response);
+              }
+              await context.page.evaluate(tid => { window.__ZEUS_BENCH_ACTIVE_TASK__ = tid; }, context.task.id);
+              if (offline) {
+                await context.page.evaluate(async ({ tid, content }) => window.__ZEUS_BRIDGE__.sendUserMessage(tid, content, crypto.randomUUID()),
+                  { tid: context.task.id, content: turn.user_prompt });
+              } else {
+                await context.page.locator(`[data-task-id="${context.task.id}"]`).first().click().catch(() => {});
+                await submitPromptAndWait(context.page, turn.user_prompt, testInfo, config.turn_timeout_ms);
+              }
+              const messages = await context.page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskMessages(tid, true), context.task.id);
+              const run = await context.page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskRunState(tid), context.task.id);
+              if (run && run.status !== 'completed') throw new Error(`Agent run ended with ${run.status}`);
+              if (turn.python_check) {
+                // Keep grader source outside the agent workspace, bound execution, and disable assert stripping.
+                const childEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+                delete childEnv.PYTHONOPTIMIZE;
+                const checked = spawnSync('python', ['-c', turn.python_check], { cwd: context.workspace, encoding: 'utf8',
+                  env: childEnv, timeout: 120000, maxBuffer: 1024 * 1024, windowsHide: true });
+                if (checked.error) throw checked.error;
+                context.checks.push({ turn: turn.turn, grader: 'python', passed: checked.status === 0,
+                  evidence: { exit_code: checked.status, stdout: checked.stdout, stderr: checked.stderr } });
+              }
+              if (turn.ground_truth !== undefined) {
+                const answer = messages.filter(m => m.role === 'assistant' && m.visible && m.kind === 'chat').at(-1)?.content ?? '';
+                context.checks.push({ turn: turn.turn, grader: 'exact-answer', ...checkGaiaAnswer(answer, turn.ground_truth, turn.answer_options) });
+              }
+              // Only a narrowly defined, independently checked scripted policy can establish authorization here.
+              // Live policy evaluation requires explicit graders; absence stays unmeasured.
+              if (offline && prompt.authorization_policy === 'no-tools' && messages.every(m =>
+                m.role !== 'tool' && !['directive', 'directive_result', 'action', 'approval'].includes(m.kind))) {
+                context.authorizationChecks.push({ passed: true, evidence: 'Runtime journal contains no tool, action, or approval messages' });
+              }
+            }
+          },
+          collect: async context => {
+            if (!context.page || !context.task) return {};
+            const messages = await context.page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskMessages(tid, true), context.task.id);
+            const spend = await context.page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskSpend(tid), context.task.id);
+            const run = await context.page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskRunState(tid), context.task.id);
+            const artifactsDir = path.join(resultDir, 'artifacts', testInfo.testId.replace(/[^\w-]/g, '_'));
+            fs.mkdirSync(artifactsDir, { recursive: true });
+            const journal = path.join(artifactsDir, 'messages.json');
+            atomicWrite(journal, JSON.stringify(messages, null, 2));
+            context.artifacts.push({ path: path.relative(resultDir, journal), sha256: fingerprint(messages) });
+            const image = path.join(artifactsDir, 'desktop.png');
+            await context.page.screenshot({ path: image });
+            context.artifacts.push({ path: path.relative(resultDir, image), sha256: crypto.createHash('sha256').update(fs.readFileSync(image)).digest('hex') });
+            return { unitsUsed: spend.usage?.unknown_requests === 0 ? spend.spent_credits : null, messageCount: messages.length,
+              modelsUsed: [...new Set(messages.map(m => m.model).filter(Boolean))], runMeta: { task_id: context.task.id, run_id: run?.id ?? null, usage: spend.usage ?? null } };
+          },
+          cleanup: async context => {
+            try {
+              if (context.page && context.task) await context.page.evaluate(async tid => {
+                const run = await window.__ZEUS_BRIDGE__.getTaskRunState(tid);
+                if (run && ['running', 'stopping'].includes(run.status)) {
+                  try { await window.__ZEUS_BRIDGE__.cancelTaskRun(tid); }
+                  catch (error) { if (!String(error).includes('TASK_NOT_RUNNING')) throw error; }
                 }
-            });
-        }
-    });
+              }, context.task.id);
+            } finally { await stopTauri(); if (offline) await stopMockServer(); }
+          },
+          persist: row => appendScore(resultDir, row),
+        });
+        writeDashboard([resultDir], path.join(resultDir, 'index.html'));
+        expect(record.execution_status, JSON.stringify(record.error)).toBe('succeeded');
+        expect(record.outcome_status, 'No check is not a passed benchmark').toBe('passed');
+        expect(record.authorization_status, 'Authorization was not independently evaluated').toBe('passed');
+      });
+    }
+  });
 }

@@ -1,558 +1,214 @@
-/**
- * Score recording, schema, and aggregation for Zeus Agent benchmarks.
- * Used by benchmark_engine.js (score-only or score-and-fix workflows).
- *
- * Score model (0-10 per dimension, weighted total >= 9.0 to pass):
- *   accuracy  35%  - python_check / expected artifacts
- *   tools     25%  - directive/tool health (parse thrash, path errors) when available
- *   safety    20%  - sandbox / gatekeeper / policy
- *   efficiency 20% - units, wall time, loops
- *
- * SCORE_ONLY=1 records results without requiring a perfect run for the harness
- * to continue other prompts (failed checks are logged, not always thrown).
- */
+/** Independent outcomes and immutable trial records. Unknown measurements stay null. */
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fingerprint } from './benchmark_config.js';
 
-import fs from 'fs';
-import path from 'path';
-
-export const RUBRIC_WEIGHTS = {
-  accuracy: 0.35,
-  tools: 0.25,
-  safety: 0.2,
-  efficiency: 0.2,
-};
-
+export const RUBRIC_WEIGHTS = { accuracy: 0.35, tools: 0.25, safety: 0.2, efficiency: 0.2 };
 export const PASS_THRESHOLD = 9.0;
+const finite = n => typeof n === 'number' && Number.isFinite(n);
+const score = n => finite(n) ? Math.max(0, Math.min(10, n)) : null;
+const round = n => Math.round(n * 1000) / 1000;
+const mean = values => { const known = values.filter(finite); return known.length ? round(known.reduce((a, b) => a + b, 0) / known.length) : null; };
 
-/** Category tags inferred from prompt name / criteria for dashboard grouping. */
-const CATEGORY_RULES = [
-  { category: 'browser', patterns: [/browser|canva|scrap|heatmap|web|url|http/i] },
-  { category: 'code', patterns: [/bug|pytest|pipeline|etl|script|validator|marathon|refactor/i] },
-  { category: 'files', patterns: [/file|workspace|csv|json|dedup|reconcil|log|search/i] },
-  { category: 'memory', patterns: [/memory|brand|recall/i] },
-  { category: 'research', patterns: [/stock|dossier|research|financial|weather/i] },
-  { category: 'vision', patterns: [/visual|design|banner|image|flyer|screenshot/i] },
-];
-
-export function inferCategories(promptSpec) {
-  const hay = `${promptSpec.name || ''} ${promptSpec.title || ''} ${JSON.stringify(promptSpec.criteria || {})}`;
-  const cats = new Set();
-  for (const rule of CATEGORY_RULES) {
-    if (rule.patterns.some((re) => re.test(hay))) cats.add(rule.category);
-  }
-  if (cats.size === 0) cats.add('general');
-  return [...cats];
+export function inferCategories(prompt) {
+  const rules = { browser: /browser|scrap|web|url/i, code: /bug|code|pipeline|script|validator/i,
+    files: /file|workspace|csv|json|reconcil/i, memory: /memory|recall/i,
+    research: /research|stock|weather/i, vision: /visual|image|screenshot|design/i };
+  const text = `${prompt.name ?? ''} ${prompt.title ?? ''} ${JSON.stringify(prompt.criteria ?? [])}`;
+  const matches = Object.entries(rules).filter(([, re]) => re.test(text)).map(([category]) => category);
+  return matches.length ? matches : ['general'];
 }
 
-export function computeWeightedScore(scores) {
-  const s = {
-    accuracy: clampScore(scores.accuracy),
-    tools: clampScore(scores.tools),
-    safety: clampScore(scores.safety),
-    efficiency: clampScore(scores.efficiency),
-  };
-  const total =
-    s.accuracy * RUBRIC_WEIGHTS.accuracy +
-    s.tools * RUBRIC_WEIGHTS.tools +
-    s.safety * RUBRIC_WEIGHTS.safety +
-    s.efficiency * RUBRIC_WEIGHTS.efficiency;
+export function computeWeightedScore(input) {
+  const scores = Object.fromEntries(Object.keys(RUBRIC_WEIGHTS).map(key => [key, score(input[key])]));
+  const total = Object.values(scores).some(x => x === null) ? null : round(Object.entries(scores).reduce((sum, [key, value]) => sum + value * RUBRIC_WEIGHTS[key], 0));
+  return { scores, total, passed: total !== null && total >= PASS_THRESHOLD && input.python_check_passed === true };
+}
+
+export function scoreFromHarnessObservation({ pythonCheckPassed, pythonCheckDetails = [], toolErrors = null,
+  unauthorizedActions = null, authorizationChecks = [], efficiencyScore = null } = {}) {
+  const accuracy = pythonCheckPassed === true ? 10 : pythonCheckPassed === false ?
+    (pythonCheckDetails.length ? 10 * pythonCheckDetails.filter(c => c.passed === true).length / pythonCheckDetails.length : 0) : null;
+  return computeWeightedScore({ accuracy, tools: finite(toolErrors) ? Math.max(0, 10 - toolErrors * 1.5) : null,
+    safety: unauthorizedActions > 0 ? 0 : authorizationChecks.length ? 10 * authorizationChecks.filter(c => c.passed === true).length / authorizationChecks.length : null,
+    efficiency: efficiencyScore, python_check_passed: pythonCheckPassed });
+}
+
+export function mergeManualScores(auto, manual) {
+  return manual ? { ...computeWeightedScore({ ...auto.scores, ...manual }), manual: true } : auto;
+}
+
+export function executionStatus(status) {
+  return ({ passed: 'succeeded', completed: 'succeeded', succeeded: 'succeeded', failed: 'failed',
+    timedOut: 'timed_out', timed_out: 'timed_out', cancelled: 'cancelled', interrupted: 'interrupted',
+    infrastructure_error: 'infrastructure_error', skipped: 'unsupported', unsupported: 'unsupported' })[status] ?? 'unknown';
+}
+
+export function buildScoreRecord({ suiteTitle, suiteDir, promptSpec, runMeta = {}, pythonCheckPassed,
+  pythonCheckDetails = [], unitsUsed = null, messageCount = null, modelsUsed = [], durationSeconds = null,
+  toolErrors = null, gatekeeperBlocks = null, circularLoopHints = null, unauthorizedActions = null,
+  authorizationChecks = [], efficiencyScore = null, manualScores = null,
+  mode = process.env.ZEUS_BENCH_MODE ?? 'score-only' }) {
+  const status = executionStatus(runMeta.execution_status ?? runMeta.status);
+  const checked = pythonCheckDetails.length ? pythonCheckDetails.every(c => c.passed === true) : pythonCheckPassed;
+  const outcome = checked === true ? 'passed' : checked === false ? 'failed' : 'not_evaluated';
+  const authorization = unauthorizedActions > 0 ? 'failed' : authorizationChecks.length ?
+    (authorizationChecks.every(c => c.passed === true) ? 'passed' : 'failed') : 'not_evaluated';
+  const diagnostic = mergeManualScores(scoreFromHarnessObservation({ pythonCheckPassed: checked, pythonCheckDetails,
+    toolErrors, unauthorizedActions, authorizationChecks, efficiencyScore }), manualScores);
   return {
-    scores: s,
-    total: Math.round(total * 100) / 100,
-    passed: total >= PASS_THRESHOLD && (scores.python_check_passed !== false),
+    schema_version: 2, experiment_id: runMeta.experiment_id ?? process.env.ZEUS_BENCH_EXPERIMENT ?? 'standalone',
+    trial_id: runMeta.trial_id ?? crypto.randomUUID(), task_id: runMeta.task_id ?? null, run_id: runMeta.run_id ?? null,
+    suite: suiteTitle, suite_id: runMeta.suite_id ?? path.basename(suiteDir), suite_dir: suiteDir,
+    suite_version: runMeta.suite_version ?? 'unversioned', prompt_id: promptSpec.id, name: promptSpec.name,
+    title: promptSpec.title, categories: promptSpec.categories ?? inferCategories(promptSpec), mode,
+    evaluation_kind: runMeta.evaluation_kind ?? 'capability', architecture: runMeta.architecture ?? process.env.ZEUS_BENCH_ARCH ?? 'unknown',
+    configuration_fingerprint: runMeta.configuration_fingerprint ?? fingerprint(runMeta.configuration ?? runMeta.model_set ?? {}),
+    configuration: runMeta.configuration ?? null, build: runMeta.build ?? null,
+    model_set: runMeta.model_set ?? { master: runMeta.master_model ?? null, worker: runMeta.worker_model ?? null,
+      verifier: runMeta.verifier_model ?? null, watcher: runMeta.watcher_model ?? null, vision: runMeta.vision_model ?? null,
+      models_used: modelsUsed },
+    grader_version: 'zeus-outcomes-v2', task_hash: fingerprint(promptSpec), fixture_hash: runMeta.fixture_hash ?? null,
+    execution_status: status, status, outcome_status: status === 'unsupported' ? 'unsupported' : outcome,
+    authorization_status: authorization, error: runMeta.error ?? null, termination_reason: runMeta.termination_reason ?? null,
+    python_check_passed: typeof checked === 'boolean' ? checked : null, python_check_details: pythonCheckDetails,
+    authorization_checks: authorizationChecks, scores: diagnostic.scores, total_score: diagnostic.total,
+    quality_status: diagnostic.total === null ? 'not_evaluated' : 'evaluated',
+    passed: status === 'succeeded' && outcome === 'passed' && authorization === 'passed',
+    outcome_passed: status === 'succeeded' && outcome === 'passed', pass_threshold: PASS_THRESHOLD,
+    units_used: unitsUsed, unit_kind: 'legacy_token_equivalent', provider_credits: runMeta.provider_credits ?? null,
+    estimated_provider_credits: runMeta.estimated_provider_credits ?? null,
+    usage: runMeta.usage ?? null, message_count: messageCount, duration_seconds: durationSeconds,
+    tool_errors: toolErrors, gatekeeper_blocks: gatekeeperBlocks, circular_loop_hints: circularLoopHints,
+    artifacts: runMeta.artifacts ?? [], started_at: runMeta.started_at ?? null, timestamp: new Date().toISOString(),
   };
 }
 
-function clampScore(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  return Math.max(0, Math.min(10, x));
-}
+export const scoreFilePath = dir => path.join(dir, 'scores.json');
 
-/**
- * Deterministic scoring from harness observations.
- * Optional manual/LLM overlay can merge later via mergeManualScores().
- */
-export function scoreFromHarnessObservation({
-  pythonCheckPassed,
-  pythonCheckDetails = [],
-  unitsUsed = 0,
-  durationSeconds = 0,
-  toolErrors = 0,
-  gatekeeperBlocks = 0,
-  circularLoopHints = 0,
-}) {
-  const checks = pythonCheckDetails.length || 1;
-  const passedChecks = pythonCheckDetails.length
-    ? pythonCheckDetails.filter((c) => c.passed).length
-    : pythonCheckPassed
-      ? 1
-      : 0;
-  const accuracy =
-    pythonCheckPassed === true
-      ? 10
-      : pythonCheckPassed === false
-        ? Math.max(0, (passedChecks / checks) * 8)
-        : 6;
-
-  // Fewer tool parse/path errors is better.
-  const tools = Math.max(0, 10 - toolErrors * 1.5 - circularLoopHints * 2);
-
-  // Gatekeeper blocks during eval can be OK; many unexpected blocks hurt.
-  const safety = Math.max(0, 10 - gatekeeperBlocks * 1.0);
-
-  // Efficiency: heavy unit burn relative to simple tasks is soft-penalized.
-  // Baseline ~50k units for a healthy multi-turn prompt; scale gently.
-  let efficiency = 10;
-  if (unitsUsed > 200000) efficiency -= 2;
-  if (unitsUsed > 400000) efficiency -= 2;
-  if (unitsUsed > 800000) efficiency -= 2;
-  if (durationSeconds > 600) efficiency -= 1;
-  if (durationSeconds > 1200) efficiency -= 1;
-  if (circularLoopHints > 0) efficiency -= circularLoopHints * 1.5;
-  efficiency = Math.max(0, efficiency);
-
-  return computeWeightedScore({
-    accuracy,
-    tools,
-    safety,
-    efficiency,
-    python_check_passed: pythonCheckPassed !== false,
-  });
-}
-
-export function mergeManualScores(autoResult, manual) {
-  if (!manual) return autoResult;
-  const scores = { ...autoResult.scores };
-  for (const k of Object.keys(scores)) {
-    if (manual[k] != null) scores[k] = clampScore(manual[k]);
+export function loadScores(dir) {
+  const trialsDir = path.join(dir, 'trials');
+  if (fs.existsSync(trialsDir)) {
+    const runs = fs.readdirSync(trialsDir).filter(file => file.endsWith('.json')).sort()
+      .map(file => JSON.parse(fs.readFileSync(path.join(trialsDir, file), 'utf8')));
+    return { schema_version: 2, runs, aggregate: aggregateScores(runs) };
   }
-  const recomputed = computeWeightedScore({
-    ...scores,
-    python_check_passed: manual.python_check_passed ?? autoResult.passed,
-  });
-  return { ...recomputed, manual: true };
+  if (!fs.existsSync(scoreFilePath(dir))) return { schema_version: 2, runs: [] };
+  const data = JSON.parse(fs.readFileSync(scoreFilePath(dir), 'utf8'));
+  if (!Array.isArray(data.runs)) throw new Error(`Invalid score history: ${dir}`);
+  return data; // Preserve historical provenance; do not claim new validation.
 }
 
-/**
- * Build a full score record for one prompt run.
- */
-export function buildScoreRecord({
-  suiteTitle,
-  suiteDir,
-  promptSpec,
-  runMeta = {},
-  pythonCheckPassed,
-  pythonCheckDetails = [],
-  unitsUsed = 0,
-  messageCount = 0,
-  modelsUsed = [],
-  durationSeconds = 0,
-  toolErrors = 0,
-  gatekeeperBlocks = 0,
-  circularLoopHints = 0,
-  manualScores = null,
-  mode = process.env.ZEUS_BENCH_MODE || 'score-only',
-}) {
-  const categories = promptSpec.categories || inferCategories(promptSpec);
-  const auto = scoreFromHarnessObservation({
-    pythonCheckPassed,
-    pythonCheckDetails,
-    unitsUsed,
-    durationSeconds,
-    toolErrors,
-    gatekeeperBlocks,
-    circularLoopHints,
-  });
-  const finalScore = mergeManualScores(auto, manualScores);
-
-  return {
-    schema_version: 1,
-    suite: suiteTitle,
-    suite_dir: suiteDir,
-    prompt_id: promptSpec.id,
-    name: promptSpec.name,
-    title: promptSpec.title,
-    categories,
-    mode,
-    architecture: runMeta.architecture || process.env.ZEUS_BENCH_ARCH || 'unknown',
-    model_set: {
-      master: runMeta.master_model || null,
-      worker: runMeta.worker_model || null,
-      verifier: runMeta.verifier_model || null,
-      watcher: runMeta.watcher_model || null,
-      vision: runMeta.vision_model || null,
-      models_used: modelsUsed,
-    },
-    turns: promptSpec.turns?.map((t) => t.turn) ?? [],
-    python_check_passed: pythonCheckPassed !== false,
-    python_check_details: pythonCheckDetails,
-    scores: finalScore.scores,
-    total_score: finalScore.total,
-    passed: finalScore.passed && pythonCheckPassed !== false,
-    pass_threshold: PASS_THRESHOLD,
-    units_used: unitsUsed,
-    message_count: messageCount,
-    duration_seconds: durationSeconds,
-    tool_errors: toolErrors,
-    gatekeeper_blocks: gatekeeperBlocks,
-    circular_loop_hints: circularLoopHints,
-    status: runMeta.status || 'unknown',
-    timestamp: new Date().toISOString(),
-    run_id: runMeta.run_id || null,
-  };
+export function atomicWrite(file, content) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+  try { fs.writeFileSync(temporary, content, { flag: 'wx' }); fs.renameSync(temporary, file); }
+  finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
 }
 
-export function scoreFilePath(suiteDir) {
-  return path.join(suiteDir, 'scores.json');
-}
-
-export function loadScores(suiteDir) {
-  const file = scoreFilePath(suiteDir);
-  if (!fs.existsSync(file)) return { schema_version: 1, runs: [] };
+export function appendScore(dir, record) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(record.trial_id ?? '')) throw new Error('Invalid trial ID');
+  if (!fs.existsSync(path.join(dir, 'trials')) && fs.existsSync(scoreFilePath(dir)) && loadScores(dir).runs.length) {
+    throw new Error('Refusing to replace historical score records; use a fresh experiment directory');
+  }
+  const trialPath = path.join(dir, 'trials', `${record.trial_id}.json`);
+  fs.mkdirSync(path.dirname(trialPath), { recursive: true });
+  const temporary = `${trialPath}.${crypto.randomUUID()}.tmp`;
   try {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (Array.isArray(data.runs)) return data;
-    return { schema_version: 1, runs: [] };
-  } catch {
-    return { schema_version: 1, runs: [] };
-  }
-}
-
-export function appendScore(suiteDir, record) {
-  const data = loadScores(suiteDir);
-  data.runs.push(record);
-  data.updated_at = new Date().toISOString();
-  // Also keep a latest-by-prompt map for quick dashboard reads.
-  data.latest_by_prompt = data.latest_by_prompt || {};
-  data.latest_by_prompt[String(record.prompt_id)] = record;
-  const aggregates = aggregateScores(data.runs);
-  data.aggregate = aggregates;
-  fs.writeFileSync(scoreFilePath(suiteDir), JSON.stringify(data, null, 2), 'utf8');
-  writeAggregateSidecar(suiteDir, aggregates, data.runs);
+    fs.writeFileSync(temporary, JSON.stringify(record, null, 2), { flag: 'wx' });
+    fs.linkSync(temporary, trialPath); // Atomic publication, with no overwrite even between processes.
+  } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
+  const data = loadScores(dir);
+  atomicWrite(scoreFilePath(dir), JSON.stringify(data, null, 2));
   return record;
 }
 
-function writeAggregateSidecar(suiteDir, aggregates, runs) {
-  const file = path.join(suiteDir, 'scores_aggregate.json');
-  fs.writeFileSync(
-    file,
-    JSON.stringify({ aggregates, run_count: runs.length, updated_at: new Date().toISOString() }, null, 2),
-    'utf8'
-  );
-}
-
-/**
- * Aggregate overall + per-category + per-architecture metrics.
- */
-export function aggregateScores(runs) {
-  if (!runs.length) {
-    return {
-      overall: emptyAgg(),
-      by_category: {},
-      by_architecture: {},
-      by_mode: {},
-      pass_rate: 0,
-    };
+function uniqueRuns(runs) {
+  const seen = new Map(), legacy = [];
+  for (const row of runs) {
+    if (!row.trial_id) { legacy.push(row); continue; }
+    const id = `${row.experiment_id}/${row.trial_id}`;
+    if (seen.has(id) && JSON.stringify(seen.get(id)) !== JSON.stringify(row)) throw new Error(`Conflicting trial identity: ${id}`);
+    seen.set(id, row);
   }
+  return [...legacy, ...seen.values()];
+}
 
-  const latestByPrompt = new Map();
-  for (const r of runs) {
-    latestByPrompt.set(String(r.prompt_id), r);
-  }
-  const latest = [...latestByPrompt.values()];
+function fold(rows) {
+  return { count: rows.length, pass_count: rows.filter(r => r.passed === true).length,
+    outcome_pass_count: rows.filter(r => r.outcome_passed === true).length,
+    ungraded_count: rows.filter(r => r.outcome_status === 'not_evaluated').length,
+    avg_total: mean(rows.map(r => r.total_score)),
+    avg_scores: Object.fromEntries(Object.keys(RUBRIC_WEIGHTS).map(key => [key, mean(rows.map(r => r.scores?.[key]))])),
+    avg_units: mean(rows.map(r => r.units_used)), avg_duration_seconds: mean(rows.map(r => r.duration_seconds)),
+    measured_units_count: rows.filter(r => finite(r.units_used)).length,
+    measured_score_count: rows.filter(r => finite(r.total_score)).length };
+}
 
-  const overall = foldAgg(latest);
-  const by_category = {};
-  const by_architecture = {};
-  const by_mode = {};
-
-  for (const r of latest) {
-    for (const c of r.categories || ['general']) {
-      by_category[c] = foldAgg(latest.filter((x) => (x.categories || []).includes(c)), by_category[c]);
-    }
-    const arch = r.architecture || 'unknown';
-    by_architecture[arch] = foldAgg(latest.filter((x) => (x.architecture || 'unknown') === arch), by_architecture[arch]);
-    const mode = r.mode || 'unknown';
-    by_mode[mode] = foldAgg(latest.filter((x) => (x.mode || 'unknown') === mode), by_mode[mode]);
-  }
-
-  const pass_rate = latest.filter((r) => r.passed).length / latest.length;
-
-  return {
-    overall,
-    by_category: sortAggMap(by_category),
-    by_architecture: sortAggMap(by_architecture),
-    by_mode: sortAggMap(by_mode),
-    pass_rate: Math.round(pass_rate * 1000) / 1000,
-    prompt_count: latest.length,
+export function aggregateScores(input) {
+  const runs = uniqueRuns(input);
+  const group = keyFor => {
+    const groups = new Map();
+    for (const row of runs) { const key = keyFor(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
+    return Object.fromEntries([...groups].map(([key, rows]) => [key, fold(rows)]));
   };
+  const categories = [...new Set(runs.flatMap(r => r.categories ?? []))];
+  return { overall: fold(runs), by_category: Object.fromEntries(categories.map(c => [c, fold(runs.filter(r => r.categories?.includes(c)))])),
+    by_architecture: group(r => r.architecture ?? 'unknown'), by_mode: group(r => r.mode ?? 'unknown'),
+    by_experiment: group(r => r.experiment_id ?? 'historical'),
+    by_configuration: group(r => `${r.experiment_id ?? 'historical'}/${r.configuration_fingerprint ?? r.architecture ?? 'unknown'}/${r.evaluation_kind ?? 'historical'}`),
+    by_status: group(r => r.execution_status ?? r.status ?? 'historical'),
+    pass_rate: runs.length ? round(runs.filter(r => r.passed === true).length / runs.length) : null,
+    trial_count: runs.length, prompt_count: new Set(runs.map(r => `${r.suite_id ?? r.suite_dir ?? r.suite}/${r.suite_version}/${r.prompt_id}`)).size };
 }
 
-function emptyAgg() {
-  return {
-    count: 0,
-    avg_total: 0,
-    avg_scores: { accuracy: 0, tools: 0, safety: 0, efficiency: 0 },
-    avg_units: 0,
-    avg_duration_seconds: 0,
-    pass_count: 0,
-  };
+export function collectDashboardData(dirs) {
+  const suites = dirs.map(dir => { const data = loadScores(dir); return { dir, name: path.basename(dir), run_count: data.runs.length, aggregates: aggregateScores(data.runs), runs: data.runs }; });
+  const runs = uniqueRuns(suites.flatMap(s => s.runs));
+  return { generated_at: new Date().toISOString(), weights: RUBRIC_WEIGHTS, pass_threshold: PASS_THRESHOLD,
+    suites: suites.map(({ runs: _, ...suite }) => suite), aggregate: aggregateScores(runs), runs };
 }
 
-function foldAgg(rows, prev = emptyAgg()) {
-  // foldAgg is called with the full filtered list each time; compute fresh.
-  void prev;
-  if (!rows.length) return emptyAgg();
-  const n = rows.length;
-  const sum = (fn) => rows.reduce((a, r) => a + (fn(r) || 0), 0);
-  return {
-    count: n,
-    avg_total: round2(sum((r) => r.total_score) / n),
-    avg_scores: {
-      accuracy: round2(sum((r) => r.scores?.accuracy) / n),
-      tools: round2(sum((r) => r.scores?.tools) / n),
-      safety: round2(sum((r) => r.scores?.safety) / n),
-      efficiency: round2(sum((r) => r.scores?.efficiency) / n),
-    },
-    avg_units: Math.round(sum((r) => r.units_used) / n),
-    avg_duration_seconds: Math.round(sum((r) => r.duration_seconds) / n),
-    pass_count: rows.filter((r) => r.passed).length,
-  };
+export function normalizeGaiaAnswer(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim().replace(/^[`*]+|[`*]+$/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (text.includes(',') && !/^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d*)?(?:e[+-]?\d+)?$/.test(text)) return text;
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/.exec(text.replace(/,/g, ''));
+  if (!match || !(match[2] || match[3])) return text;
+  // Canonical decimal strings avoid rounding large integers or overflowing to Infinity.
+  let digits = `${match[2]}${match[3] ?? ''}`.replace(/^0+/, '');
+  if (!digits) return '0';
+  let exponent = BigInt(match[4] ?? 0) - BigInt((match[3] ?? '').length);
+  const trimmed = digits.replace(/0+$/, '');
+  exponent += BigInt(digits.length - trimmed.length); digits = trimmed;
+  return `${match[1] === '-' ? '-' : ''}${digits}${exponent === 0n ? '' : `e${exponent}`}`;
 }
 
-function sortAggMap(obj) {
-  return Object.fromEntries(
-    Object.entries(obj).sort((a, b) => (b[1].avg_total || 0) - (a[1].avg_total || 0))
-  );
+/** Compatibility name for local synthetic tasks, not the official GAIA evaluator. */
+export function checkGaiaAnswer(prediction, truth, { absoluteTolerance = 0 } = {}) {
+  const normPred = normalizeGaiaAnswer(prediction), normTruth = normalizeGaiaAnswer(truth);
+  const numeric = normPred !== '' && normTruth !== '' && Number.isFinite(Number(normPred)) && Number.isFinite(Number(normTruth));
+  return { passed: (normPred !== '' && normPred === normTruth) ||
+    (numeric && absoluteTolerance > 0 && Math.abs(Number(normPred) - Number(normTruth)) <= absoluteTolerance), normPred, normTruth };
 }
 
-function round2(n) {
-  return Math.round((Number(n) || 0) * 100) / 100;
-}
-
-/**
- * Merge multiple suite scores.json files into one dashboard payload.
- */
-export function collectDashboardData(suiteDirs) {
-  const allRuns = [];
-  const suites = [];
-  for (const dir of suiteDirs) {
-    const data = loadScores(dir);
-    suites.push({
-      dir,
-      name: path.basename(dir),
-      aggregates: data.aggregate || aggregateScores(data.runs),
-      run_count: data.runs.length,
-    });
-    allRuns.push(...data.runs);
-  }
-  return {
-    generated_at: new Date().toISOString(),
-    pass_threshold: PASS_THRESHOLD,
-    weights: RUBRIC_WEIGHTS,
-    suites,
-    aggregate: aggregateScores(allRuns),
-    runs: allRuns.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')),
-  };
-}
-
+const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const display = n => finite(n) ? n : 'not measured';
 export function renderDashboardHtml(payload) {
-  const rows = payload.runs
-    .map((r) => {
-      const badge = r.passed ? 'pass' : 'fail';
-      return `<tr class="${badge}">
-        <td>${escapeHtml(String(r.prompt_id))}</td>
-        <td>${escapeHtml(r.name || '')}</td>
-        <td>${escapeHtml((r.categories || []).join(', '))}</td>
-        <td>${escapeHtml(r.architecture || '')}</td>
-        <td>${escapeHtml(r.mode || '')}</td>
-        <td>${r.total_score?.toFixed?.(2) ?? r.total_score}</td>
-        <td>${r.scores?.accuracy ?? ''}</td>
-        <td>${r.scores?.tools ?? ''}</td>
-        <td>${r.scores?.safety ?? ''}</td>
-        <td>${r.scores?.efficiency ?? ''}</td>
-        <td>${r.units_used ?? ''}</td>
-        <td>${r.duration_seconds ?? ''}</td>
-        <td><span class="badge ${badge}">${r.passed ? 'PASS' : 'FAIL'}</span></td>
-        <td>${escapeHtml(r.timestamp || '')}</td>
-      </tr>`;
-    })
-    .join('\n');
-
-  const catBars = Object.entries(payload.aggregate.by_category || {})
-    .map(([cat, agg]) => {
-      const pct = Math.round((agg.avg_total / 10) * 100);
-      return `<div class="cat"><div class="cat-label">${escapeHtml(cat)} <small>(${agg.count})</small></div>
-        <div class="bar"><div class="fill" style="width:${pct}%"></div><span>${agg.avg_total}</span></div></div>`;
-    })
-    .join('\n');
-
-  const archRows = Object.entries(payload.aggregate.by_architecture || {})
-    .map(
-      ([arch, agg]) =>
-        `<tr><td>${escapeHtml(arch)}</td><td>${agg.avg_total}</td><td>${agg.pass_count}/${agg.count}</td><td>${agg.avg_units}</td></tr>`
-    )
-    .join('\n');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Zeus Agent Benchmark Scores</title>
-<style>
-  :root { color-scheme: dark; }
-  body { font-family: ui-sans-serif, system-ui, sans-serif; background:#0f1115; color:#e8eaed; margin:24px; }
-  h1,h2 { font-weight:600; }
-  .meta { color:#9aa0a6; margin-bottom:16px; }
-  .cards { display:flex; gap:12px; flex-wrap:wrap; margin:16px 0 24px; }
-  .card { background:#1a1d24; border:1px solid #2a2f3a; border-radius:10px; padding:14px 18px; min-width:140px; }
-  .card .label { color:#9aa0a6; font-size:12px; }
-  .card .value { font-size:28px; font-weight:700; margin-top:4px; }
-  .pass .value { color:#3ddc97; }
-  .fail .value { color:#ff6b6b; }
-  table { border-collapse:collapse; width:100%; font-size:13px; }
-  th, td { border-bottom:1px solid #2a2f3a; padding:8px 10px; text-align:left; }
-  th { color:#9aa0a6; font-weight:600; position:sticky; top:0; background:#0f1115; }
-  tr.fail td:first-child { color:#ff8e8e; }
-  .badge { padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
-  .badge.pass { background:#143d2b; color:#3ddc97; }
-  .badge.fail { background:#3d1414; color:#ff6b6b; }
-  .cat { margin:8px 0; }
-  .cat-label { font-size:13px; color:#c5c7cc; margin-bottom:4px; }
-  .bar { position:relative; background:#1a1d24; border:1px solid #2a2f3a; border-radius:6px; height:22px; overflow:hidden; }
-  .bar .fill { height:100%; background:linear-gradient(90deg,#3b82f6,#3ddc97); }
-  .bar span { position:absolute; right:8px; top:2px; font-size:12px; }
-  .scroll { overflow:auto; max-height:70vh; border:1px solid #2a2f3a; border-radius:10px; }
-</style>
-</head>
-<body>
-  <h1>Zeus Agent — Benchmark Score Dashboard</h1>
-  <div class="meta">Generated ${escapeHtml(payload.generated_at)} · Pass threshold ≥ ${payload.pass_threshold} · Accuracy 35% / Tools 25% / Safety 20% / Efficiency 20%</div>
-
-  <div class="cards">
-    <div class="card ${payload.aggregate.pass_rate >= 0.9 ? 'pass' : ''}">
-      <div class="label">Pass rate (latest)</div>
-      <div class="value">${Math.round((payload.aggregate.pass_rate || 0) * 100)}%</div>
-    </div>
-    <div class="card">
-      <div class="label">Avg total</div>
-      <div class="value">${payload.aggregate.overall.avg_total}</div>
-    </div>
-    <div class="card">
-      <div class="label">Prompts</div>
-      <div class="value">${payload.aggregate.prompt_count || payload.runs.length}</div>
-    </div>
-    <div class="card">
-      <div class="label">Avg units</div>
-      <div class="value">${payload.aggregate.overall.avg_units}</div>
-    </div>
-  </div>
-
-  <h2>Category scores</h2>
-  <div>${catBars || '<em>No categorized runs yet</em>'}</div>
-
-  <h2>Architecture comparison</h2>
-  <table>
-    <thead><tr><th>Architecture</th><th>Avg total</th><th>Pass</th><th>Avg units</th></tr></thead>
-    <tbody>${archRows || '<tr><td colspan="4">No data</td></tr>'}</tbody>
-  </table>
-
-  <h2>Runs</h2>
-  <div class="scroll">
-  <table>
-    <thead>
-      <tr>
-        <th>#</th><th>Name</th><th>Categories</th><th>Arch</th><th>Mode</th>
-        <th>Total</th><th>Acc</th><th>Tools</th><th>Safety</th><th>Effic</th>
-        <th>Units</th><th>Sec</th><th>Result</th><th>Timestamp</th>
-      </tr>
-    </thead>
-    <tbody>${rows || '<tr><td colspan="14">No runs recorded</td></tr>'}</tbody>
-  </table>
-  </div>
-</body>
-</html>`;
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Zeus evaluation records</title>
+<style>body{font:15px system-ui;background:#111827;color:#e5e7eb;margin:32px}table{border-collapse:collapse;width:100%}td,th{padding:10px;text-align:left;border-bottom:1px solid #374151}.scroll{overflow:auto}small{color:#9ca3af}</style>
+<h1>Zeus evaluation records</h1><p>${payload.runs.length} retained trials; ${payload.aggregate.prompt_count} distinct tasks.
+Verified passes: ${payload.aggregate.overall.pass_count}. Outcome checks passed: ${payload.aggregate.overall.outcome_pass_count}.</p>
+<p><small>Unknown quality, safety, and cost are not perfect scores or zero cost. Historical and scripted records retain their labels. Compare matched experiment/configuration cells.</small></p>
+<div class="scroll"><table><thead><tr><th>Experiment / trial</th><th>Suite / task</th><th>Kind / architecture</th><th>Execution</th><th>Outcome</th><th>Authorization</th><th>Quality</th><th>Token equivalents</th><th>Provider credits</th><th>Seconds</th></tr></thead><tbody>
+${payload.runs.map(r => `<tr><td>${escapeHtml(r.experiment_id)} / ${escapeHtml(r.trial_id ?? 'historical')}</td><td>${escapeHtml(r.suite)} / ${escapeHtml(r.name ?? r.prompt_id)}</td><td>${escapeHtml(r.evaluation_kind ?? 'historical')} / ${escapeHtml(r.architecture)}</td><td>${escapeHtml(r.execution_status ?? r.status)}</td><td>${escapeHtml(r.outcome_status ?? 'historical')}</td><td>${escapeHtml(r.authorization_status ?? 'not evaluated')}</td><td>${display(r.total_score)}</td><td>${display(r.units_used)}</td><td>${display(r.provider_credits)}</td><td>${display(r.duration_seconds)}</td></tr>`).join('\n')}
+</tbody></table></div><h2>Comparison cells</h2><pre>${escapeHtml(JSON.stringify(payload.aggregate.by_configuration, null, 2))}</pre></html>`;
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/**
- * Normalizes GAIA-style answers according to standard benchmark protocols.
- */
-export function normalizeGaiaAnswer(val) {
-  if (val === null || val === undefined) return '';
-  if (Array.isArray(val)) {
-    return val.map(normalizeGaiaAnswer).sort().join(', ');
-  }
-  let s = String(val).trim().toLowerCase();
-  
-  // Remove wrapping markdown formatting (bold, italics, code)
-  s = s.replace(/^[`*]+|[`*]+$/g, '').trim();
-
-  // If numeric, standardize number formatting
-  const numVal = parseFloat(s.replace(/,/g, ''));
-  if (!isNaN(numVal) && String(numVal) === s.replace(/,/g, '').trim()) {
-    return String(numVal);
-  }
-
-  // Remove leading articles
-  s = s.replace(/^(the|a|an)\s+/i, '');
-
-  // Strip extraneous surrounding punctuation
-  s = s.replace(/^[.,;:!?()[\]{}'"]+|[.,;:!?()[\]{}'"]+$/g, '');
-
-  // Collapse inner whitespace
-  s = s.replace(/\s+/g, ' ').trim();
-  return s;
-}
-
-/**
- * Deterministically compares an agent prediction with a GAIA ground truth.
- */
-export function checkGaiaAnswer(prediction, groundTruth) {
-  const normPred = normalizeGaiaAnswer(prediction);
-  const normTruth = normalizeGaiaAnswer(groundTruth);
-
-  if (!normPred || !normTruth) {
-    return { passed: false, normPred, normTruth };
-  }
-
-  // Direct exact match
-  if (normPred === normTruth) {
-    return { passed: true, normPred, normTruth };
-  }
-
-  // Numerical comparison within epsilon
-  const pNum = parseFloat(normPred);
-  const tNum = parseFloat(normTruth);
-  if (!isNaN(pNum) && !isNaN(tNum)) {
-    const passed = Math.abs(pNum - tNum) < 1e-3 || Math.abs((pNum - tNum) / (tNum || 1)) < 0.01;
-    return { passed, normPred, normTruth };
-  }
-
-  // Substring inclusion if ground truth is contained in a short focused answer
-  if (normPred.includes(normTruth) && normPred.length <= normTruth.length * 3 + 20) {
-    return { passed: true, normPred, normTruth };
-  }
-
-  return { passed: false, normPred, normTruth };
-}
-
-/**
- * Write dashboard HTML next to scores (or to outPath).
- */
-export function writeDashboard(suiteDirs, outPath) {
-  const payload = collectDashboardData(suiteDirs);
-  const html = renderDashboardHtml(payload);
-  const out = outPath || path.join(suiteDirs[0] || process.cwd(), 'scores_dashboard.html');
-  fs.writeFileSync(out, html, 'utf8');
+export function writeDashboard(dirs, outPath) {
+  const payload = collectDashboardData(dirs), out = outPath ?? path.join(dirs[0] ?? process.cwd(), 'scores_dashboard.html');
+  atomicWrite(out, renderDashboardHtml(payload));
+  atomicWrite(path.join(path.dirname(out), 'scores_data.json'), JSON.stringify(payload, null, 2));
   return { out, payload };
 }
-

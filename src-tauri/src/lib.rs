@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod cookie_vault;
+pub mod accounting;
 pub mod db;
 pub mod chat;
 pub mod browser_manager;
@@ -15,7 +16,7 @@ pub mod worker;
 pub mod output_compressor;
 
 use std::fs;
-use tauri::generate_context;
+use tauri::{generate_context, Manager};
 
 pub fn run() {
     // Resolve and create the workspace root (%APPDATA%\zeus-agent) plus its subfolders
@@ -37,8 +38,14 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .setup(|app| {
+            if std::env::var("ZEUS_TEST_HIDE_WINDOW").as_deref() == Ok("1") {
+                if let Some(window) = app.get_webview_window("main") { window.hide()?; }
+            }
+            Ok(())
+        })
         .manage(db::AppState {
-            db: std::sync::Mutex::new(connection),
+            db: std::sync::Arc::new(std::sync::Mutex::new(connection)),
             active_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
             browser_manager: browser_manager::BrowserManager::new(),
         })

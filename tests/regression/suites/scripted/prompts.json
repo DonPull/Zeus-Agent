@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "name": "scripted_exact_answer",
+    "title": "Scripted runtime integration, not a capability result",
+    "profile": "smoke",
+    "authorization_policy": "no-tools",
+    "turns": [{
+      "turn": 1,
+      "user_prompt": "What is 2+2? Answer only the numeral.",
+      "ground_truth": "4",
+      "mock_responses": [{ "id": "scripted-response", "model": "phase1-mock", "choices": [{ "delta": { "content": "4" } }], "usage": { "prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6 } }]
+    }]
+  }
+]

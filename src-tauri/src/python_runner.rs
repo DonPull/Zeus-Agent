@@ -991,16 +991,17 @@ mod tests {
     #[tokio::test]
     async fn sandbox_blocks_file_write_outside_workspace() {
         let workspace = std::env::temp_dir().join(format!("zeus_test_{}", crate::db::new_id()));
-        // Try to write to a file explicitly outside the workspace (e.g. up one directory)
-        let code = r#"
-import os
-parent_dir = os.path.dirname(os.getcwd())
-test_file = os.path.join(parent_dir, 'zeus_hack_test.txt')
-with open(test_file, 'w') as f:
-    f.write('hacked')
-"#;
-        let outcome = run_python_action(None, None, &workspace, code, 30, None).await.expect("runner failed");
+        // The runner deliberately allows the OS temp directory. Use a separate,
+        // unique target in this checkout to exercise the actual outside-prefix check.
+        let target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target")
+            .join(format!("zeus_escape_{}.txt", crate::db::new_id()));
+        let code = format!("with open({}, 'w', encoding='utf-8') as f: f.write('blocked')",
+            serde_json::to_string(&target.to_string_lossy()).unwrap());
+        let outcome = run_python_action(None, None, &workspace, &code, 30, None).await.expect("runner failed");
         
+        let escaped = target.exists();
+        if escaped { let _ = std::fs::remove_file(&target); }
+        assert!(!escaped, "outside-prefix file was created");
         assert_eq!(outcome.exit_code, 1);
         assert!(outcome.stderr.contains("Gatekeeper DENIED") || outcome.stderr.contains("PermissionError"), "stderr was: {}", outcome.stderr);
         let _ = std::fs::remove_dir_all(workspace);
