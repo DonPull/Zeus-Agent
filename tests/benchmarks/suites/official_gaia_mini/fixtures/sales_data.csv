@@ -1,0 +1,16 @@
+transaction_id,date,region,product,units_sold,unit_price,discount_pct
+TX1001,2024-01-05,North,Widget A,15,45.00,0.05
+TX1002,2024-01-12,South,Gadget B,8,120.00,0.10
+TX1003,2024-01-15,East,Widget A,22,45.00,0.00
+TX1004,2024-01-20,West,Widget C,30,15.50,0.00
+TX1005,2024-02-01,North,Gadget B,12,120.00,0.15
+TX1006,2024-02-14,South,Widget A,18,45.00,0.05
+TX1007,2024-02-28,East,Widget C,45,15.50,0.10
+TX1008,2024-03-03,West,Gadget B,5,120.00,0.00
+TX1009,2024-03-10,North,Widget A,25,45.00,0.00
+TX1010,2024-03-18,East,Gadget B,14,120.00,0.05
+TX1011,2024-03-25,South,Widget C,50,15.50,0.00
+TX1012,2024-04-02,West,Widget A,10,45.00,0.00
+TX1013,2024-04-11,North,Widget C,35,15.50,0.05
+TX1014,2024-04-19,South,Gadget B,9,120.00,0.10
+TX1015,2024-04-29,East,Widget A,20,45.00,0.00

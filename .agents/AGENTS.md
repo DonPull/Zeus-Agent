@@ -32,7 +32,7 @@ Zeus Agent is a desktop autonomous-agent runtime (not merely a chatbot) capable 
 | P0.2B | Run Control & Task UX | **COMPLETED** |
 | P1 | Delegation & Verification | **COMPLETED** |
 | P2 | Gatekeeper & Capability System | **COMPLETED** |
-| P3 | Resource Ledger & Model Strategy (Reasoning Effort Levels) | IN PROGRESS |
+| P3 | Resource Ledger & Model Strategy (Reasoning Effort Levels) | **COMPLETED** |
 | P4 | System & Browser Tools (Stealth & Cookie Vault) | **COMPLETED** |
 | P5 | Production Hardening | PLANNED |
 

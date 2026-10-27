@@ -12,7 +12,12 @@
     "eval:score": "node scripts/eval_harness/run_score_only.js",
     "eval:dashboard": "node scripts/eval_harness/generate_dashboard.js",
     "eval:matrix": "node scripts/eval_harness/run_matrix.js",
-    "test:browser-profile": "node scripts/manual_test_browser_profile.js"
+    "test:browser-profile": "node scripts/manual_test_browser_profile.js",
+    "bench": "node scripts/eval_harness/run_benchmark.js --profile standard",
+    "bench:smoke": "node scripts/eval_harness/run_benchmark.js --profile smoke",
+    "bench:full": "node scripts/eval_harness/run_benchmark.js --profile full",
+    "bench:gaia": "node scripts/eval_harness/run_benchmark.js --suite gaia",
+    "bench:swe": "node scripts/eval_harness/run_benchmark.js --suite swe"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

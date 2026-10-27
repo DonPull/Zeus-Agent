@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Zeus Agent Benchmark Scores</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: ui-sans-serif, system-ui, sans-serif; background:#0f1115; color:#e8eaed; margin:24px; }
+  h1,h2 { font-weight:600; }
+  .meta { color:#9aa0a6; margin-bottom:16px; }
+  .cards { display:flex; gap:12px; flex-wrap:wrap; margin:16px 0 24px; }
+  .card { background:#1a1d24; border:1px solid #2a2f3a; border-radius:10px; padding:14px 18px; min-width:140px; }
+  .card .label { color:#9aa0a6; font-size:12px; }
+  .card .value { font-size:28px; font-weight:700; margin-top:4px; }
+  .pass .value { color:#3ddc97; }
+  .fail .value { color:#ff6b6b; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { border-bottom:1px solid #2a2f3a; padding:8px 10px; text-align:left; }
+  th { color:#9aa0a6; font-weight:600; position:sticky; top:0; background:#0f1115; }
+  tr.fail td:first-child { color:#ff8e8e; }
+  .badge { padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .badge.pass { background:#143d2b; color:#3ddc97; }
+  .badge.fail { background:#3d1414; color:#ff6b6b; }
+  .cat { margin:8px 0; }
+  .cat-label { font-size:13px; color:#c5c7cc; margin-bottom:4px; }
+  .bar { position:relative; background:#1a1d24; border:1px solid #2a2f3a; border-radius:6px; height:22px; overflow:hidden; }
+  .bar .fill { height:100%; background:linear-gradient(90deg,#3b82f6,#3ddc97); }
+  .bar span { position:absolute; right:8px; top:2px; font-size:12px; }
+  .scroll { overflow:auto; max-height:70vh; border:1px solid #2a2f3a; border-radius:10px; }
+</style>
+</head>
+<body>
+  <h1>Zeus Agent — Benchmark Score Dashboard</h1>
+  <div class="meta">Generated 2026-09-23T22:11:11.734Z · Pass threshold ≥ 9 · Accuracy 35% / Tools 25% / Safety 20% / Efficiency 20%</div>
+
+  <div class="cards">
+    <div class="card ">
+      <div class="label">Pass rate (latest)</div>
+      <div class="value">0%</div>
+    </div>
+    <div class="card">
+      <div class="label">Avg total</div>
+      <div class="value">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Prompts</div>
+      <div class="value">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Avg units</div>
+      <div class="value">0</div>
+    </div>
+  </div>
+
+  <h2>Category scores</h2>
+  <div><em>No categorized runs yet</em></div>
+
+  <h2>Architecture comparison</h2>
+  <table>
+    <thead><tr><th>Architecture</th><th>Avg total</th><th>Pass</th><th>Avg units</th></tr></thead>
+    <tbody><tr><td colspan="4">No data</td></tr></tbody>
+  </table>
+
+  <h2>Runs</h2>
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Name</th><th>Categories</th><th>Arch</th><th>Mode</th>
+        <th>Total</th><th>Acc</th><th>Tools</th><th>Safety</th><th>Effic</th>
+        <th>Units</th><th>Sec</th><th>Result</th><th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody><tr><td colspan="14">No runs recorded</td></tr></tbody>
+  </table>
+  </div>
+</body>
+</html>

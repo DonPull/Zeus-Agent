@@ -3,6 +3,8 @@
     "id": 1,
     "name": "sofia_weather_flyer_campaign",
     "title": "Marketing Campaign Asset Generation & Localized Weather Integration",
+    "profile": "smoke",
+    "budget_credits": 45000,
     "turns": [
       {
         "turn": 1,

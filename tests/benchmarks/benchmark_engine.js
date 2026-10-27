@@ -10,6 +10,7 @@ import {
     appendScore,
     writeDashboard,
     inferCategories,
+    checkGaiaAnswer,
 } from './score_recorder.js';
 
 /**
@@ -111,6 +112,19 @@ export function registerBenchmarkSuite(suiteTitle, suiteDir, customOptions = {})
     const promptTimeoutMs = options.prompt_timeout_ms || (15 * 60 * 1000);
     const turnTimeoutMs = options.turn_timeout_ms || (10 * 60 * 1000);
 
+    // Profile filtering: smoke, standard, full
+    const activeProfile = process.env.ZEUS_BENCH_PROFILE || options.profile || 'standard';
+    const activePrompts = prompts.filter(p => {
+        if (activeProfile === 'full') return true;
+        if (activeProfile === 'smoke') {
+            return p.profile === 'smoke' || p.id === 1 || String(p.id) === '1';
+        }
+        if (activeProfile === 'standard') {
+            return p.profile !== 'full_only';
+        }
+        return true;
+    });
+
     test.describe(suiteTitle, () => {
         test.setTimeout(promptTimeoutMs);
 
@@ -122,11 +136,11 @@ export function registerBenchmarkSuite(suiteTitle, suiteDir, customOptions = {})
             cleanIpcDir();
         });
 
-        for (const promptSpec of prompts) {
+        for (const promptSpec of activePrompts) {
             test(`[Prompt ${promptSpec.id}] ${promptSpec.title} (${promptSpec.name})`, async ({}, testInfo) => {
                 test.setTimeout(Math.max(promptTimeoutMs, turnTimeoutMs * promptSpec.turns.length + 60000));
                 console.log(`\n================================================================`);
-                console.log(`🚀 [${suiteTitle}] PROMPT ${promptSpec.id}: ${promptSpec.title}`);
+                console.log(`🚀 [${suiteTitle}] PROMPT ${promptSpec.id}: ${promptSpec.title} [Profile: ${promptSpec.profile || 'standard'}]`);
                 console.log(`================================================================\n`);
 
                 // 1. Launch Tauri in real mode
@@ -139,29 +153,58 @@ export function registerBenchmarkSuite(suiteTitle, suiteDir, customOptions = {})
                     // 2. Wait for UI to boot
                     await expect(page.locator('#app-container')).toBeVisible({ timeout: 15000 });
 
-                    // 3. Create fresh task
+                    // 3. Snapshot initial task IDs before creation
+                    const initialTaskIds = await page.evaluate(async () => {
+                        if (!window.__ZEUS_BRIDGE__) return [];
+                        const list = await window.__ZEUS_BRIDGE__.listTasks().catch(() => []);
+                        return (list || []).map(t => t.id);
+                    });
+
+                    // Create fresh task
                     await page.locator('#new-task-button, #empty-state-new-task-button').first().click();
 
-                    // 4. Configure task models & budget
+                    // Wait for new task to appear and capture its unique ID
+                    let newTask = null;
+                    for (let i = 0; i < 25; i++) {
+                        await page.waitForTimeout(200);
+                        const currentTasks = await page.evaluate(async () => {
+                            if (!window.__ZEUS_BRIDGE__) return [];
+                            return await window.__ZEUS_BRIDGE__.listTasks().catch(() => []);
+                        });
+                        newTask = (currentTasks || []).find(t => !initialTaskIds.includes(t.id));
+                        if (newTask) break;
+                    }
+                    if (!newTask) {
+                        const currentTasks = await page.evaluate(async () => window.__ZEUS_BRIDGE__ ? window.__ZEUS_BRIDGE__.listTasks().catch(() => []) : []);
+                        newTask = currentTasks && currentTasks.length > 0 ? currentTasks[0] : null;
+                    }
+                    taskId = newTask ? newTask.id : null;
+
+                    // 4. Configure task models & calibrated budget
                     const defaultModel = process.env.ZEUS_BENCHMARK_MODEL || options.default_model || "Qwen3.8-27B";
+                    const taskBudget = Number(promptSpec.budget_credits) || Number(options.budget_credits) || Number(options.budget_units) || 50000;
                     const modelSettings = {
                         master_model: options.master_model || defaultModel,
-                        worker_model: options.worker_model || defaultModel,
-                        verifier_model: options.verifier_model || defaultModel,
-                        watcher_model: options.watcher_model || defaultModel,
+                        worker_model: options.worker_model !== undefined ? options.worker_model : defaultModel,
+                        verifier_model: options.verifier_model !== undefined ? options.verifier_model : defaultModel,
+                        watcher_model: options.watcher_model !== undefined ? options.watcher_model : defaultModel,
                         vision_model: options.vision_model || "gemini-3.8-flash",
-                        budget_credits: options.budget_credits || options.budget_units || 500000,
-                        browser_mode: options.browser_mode || "sandboxed"
+                        budget_credits: taskBudget,
+                        browser_mode: options.browser_mode || "sandboxed",
+                        master_effort: options.master_effort || "medium",
+                        worker_effort: options.worker_effort || "medium",
+                        verifier_effort: options.verifier_effort || "medium",
+                        watcher_effort: options.watcher_effort || "medium",
+                        vision_effort: options.vision_effort || "medium"
                     };
 
-                    taskId = await page.evaluate(async (settings) => {
-                        if (!window.__ZEUS_BRIDGE__) return null;
-                        const tasks = await window.__ZEUS_BRIDGE__.listTasks();
-                        if (!tasks || tasks.length === 0) return null;
-                        const id = tasks[0].id;
-                        await window.__ZEUS_BRIDGE__.updateTaskSettings(id, settings);
-                        return id;
-                    }, modelSettings);
+                    if (taskId) {
+                        await page.evaluate(async ({ tid, settings }) => {
+                            if (window.__ZEUS_BRIDGE__) {
+                                await window.__ZEUS_BRIDGE__.updateTaskSettings(tid, settings);
+                            }
+                        }, { tid: taskId, settings: modelSettings });
+                    }
 
                     const testWorkspaceRoot = process.env.ZEUS_TEST_WORKSPACE_ROOT || path.join(os.homedir(), 'AppData', 'Roaming', 'zeus-agent');
                     const taskWorkspace = taskId ? path.join(testWorkspaceRoot, 'tasks', taskId, 'workspace') : null;
@@ -222,13 +265,34 @@ export function registerBenchmarkSuite(suiteTitle, suiteDir, customOptions = {})
                             } catch (err) {
                                 console.error(`❌ [Prompt ${promptSpec.id} | Turn ${turn.turn}] Python check failed:`, err.message);
                                 pythonCheckDetails.push({ turn: turn.turn, passed: false, error: err.message });
-                                // score-only mode records failure and continues; otherwise fail the test
-                                if (process.env.ZEUS_SCORE_ONLY !== '1') {
+                                if (process.env.ZEUS_SCORE_ONLY !== '1' && process.env.ZEUS_BENCH_CONTINUE !== '1') {
                                     throw new Error(`Python check assertion failed for Prompt ${promptSpec.id} (Turn ${turn.turn}): ${err.message}`);
                                 }
                             } finally {
                                 if (fs.existsSync(checkScriptPath)) {
                                     fs.unlinkSync(checkScriptPath);
+                                }
+                            }
+                        }
+
+                        // 7.5 Deterministic GAIA Ground-Truth Check
+                        if (turn.ground_truth !== undefined && taskId) {
+                            const lastAssistantMsg = await page.evaluate(async (tid) => {
+                                if (!window.__ZEUS_BRIDGE__) return null;
+                                const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(tid, false).catch(() => []);
+                                const assistantMsgs = (msgs || []).filter(m => m.role === 'assistant' && m.visible);
+                                return assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].content : '';
+                            }, taskId);
+
+                            const gaiaResult = checkGaiaAnswer(lastAssistantMsg, turn.ground_truth);
+                            if (gaiaResult.passed) {
+                                console.log(`✅ [Prompt ${promptSpec.id} | Turn ${turn.turn}] GAIA answer check passed! (Match: "${gaiaResult.normPred}" == "${gaiaResult.normTruth}")`);
+                                pythonCheckDetails.push({ turn: turn.turn, passed: true, error: null, gaia: true });
+                            } else {
+                                console.error(`❌ [Prompt ${promptSpec.id} | Turn ${turn.turn}] GAIA answer check failed: expected "${gaiaResult.normTruth}", got "${gaiaResult.normPred}"`);
+                                pythonCheckDetails.push({ turn: turn.turn, passed: false, error: `GAIA mismatch: expected ${gaiaResult.normTruth}, got ${gaiaResult.normPred}`, gaia: true });
+                                if (process.env.ZEUS_SCORE_ONLY !== '1' && process.env.ZEUS_BENCH_CONTINUE !== '1') {
+                                    throw new Error(`GAIA answer check failed for Prompt ${promptSpec.id} (Turn ${turn.turn}): expected ${gaiaResult.normTruth}, got ${gaiaResult.normPred}`);
                                 }
                             }
                         }

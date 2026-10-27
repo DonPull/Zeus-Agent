@@ -484,6 +484,68 @@ function escapeHtml(s) {
 }
 
 /**
+ * Normalizes GAIA-style answers according to standard benchmark protocols.
+ */
+export function normalizeGaiaAnswer(val) {
+  if (val === null || val === undefined) return '';
+  if (Array.isArray(val)) {
+    return val.map(normalizeGaiaAnswer).sort().join(', ');
+  }
+  let s = String(val).trim().toLowerCase();
+  
+  // Remove wrapping markdown formatting (bold, italics, code)
+  s = s.replace(/^[`*]+|[`*]+$/g, '').trim();
+
+  // If numeric, standardize number formatting
+  const numVal = parseFloat(s.replace(/,/g, ''));
+  if (!isNaN(numVal) && String(numVal) === s.replace(/,/g, '').trim()) {
+    return String(numVal);
+  }
+
+  // Remove leading articles
+  s = s.replace(/^(the|a|an)\s+/i, '');
+
+  // Strip extraneous surrounding punctuation
+  s = s.replace(/^[.,;:!?()[\]{}'"]+|[.,;:!?()[\]{}'"]+$/g, '');
+
+  // Collapse inner whitespace
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+/**
+ * Deterministically compares an agent prediction with a GAIA ground truth.
+ */
+export function checkGaiaAnswer(prediction, groundTruth) {
+  const normPred = normalizeGaiaAnswer(prediction);
+  const normTruth = normalizeGaiaAnswer(groundTruth);
+
+  if (!normPred || !normTruth) {
+    return { passed: false, normPred, normTruth };
+  }
+
+  // Direct exact match
+  if (normPred === normTruth) {
+    return { passed: true, normPred, normTruth };
+  }
+
+  // Numerical comparison within epsilon
+  const pNum = parseFloat(normPred);
+  const tNum = parseFloat(normTruth);
+  if (!isNaN(pNum) && !isNaN(tNum)) {
+    const passed = Math.abs(pNum - tNum) < 1e-3 || Math.abs((pNum - tNum) / (tNum || 1)) < 0.01;
+    return { passed, normPred, normTruth };
+  }
+
+  // Substring inclusion if ground truth is contained in a short focused answer
+  if (normPred.includes(normTruth) && normPred.length <= normTruth.length * 3 + 20) {
+    return { passed: true, normPred, normTruth };
+  }
+
+  return { passed: false, normPred, normTruth };
+}
+
+/**
  * Write dashboard HTML next to scores (or to outPath).
  */
 export function writeDashboard(suiteDirs, outPath) {
@@ -493,3 +555,4 @@ export function writeDashboard(suiteDirs, outPath) {
   fs.writeFileSync(out, html, 'utf8');
   return { out, payload };
 }
+

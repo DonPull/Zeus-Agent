@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "name": "swe_json_flattener_nested_lists",
+    "title": "Fix Nested List Indexing in Dictionary Flattener",
+    "profile": "smoke",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `task1_flattener/flattener.py`, there is a bug where nested lists are not indexed properly when flattening dictionaries. Run `pytest task1_flattener/tests` to reproduce the failure, inspect `flattener.py`, fix the implementation so that nested list elements are indexed with numeric indices (e.g. `users.0.name`), and verify that all pytest tests pass.",
+        "python_check": "import subprocess\nres = subprocess.run(['pytest', 'task1_flattener/tests'], capture_output=True, text=True)\nassert res.returncode == 0, f'pytest failed:\\n{res.stdout}\\n{res.stderr}'"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "swe_lru_cache_ttl_expiration",
+    "title": "Fix Stale Data Return on Expired TTL Cache",
+    "profile": "standard",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `task2_lru_cache/cache.py`, the `TTLCache` class returns expired items on `get()` because it does not verify if the entry has exceeded `ttl_seconds`. Run `pytest task2_lru_cache/tests` to observe the failure, fix `cache.py` so expired keys are evicted and return the default value, and ensure all tests pass.",
+        "python_check": "import subprocess\nres = subprocess.run(['pytest', 'task2_lru_cache/tests'], capture_output=True, text=True)\nassert res.returncode == 0, f'pytest failed:\\n{res.stdout}\\n{res.stderr}'"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "swe_semver_prerelease_precedence",
+    "title": "Fix Semantic Version Pre-release Precedence",
+    "profile": "standard",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `task3_semver/semver.py`, the `Version.__lt__` method incorrectly evaluates pre-release precedence (SemVer 2.0 requires a normal release version like 1.0.0 to have higher precedence than a pre-release version like 1.0.0-alpha). Run `pytest task3_semver/tests`, fix the comparison logic in `semver.py`, and ensure all tests pass.",
+        "python_check": "import subprocess\nres = subprocess.run(['pytest', 'task3_semver/tests'], capture_output=True, text=True)\nassert res.returncode == 0, f'pytest failed:\\n{res.stdout}\\n{res.stderr}'"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "swe_sql_builder_quote_identifiers",
+    "title": "Fix SQL Identifier Quoting for Reserved Keywords",
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `task4_sql_generator/sql_gen.py`, column identifiers are not safely quoted, causing syntax errors when column names are reserved keywords (like 'order' or 'group') or contain spaces. Run `pytest task4_sql_generator/tests`, fix `sql_gen.py` to wrap table and column names in standard double quotes (or backticks), and ensure all tests pass.",
+        "python_check": "import subprocess\nres = subprocess.run(['pytest', 'task4_sql_generator/tests'], capture_output=True, text=True)\nassert res.returncode == 0, f'pytest failed:\\n{res.stdout}\\n{res.stderr}'"
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "swe_rate_limiter_fractional_refill",
+    "title": "Fix Fractional Refill Drift in Token Bucket",
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `task5_rate_limiter/rate_limiter.py`, the token refill logic truncates fractional tokens with `int()`, dropping refill progress on rapid successive calls. Run `pytest task5_rate_limiter/tests`, fix `rate_limiter.py` to properly accumulate fractional tokens using floats, and verify that all tests pass.",
+        "python_check": "import subprocess\nres = subprocess.run(['pytest', 'task5_rate_limiter/tests'], capture_output=True, text=True)\nassert res.returncode == 0, f'pytest failed:\\n{res.stdout}\\n{res.stderr}'"
+      }
+    ]
+  }
+]

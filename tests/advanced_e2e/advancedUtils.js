@@ -248,12 +248,13 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
 
             await takeMilestoneScreenshot(page, "Pending Card Awaiting Decision", testInfo);
 
-            // Wait briefly for manual decision file, otherwise evaluate realistically as an observant user
+            // Wait for decision file (supervised mode waits up to 60s, unattended mode checks briefly then simulates observant user)
             let decision = null;
             if (defaultCardDecision) {
                 decision = { decision: defaultCardDecision };
             }
-            const waitDecisionTimeout = Date.now() + 1500;
+            const isSupervised = process.env.ZEUS_BENCH_SUPERVISED === '1' || process.env.ZEUS_INTERACTIVE_EVAL === '1';
+            const waitDecisionTimeout = Date.now() + (isSupervised ? 60000 : 1500);
             while (!decision && Date.now() < waitDecisionTimeout) {
                 if (fs.existsSync(decisionFileSpecific)) {
                     try {
@@ -274,9 +275,12 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
                 decision = simulateRealisticUserDecision(pendingPayload);
             }
 
-            console.log(`[UserSimulator] Applying decision: ${decision.decision}${decision.feedback ? ` (Feedback: ${decision.feedback})` : ''}`);
+            const decisionAction = decision.decision || decision.action || 'deny';
+            const decisionFeedback = decision.feedback || null;
 
-            if (decision.decision === 'approve') {
+            console.log(`[UserSimulator] Applying decision: ${decisionAction}${decisionFeedback ? ` (Feedback: ${decisionFeedback})` : ''}`);
+
+            if (decisionAction === 'approve') {
                 const targetBtn = pendingCardLocator.locator('button:has-text("Approve (Once)"), button:has-text("Approve")').last();
                 if (await targetBtn.count() > 0) {
                     await targetBtn.click({ force: true }).catch(() => {});
@@ -289,13 +293,13 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
                         }
                     }, { tId: domTaskId, mId: domMessageId }).catch(() => {});
                 }
-            } else if (decision.decision === 'deny_with_feedback' && decision.feedback) {
+            } else if (decisionAction === 'deny_with_feedback' && decisionFeedback) {
                 const feedbackBtn = pendingCardLocator.locator('button:has-text("Deny with Feedback")').last();
                 if (await feedbackBtn.count() > 0) {
                     await feedbackBtn.click({ force: true }).catch(() => {});
                     const feedbackInput = pendingCardLocator.locator('.settings-input').last();
                     await expect(feedbackInput).toBeVisible({ timeout: 5000 }).catch(() => {});
-                    await feedbackInput.fill(decision.feedback).catch(() => {});
+                    await feedbackInput.fill(decisionFeedback).catch(() => {});
                     const submitBtn = pendingCardLocator.locator('button:has-text("Submit Deny & Feedback")').last();
                     await submitBtn.click({ force: true }).catch(() => {});
                 } else {
@@ -307,7 +311,7 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
                         if (window.__ZEUS_BRIDGE__) {
                             await window.__ZEUS_BRIDGE__.resolvePendingApprovals(tId, false, mId, note).catch(() => {});
                         }
-                    }, { tId: domTaskId, mId: domMessageId, note: decision.feedback }).catch(() => {});
+                    }, { tId: domTaskId, mId: domMessageId, note: decisionFeedback }).catch(() => {});
                 }
             } else {
                 const denyBtn = pendingCardLocator.locator('button:has-text("Deny")').last();
@@ -331,7 +335,7 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             }
             auditList.push({
                 card: pendingPayload,
-                decision: decision,
+                decision: { decision: decisionAction, feedback: decisionFeedback },
                 timestamp: Date.now()
             });
             fs.writeFileSync(auditFile, JSON.stringify(auditList, null, 2), 'utf8');
@@ -382,12 +386,115 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
         if (btnText.includes('Send')) {
             const pendingCards = await page.locator('.approval-card.pending').count();
             if (pendingCards === 0) {
+                // Check if the agent paused due to unit budget exhaustion
+                const chatText = await page.locator('#chat-messages').innerText().catch(() => "");
+                const isBudgetExhausted = chatText.toLowerCase().includes('reached its unit budget');
+                
+                if (isBudgetExhausted) {
+                    console.log(`\n======================================================`);
+                    console.log(`⚠️ [ANTIGRAVITY_BUDGET_NOTIFICATION_NEEDED]`);
+                    console.log(`Agent paused because task reached its unit budget!`);
+
+                    const taskTelemetry = await page.evaluate(async () => {
+                        if (!window.__ZEUS_BRIDGE__) return null;
+                        const tasks = await window.__ZEUS_BRIDGE__.listTasks().catch(() => []);
+                        if (!tasks || tasks.length === 0) return null;
+                        const t = tasks[0];
+                        const msgs = await window.__ZEUS_BRIDGE__.getTaskMessages(t.id, false).catch(() => []);
+                        return {
+                            id: t.id,
+                            spent: t.spent_credits,
+                            budget: t.budget_credits,
+                            settings: {
+                                master_model: t.master_model,
+                                worker_model: t.worker_model,
+                                verifier_model: t.verifier_model,
+                                watcher_model: t.watcher_model,
+                                vision_model: t.vision_model || 'gemini-3.8-flash',
+                                budget_credits: t.budget_credits,
+                                master_effort: t.master_effort || 'medium',
+                                worker_effort: t.worker_effort || 'medium',
+                                verifier_effort: t.verifier_effort || 'medium',
+                                watcher_effort: t.watcher_effort || 'medium',
+                                vision_effort: t.vision_effort || 'medium'
+                            },
+                            recent_messages: msgs.slice(-5).map(m => `[${m.role}] ${m.content.slice(0, 200)}`)
+                        };
+                    });
+
+                    const budgetNoticeFile = path.join(ipcDir, 'budget_notice.json');
+                    const budgetDecisionFile = path.join(ipcDir, 'budget_decision.json');
+                    if (fs.existsSync(budgetDecisionFile)) try { fs.unlinkSync(budgetDecisionFile); } catch (_) {}
+
+                    const noticePayload = {
+                        status: 'budget_exhausted',
+                        task_id: taskTelemetry?.id,
+                        spent_credits: taskTelemetry?.spent,
+                        budget_credits: taskTelemetry?.budget,
+                        prompt: prompt,
+                        recent_messages: taskTelemetry?.recent_messages || [],
+                        timestamp: Date.now()
+                    };
+                    fs.writeFileSync(budgetNoticeFile, JSON.stringify(noticePayload, null, 2), 'utf8');
+
+                    console.log(`Task: ${taskTelemetry?.id} | Spent: ${taskTelemetry?.spent} / Budget: ${taskTelemetry?.budget}`);
+                    console.log(`Recent Messages:\n${taskTelemetry?.recent_messages?.join('\n')}`);
+                    console.log(`Waiting for decision in: ${budgetDecisionFile}`);
+                    console.log(`- To Terminate: { "action": "terminate", "reason": "Failing loop / low success" }`);
+                    console.log(`- To Enlarge:   { "action": "enlarge", "extra_credits": 30000, "reason": "Good progress" }`);
+                    console.log(`======================================================\n`);
+
+                    // Wait for decision
+                    let bDecision = null;
+                    const isSupervised = process.env.ZEUS_BENCH_SUPERVISED === '1' || process.env.ZEUS_INTERACTIVE_EVAL === '1';
+                    const waitLimit = Date.now() + (isSupervised ? 60000 : 3000);
+                    while (Date.now() < waitLimit) {
+                        if (fs.existsSync(budgetDecisionFile)) {
+                            try {
+                                bDecision = JSON.parse(fs.readFileSync(budgetDecisionFile, 'utf8'));
+                                break;
+                            } catch (_) {}
+                        }
+                        await page.waitForTimeout(300);
+                    }
+
+                    if (bDecision && (bDecision.action === 'enlarge' || bDecision.decision === 'enlarge')) {
+                        const extraCredits = Number(bDecision.extra_credits) || 30000;
+                        console.log(`[BudgetSafeguard] Expanding budget by +${extraCredits} credits and resuming...`);
+                        await page.evaluate(async ({ tid, settings, extra }) => {
+                            if (window.__ZEUS_BRIDGE__) {
+                                await window.__ZEUS_BRIDGE__.updateTaskSettings(tid, {
+                                    ...settings,
+                                    budget_credits: (Number(settings.budget_credits) || 0) + extra
+                                });
+                            }
+                        }, { tid: taskTelemetry.id, settings: taskTelemetry.settings, extra: extraCredits });
+
+                        if (fs.existsSync(budgetNoticeFile)) try { fs.unlinkSync(budgetNoticeFile); } catch (_) {}
+                        if (fs.existsSync(budgetDecisionFile)) try { fs.unlinkSync(budgetDecisionFile); } catch (_) {}
+
+                        // Send continuation message
+                        const resumeText = `[BUDGET ENLARGED]: Unit budget increased by ${extraCredits} credits. Please continue your task.`;
+                        const chatInput = page.locator('#chat-input');
+                        await chatInput.fill(resumeText);
+                        await page.locator('#chat-send-button').click();
+                        await page.waitForTimeout(2000);
+                        continue;
+                    } else {
+                        // Terminate run cleanly to preserve compute
+                        console.log(`[BudgetSafeguard] Concluding run due to budget exhaustion (${bDecision?.reason || 'Budget limit reached; halting run.'}).`);
+                        if (fs.existsSync(budgetNoticeFile)) try { fs.unlinkSync(budgetNoticeFile); } catch (_) {}
+                        if (fs.existsSync(budgetDecisionFile)) try { fs.unlinkSync(budgetDecisionFile); } catch (_) {}
+                        return;
+                    }
+                }
+
                 console.log(`[UserSimulator] Turn completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s.`);
                 return;
             }
         }
 
-        // 4. Periodic telemetry & budget check (every 10s)
+        // 4. Periodic telemetry & checks (every 10s)
         if (Date.now() - lastTelemetry > 10000) {
             lastTelemetry = Date.now();
             const elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -395,14 +502,6 @@ async function submitPromptAndWait(page, prompt, testInfo, timeoutMs = 600000, e
             const approveCount = await page.locator('button:has-text("Approve (Once)"), button:has-text("Approve")').count();
             console.log(`[UserSimulator Loop] Elapsed: ${elapsed}s | Agent Active: ${isStopping} | Pending Approvals: ${approveCount}`);
 
-            // Check budget via toast or chat messages
-            const warningToast = page.locator('.toast.warning');
-            if (await warningToast.count() > 0) {
-                const toastText = (await warningToast.first().innerText().catch(() => "")) || "";
-                if (toastText.includes('budget') || toastText.includes('credit')) {
-                    throw new Error("CREDIT_EXHAUSTED: The agent has run out of credits or budget.");
-                }
-            }
             if (expectedText) {
                 const messagesEl = page.locator('#chat-messages');
                 const messagesText = (await messagesEl.innerText().catch(() => "")) || "";

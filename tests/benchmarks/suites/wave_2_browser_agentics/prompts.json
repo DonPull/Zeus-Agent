@@ -3,6 +3,8 @@
     "id": 1,
     "name": "wordle_unlimited_10_wins",
     "title": "Autonomous Wordle Solver: 10 Consecutive Wins in Unlimited Mode",
+    "profile": "smoke",
+    "budget_credits": 60000,
     "criteria": [
       "Navigate to https://wordlegame.org/ and switch to Unlimited mode",
       "Successfully win 10 games of Wordle using letter feedback (green, yellow, gray)",

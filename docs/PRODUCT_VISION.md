@@ -42,3 +42,23 @@ Zeus Agent is validated against an intensive 10-prompt agentic benchmark suite c
 - Long-running autonomous multi-stage workflow execution
 
 The runtime achieves a **100% pass rate (10 / 10)** on the benchmark suite, confirming production-grade reliability across local and cloud environments.
+
+---
+
+## 4. Engineering & Self-Refinement Principles
+
+When diagnosing benchmark failures, resolving bugs, or expanding runtime capabilities:
+1. **Analyze the Root Cause**: Determine why the deficiency occurred (directive deserialization, relative workspace path error, Gatekeeper permission scope, context clutter, or timeout).
+2. **Design Systemic Solutions**: Implement general improvements in `src-tauri/src/` or `src-tauri/src/prompts/` that benefit all tasks and workflows.
+3. **Never Hardcode Hacks**: Never write prompt-specific conditional logic or mock answers. Keep the engine general, robust, and autonomous.
+
+---
+
+## 5. Documentation Navigation
+
+- **Technical Subsystems & Implementations**: [`docs/SYSTEM_ARCHITECTURE.md`](file:///docs/SYSTEM_ARCHITECTURE.md)
+- **Roadmap, Milestones & Feature Backlog**: [`ROADMAP.md`](file:///ROADMAP.md)
+- **Agent Rules & Invariants**: [`.agents/AGENTS.md`](file:///.agents/AGENTS.md)
+- **Evaluation Status Ledger**: [`EVAL_STATUS.md`](file:///EVAL_STATUS.md)
+- **Benchmark Milestone Report**: [`FINAL_EVAL_REPORT.md`](file:///FINAL_EVAL_REPORT.md)
+

@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "name": "gaia_sales_revenue_north",
+    "title": "Calculate North Region Net Sales Revenue",
+    "level": 1,
+    "profile": "smoke",
+    "budget_credits": 40000,
+    "categories": ["files", "code", "research"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In the task workspace, inspect the file `sales_data.csv`. Calculate the total net revenue (units_sold * unit_price * (1 - discount_pct)) for all transactions in the 'North' region. Provide your final answer as just the numerical value rounded to two decimal places.",
+        "ground_truth": "3505.62"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "gaia_server_logs_avg_latency",
+    "title": "Average Duration for Successful 200 HTTP Requests",
+    "level": 1,
+    "profile": "smoke",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Inspect `server_logs.json` in your workspace. What is the average duration_ms for all requests with HTTP status code 200? Round to one decimal place.",
+        "ground_truth": "122.3"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "gaia_highest_paid_engineer",
+    "title": "Highest Paid Engineering Employee",
+    "level": 1,
+    "profile": "smoke",
+    "budget_credits": 40000,
+    "categories": ["files", "research"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Read `employee_records.csv` in your workspace. What is the full name of the employee with the highest salary in the 'Engineering' department?",
+        "ground_truth": "Julia Roberts"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "gaia_max_sensor_temperature",
+    "title": "Peak Sensor Temperature Reading",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Read `sensor_telemetry.csv` in your workspace. What is the maximum recorded temp_celsius value across all rows?",
+        "ground_truth": "33.1"
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "gaia_decode_manifest_key",
+    "title": "Decode Obfuscated Base64 Secret",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Read `encoded_manifest.txt` in your workspace. Decode the contents and output the exact secret key string.",
+        "ground_truth": "ZEUS-AGENT-CONFIRMED-OFFICIAL-GAIA-KEY-2026"
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "gaia_prime_factor_sum",
+    "title": "Sum of Prime Factors of 123456",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["code", "research"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "What is the sum of all unique prime factors of the integer 123456? Write and execute a python script if needed. Give only the integer sum.",
+        "ground_truth": "648"
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "gaia_date_diff_days",
+    "title": "Exact Calendar Day Difference",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "How many calendar days elapsed between July 20, 1969 (Apollo 11 lunar landing) and November 20, 1998 (launch of Zarya, first ISS module)? Give only the integer count of days.",
+        "ground_truth": "10715"
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "gaia_median_salary_marketing",
+    "title": "Median Salary of Marketing Department",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Inspect `employee_records.csv`. What is the median salary for employees in the 'Marketing' department?",
+        "ground_truth": "85500"
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "gaia_failed_request_ratio",
+    "title": "Percentage of 500 Status Responses",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `server_logs.json`, what percentage of the total requests returned HTTP status code 500? Provide the percentage as a number rounded to the nearest integer (e.g. 20%).",
+        "ground_truth": "20"
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "gaia_pressure_drop_sensor_s1",
+    "title": "Total Pressure Drop for Sensor S1",
+    "level": 1,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `sensor_telemetry.csv`, calculate the difference between the maximum and minimum pressure_kpa recorded specifically for sensor 'S1'. Round to one decimal place.",
+        "ground_truth": "0.8"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "gaia_widget_a_sales_units",
+    "title": "Total Units Sold of Widget A",
+    "level": 2,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `sales_data.csv`, what is the total number of units sold for the product 'Widget A' across all regions?",
+        "ground_truth": "110"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "gaia_longest_word_constitution",
+    "title": "Letter Count of Preamble Longest Word",
+    "level": 2,
+    "profile": "standard",
+    "budget_credits": 40000,
+    "categories": ["code", "research"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Consider the exact preamble of the United States Constitution starting with 'We the People of the United States...'. What is the character length of the single longest word in the Preamble (ignoring punctuation)? Give only the integer number.",
+        "ground_truth": "12"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "gaia_fibonacci_modulo",
+    "title": "50th Fibonacci Number Modulo 1000",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "What are the last two digits of the 50th Fibonacci number (where F(1)=1, F(2)=1, F(3)=2)? Give the 2-digit integer.",
+        "ground_truth": "25"
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "name": "gaia_compound_interest_delta",
+    "title": "Compound Interest Difference",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "An initial principal of $10,000 earns 6% annual interest for 5 years. What is the difference in final amount between compounding monthly versus compounding annually? Round to two decimal places.",
+        "ground_truth": "106.25"
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "name": "gaia_ip_address_unique_count",
+    "title": "Unique Client IPs in Server Logs",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "How many distinct IP addresses are recorded in `server_logs.json` in your workspace? Give only the integer count.",
+        "ground_truth": "4"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "name": "gaia_hire_date_earliest_engineer",
+    "title": "Earliest Hired Engineer Hire Year",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["files"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `employee_records.csv`, in which four-digit calendar year was the earliest-hired employee in the 'Engineering' department hired?",
+        "ground_truth": "2017"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "name": "gaia_sensor_sampling_rate_minutes",
+    "title": "Average Sensor Sampling Interval",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `sensor_telemetry.csv`, what is the time interval in minutes between consecutive readings for sensor 'S1'? Give only the integer number.",
+        "ground_truth": "10"
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "name": "gaia_highest_discount_transaction",
+    "title": "Transaction ID with Maximum Discount",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["files"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `sales_data.csv`, which transaction_id had the highest discount_pct applied?",
+        "ground_truth": "TX1005"
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "name": "gaia_sha256_word_count",
+    "title": "SHA-256 Digest of Secret Word",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "Compute the hex SHA-256 hash of the exact string 'zeus-agent-eval-2026'. Give the first 8 characters of the resulting hex digest.",
+        "ground_truth": "0295bccf"
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "name": "gaia_total_payroll_product",
+    "title": "Total Annual Payroll for Product Dept",
+    "level": 2,
+    "profile": "full_only",
+    "budget_credits": 45000,
+    "categories": ["files", "code"],
+    "turns": [
+      {
+        "turn": 1,
+        "user_prompt": "In `employee_records.csv`, what is the total combined salary for all employees in the 'Product' department?",
+        "ground_truth": "200000"
+      }
+    ]
+  }
+]

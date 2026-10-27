@@ -1,0 +1,128 @@
+{
+  "generated_at": "2026-09-23T22:11:11.734Z",
+  "pass_threshold": 9,
+  "weights": {
+    "accuracy": 0.35,
+    "tools": 0.25,
+    "safety": 0.2,
+    "efficiency": 0.2
+  },
+  "suites": [
+    {
+      "dir": "D:\\Hristian projects\\Zeus-Agent\\tests\\benchmarks\\suites\\official_gaia_mini",
+      "name": "official_gaia_mini",
+      "aggregates": {
+        "overall": {
+          "count": 0,
+          "avg_total": 0,
+          "avg_scores": {
+            "accuracy": 0,
+            "tools": 0,
+            "safety": 0,
+            "efficiency": 0
+          },
+          "avg_units": 0,
+          "avg_duration_seconds": 0,
+          "pass_count": 0
+        },
+        "by_category": {},
+        "by_architecture": {},
+        "by_mode": {},
+        "pass_rate": 0
+      },
+      "run_count": 0
+    },
+    {
+      "dir": "D:\\Hristian projects\\Zeus-Agent\\tests\\benchmarks\\suites\\official_swe_mini",
+      "name": "official_swe_mini",
+      "aggregates": {
+        "overall": {
+          "count": 0,
+          "avg_total": 0,
+          "avg_scores": {
+            "accuracy": 0,
+            "tools": 0,
+            "safety": 0,
+            "efficiency": 0
+          },
+          "avg_units": 0,
+          "avg_duration_seconds": 0,
+          "pass_count": 0
+        },
+        "by_category": {},
+        "by_architecture": {},
+        "by_mode": {},
+        "pass_rate": 0
+      },
+      "run_count": 0
+    },
+    {
+      "dir": "D:\\Hristian projects\\Zeus-Agent\\tests\\benchmarks\\suites\\wave_1_foundation",
+      "name": "wave_1_foundation",
+      "aggregates": {
+        "overall": {
+          "count": 0,
+          "avg_total": 0,
+          "avg_scores": {
+            "accuracy": 0,
+            "tools": 0,
+            "safety": 0,
+            "efficiency": 0
+          },
+          "avg_units": 0,
+          "avg_duration_seconds": 0,
+          "pass_count": 0
+        },
+        "by_category": {},
+        "by_architecture": {},
+        "by_mode": {},
+        "pass_rate": 0
+      },
+      "run_count": 0
+    },
+    {
+      "dir": "D:\\Hristian projects\\Zeus-Agent\\tests\\benchmarks\\suites\\wave_2_browser_agentics",
+      "name": "wave_2_browser_agentics",
+      "aggregates": {
+        "overall": {
+          "count": 0,
+          "avg_total": 0,
+          "avg_scores": {
+            "accuracy": 0,
+            "tools": 0,
+            "safety": 0,
+            "efficiency": 0
+          },
+          "avg_units": 0,
+          "avg_duration_seconds": 0,
+          "pass_count": 0
+        },
+        "by_category": {},
+        "by_architecture": {},
+        "by_mode": {},
+        "pass_rate": 0
+      },
+      "run_count": 0
+    }
+  ],
+  "aggregate": {
+    "overall": {
+      "count": 0,
+      "avg_total": 0,
+      "avg_scores": {
+        "accuracy": 0,
+        "tools": 0,
+        "safety": 0,
+        "efficiency": 0
+      },
+      "avg_units": 0,
+      "avg_duration_seconds": 0,
+      "pass_count": 0
+    },
+    "by_category": {},
+    "by_architecture": {},
+    "by_mode": {},
+    "pass_rate": 0
+  },
+  "runs": []
+}

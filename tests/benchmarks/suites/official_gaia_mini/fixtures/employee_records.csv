@@ -1,0 +1,11 @@
+emp_id,name,department,salary,hire_date,rating
+E101,Alice Smith,Engineering,115000,2021-03-15,4.8
+E102,Bob Jones,Marketing,82000,2020-07-01,3.9
+E103,Charlie Brown,Engineering,128000,2019-11-10,4.9
+E104,Diana Prince,Product,98000,2022-01-20,4.5
+E105,Evan Wright,Sales,75000,2023-05-12,3.7
+E106,Fiona Gallagher,Engineering,105000,2022-08-01,4.2
+E107,George Clark,Marketing,89000,2018-04-18,4.1
+E108,Hannah Abbott,Product,102000,2021-09-01,4.6
+E109,Ian Malcolm,Sales,91000,2020-02-14,4.4
+E110,Julia Roberts,Engineering,142000,2017-06-30,5.0
