@@ -1198,24 +1198,13 @@
 }
 
 /* ---- Replay Modal ---- */
-.modal-container.replay-modal-window {
-    width: 90vw !important;
-    max-width: 1200px !important;
-    min-width: 0 !important;
-    height: 90vh !important;
-    max-height: 92vh !important;
-    padding: 16px 20px !important;
-    border-radius: 16px !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-}
-
+.modal-container.replay-modal-window,
 .modal-container.live-modal-window {
-    width: 85vw !important;
-    max-width: 1100px !important;
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
     min-width: 0 !important;
-    height: 85vh !important;
-    max-height: 90vh !important;
+    height: calc(100vh - 32px) !important;
+    max-height: calc(100vh - 32px) !important;
     padding: 16px 20px !important;
     border-radius: 16px !important;
     box-sizing: border-box !important;

@@ -235,7 +235,7 @@ test.describe('Zeus E2E Tests - Browser Session Replay & Live View UI', () => {
     expect(modalBox).not.toBeNull();
     expect(modalBox.x).toBeGreaterThanOrEqual(0);
     expect(modalBox.x + modalBox.width).toBeLessThanOrEqual(viewportSize.width);
-    expect(modalBox.width).toBeLessThanOrEqual(1210); // max-width 1200px + padding tolerance
+    expect(modalBox.width).toBeGreaterThanOrEqual(viewportSize.width * 0.9);
 
     await page.screenshot({ path: 'tests/benchmarks/suites/wave_2_browser_agentics/visual_artifacts/replay_step_1_fixed.png' });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "./Modal";
 import * as bridge from "../bridge";
+import { fitBrowserImage } from "../utils";
 
 export default function BrowserSessionReplayModal({ isOpen, onClose, taskId, sessionId }) {
     const [sessionData, setSessionData] = useState(null);
@@ -53,13 +54,8 @@ export default function BrowserSessionReplayModal({ isOpen, onClose, taskId, ses
 
     // Recalculate image scale factor
     const updateScale = useCallback(() => {
-        const img = imgRef.current;
-        if (img && img.naturalWidth && img.naturalHeight && img.clientWidth && img.clientHeight) {
-            setImgScale({
-                scaleX: img.clientWidth / img.naturalWidth,
-                scaleY: img.clientHeight / img.naturalHeight,
-            });
-        }
+        const scale = fitBrowserImage(imgRef.current, containerRef.current);
+        if (scale) setImgScale(scale);
     }, []);
 
     // ResizeObserver on image container to keep bounding boxes responsive
@@ -71,7 +67,7 @@ export default function BrowserSessionReplayModal({ isOpen, onClose, taskId, ses
         });
         ro.observe(el);
         return () => ro.disconnect();
-    }, [updateScale]);
+    }, [isOpen, updateScale]);
 
     // Keyboard navigation (Left / Right arrow keys)
     useEffect(() => {

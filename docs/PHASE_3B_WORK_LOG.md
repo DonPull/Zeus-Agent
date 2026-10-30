@@ -109,3 +109,19 @@ The user reported disruptive rapid window flashes during development. Hidden eva
 The existing native bridge regression now checks actual window visibility and focus while exercising the real rendered webview. Production compile and the full **235-check** regression rerun passed, including all 77 desktop cases. Automatic synthetic-supervisor live diagnostics also now choose a hidden window; the explicit manual-supervision variant retains a visible window for human cards, and the manifest records that distinction. No live-model calls are used for this change.
 
 The user's saved Codex rules already allow `node scripts/run_regression.js`. The prior PowerShell redirection/control-flow wrapper required separate approval; a plain invocation reused the saved rule without another manual prompt. No global permission settings or allow rules were changed. General Codex automatic review is documented separately by OpenAI; it is not Zeus Smart mode.
+
+## Viewer sizing and Phase 3C plan clarification — 2026-10-31
+
+The user clarified that one shared browser executor should be the only production path, and asked why Live/Replay appeared small. The revised [3C proposal](PHASE_3C_LIVE_VIEW_REPLAY_DESIGN.md) distinguishes the old CDP/script recorder from the new persistent owner, independently of browser profiles. After acceptance, retire old execution rather than expose a permanent engine selector; preserve read-only older recording support. Master/workers share the active root-run browser and can use multiple tabs. Independent tasks remain isolated; root completion closes its browser. Start with Zeus-owned profiles and supervised login; personal-browser access remains undecided. A dedicated profile is not an OS sandbox. This is a design amendment, not implementation of the 3C capture or rollout.
+
+The separately requested display repair removes the 1100/1200-pixel modal caps: Live/Replay use the app window with 16-pixel margins. Both fit the image to the actual available space, preserving aspect ratio and target overlays, and attach resize observers when opened. Actual-size/zoom/full-screen controls remain proposed for 3C. This changes presentation of existing recordings, not their provenance, source resolution or browser-engine selection.
+
+Validation:
+
+- `npm.cmd run build` passed, 316 modules.
+- `node scripts/run_regression.js` passed **236 checks**: 41 Node, 37 mission/grader, 73 Rust, 7 real Python-browser probes and 78 desktop.
+- The new display test was strengthened afterward to open each initially closed viewer and verify overlay coordinates while resizing. `node scripts/run_regression.js --ui` then passed all 7 browser probes and 78 desktop checks. Product code was unchanged between these runs.
+- A controller-created 1280×720 page image exercises the actual native webview, existing recording reader and both real viewer components at 1920×1080, 1320×840 and 1000×760. This fixture is display evidence, not agent/browser-capture evidence. Six screenshots are retained in [local viewer review](../.zeus/evaluations/viewer-layout-review/); representative large and narrow views were visually inspected.
+- No live-model requests were made, and no test-owned evaluation processes remained. Tests ran hidden; the user's app was not stopped or relinked. `git diff --check` passed. Remote CI remains unverified.
+
+The historical standalone replay UI assertion now expects a large viewport-bounded modal instead of its obsolete 1200-pixel cap. That historical suite was not separately executed; the new default regression exercises both viewers with actual images and overlays.

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "./Modal";
 import * as bridge from "../bridge";
+import { fitBrowserImage } from "../utils";
 
 export default function BrowserLiveViewModal({ isOpen, onClose, taskId, sessionId, onOpenReplay }) {
     const [latestFrame, setLatestFrame] = useState(null);
@@ -14,13 +15,8 @@ export default function BrowserLiveViewModal({ isOpen, onClose, taskId, sessionI
 
     // Recalculate image scale factor for bounding box overlay
     const updateScale = useCallback(() => {
-        const img = imgRef.current;
-        if (img && img.naturalWidth && img.naturalHeight && img.clientWidth && img.clientHeight) {
-            setImgScale({
-                scaleX: img.clientWidth / img.naturalWidth,
-                scaleY: img.clientHeight / img.naturalHeight,
-            });
-        }
+        const scale = fitBrowserImage(imgRef.current, stageRef.current);
+        if (scale) setImgScale(scale);
     }, []);
 
     // ResizeObserver on image stage
@@ -32,7 +28,7 @@ export default function BrowserLiveViewModal({ isOpen, onClose, taskId, sessionI
         });
         ro.observe(el);
         return () => ro.disconnect();
-    }, [updateScale]);
+    }, [isOpen, updateScale]);
 
     useEffect(() => {
         if (!isOpen) {

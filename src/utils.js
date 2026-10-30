@@ -48,3 +48,17 @@ export const reconcileMessageSnapshot = (previous, snapshot) => {
     const newProjections=previous.filter(message=>typeof message.projection_version==='number'&&message.seq>maxSeq&&!freshIds.has(message.id));
     return mergeMessages(fresh,newProjections);
 };
+// Keep the displayed image and its overlay in the same coordinate space.
+// Explicit dimensions also let small captures fill a larger viewer and avoid
+// percentage-height sizing against an intrinsically sized image wrapper.
+export function fitBrowserImage(image, viewport) {
+    if (!image?.naturalWidth || !image.naturalHeight || !viewport) return null;
+    const style = window.getComputedStyle(viewport);
+    const width = viewport.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
+    const height = viewport.clientHeight - parseFloat(style.paddingTop || 0) - parseFloat(style.paddingBottom || 0);
+    if (width <= 0 || height <= 0) return null;
+    const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+    image.style.width = `${Math.max(1, Math.floor(image.naturalWidth * scale))}px`;
+    image.style.height = `${Math.max(1, Math.floor(image.naturalHeight * scale))}px`;
+    return {scaleX: image.clientWidth / image.naturalWidth, scaleY: image.clientHeight / image.naturalHeight};
+}

@@ -1,12 +1,22 @@
 # Phase 3C: live browser viewing, replay and ordinary-launch rollout
 
-Status: **Proposal for alignment; no 3C implementation or new live trials.** Baseline **`711ddb7`**, the committed Phase 3B owner and manual-test/background-window repairs. Its latest validation passed 235 offline checks; earlier release/live records retain their own exact builds. Prepared 2026-10-30 against the actual code and pinned runtime.
+Status: **Proposal for alignment; no 3C capture/rollout implementation or new live trials.** Baseline **`711ddb7`**, the committed Phase 3B owner and manual-test/background-window repairs. Its latest validation passed 235 offline checks; earlier release/live records retain their own exact builds. Prepared 2026-10-30 against the actual code and pinned runtime.
+
+**Feedback revision, 2026-10-31:** one production browser engine after migration, shared by all roles working on a task; no permanent old-engine setting. Personal-browser access is a separate unapproved feature. Older recording readers are retained solely to display historical data. Large viewer sizing is required; the separately requested display repair removes current viewer size caps and fits images on open/resize while the broader 3C redesign remains unimplemented.
 
 ## 1. Tangible changes
 
 An ordinary browser task should produce one updating session card. **Watch** opens a current, read-only view of that browser, including while the agent thinks, a page loads or an approval is pending. Closing/reopening the viewer or reloading Zeus should recover the current frame and status. **Replay** lets the user inspect each managed request and actual outcome, with available before/after images and explicit gaps. Stop/error/restart preserve partial history.
 
-This phase includes the integration needed to make the new owner usable in **normal launches**, replacing the current development-only boundary after acceptance. An unconfigured runtime must give setup guidance, not silently run the old implementation. The user must be able to tell which path is active without interpreting a debug log.
+This phase includes the integration needed to make the new owner the **only production execution path in normal launches**, replacing the current development-only boundary after acceptance. An unconfigured runtime must give setup guidance. Do not retain a user-facing switch back to the replaced engine. The user must be able to distinguish historical recordings and current browser readiness without interpreting a debug log.
+
+### Terms and profile scope
+
+In the original proposal, **legacy execution** meant the old `browser_manager.rs` launcher, per-script Playwright/CDP connections and monkey-patched recorder. **The new owner** means the trusted long-lived Playwright service with Rust-owned identity, policy, journal, control leases and lifecycle. Neither term means a profile mode. Until the migration is accepted, the old code still runs in ordinary launches; afterward it is retired from execution. A reader for the **older recording format** does not start or control a browser.
+
+All participating master/worker roles share one active browser session for the task's root run, with multiple tabs when needed. Roles permitted to observe receive the same scoped state; mutations still require the existing policy and control lease. No per-model private browser or alternative engine. Different user tasks/conversations keep their isolation. The agreed lifecycle still closes the browser when a root run ends; a later user turn can open a new session using its retained Zeus-owned profile. This does not keep a browser process alive forever across completed turns.
+
+A separate profile is another axis: initially use a Zeus-owned user-data directory, starting clean when created and retaining only its own subsequent state. Do not import or attach the user's daily browser. A separate profile is not an OS sandbox. Personal-browser takeover is **not an approved requirement**; 3D should address supervised login/handoff in the Zeus-owned browser first. Saved logins in that dedicated profile do not require reintroducing the old engine. Any future personal-browser feature would need its own explicit decision, ownership and permissions design. Playwright also documents restrictions on automating Chrome's default profile and on concurrent use of one user-data directory. [Profile contract](https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context).
 
 Replay means an ordered action/evidence history, not a pixel-perfect movie or re-execution of the website. Live preview is sampled, not a high-frame-rate remote desktop. A successful click, a captured image, a closed browser and a verified user goal remain separate facts. General completion/memory, Smart approvals and Team supervision keep their focused designs; a blocker in those areas cannot be relabelled a passing end-to-end task.
 
@@ -14,13 +24,14 @@ Replay means an ordered action/evidence history, not a pixel-perfect movie or re
 
 | Area | Current behavior | Proposed change |
 |---|---|---|
-| User rollout | Managed ownership is an environment opt-in; ordinary launches remain legacy | Visible global default plus optional task override, frozen per root run. Promote managed mode only after normal-launch acceptance. |
+| User rollout | New ownership is a development opt-in; ordinary launches still use the replaced engine | One shared production engine after acceptance. Retire old execution; retain historical readers, not a runtime selector or per-role branches. |
 | Live source | Legacy frames follow instrumented actions; 3B's idle capture exists only as a probe | Independent capture in the existing owner, with a bounded latest-frame path that never waits for the actor's command queue. |
 | Transport | Large image strings/events and arbitrary file URLs | Small identity/version notifications; one bounded, authorized binary image fetch at a time. |
 | Reopening | Last action/manifest and premature completion timestamps drive hydration | Subscribe first, hydrate authoritative session/capture state, reject stale responses and wrong identities. |
 | Replay | Entire manifest and all images load together | Cursor-paged journal; load only the selected/adjacent images; retain explicit image and recording coverage. |
 | Evidence | Some legacy actions are recorded before execution; screenshots can be missing | Actual action outcome remains authoritative. Associate explicitly timed before/after captures or state that an image is unavailable. |
 | Viewer failure | Broken image can leave an indefinite waiting screen | Distinct waiting, live, stale, capture-error, no-tab, closed, stopped, failed and interrupted states, with last-frame age. |
+| Viewer size | Live/replay panels cap width at 1100/1200 pixels and constrain the visible page | Near-full app-window viewing, plus Fit, actual-size/zoom and explicit full-screen viewing; source pixels and display scale stay distinct. |
 | Agent perception | Browser screenshots are paths; a further visual tool call is needed | Explicit screenshot observations deliver actual pixels through the calling role's existing direct/helper route, with normal budgets and provenance. Passive viewing uses no LLM. |
 | Dynamic controls | Text/ARIA may omit visual state; arbitrary markup dumps encourage guessing | A bounded read-only element inspection contract and real keyboard-widget tests. Unknown evidence remains unknown; no site-specific interpretation. |
 | Older history | Legacy manifests can be mistaken for verified execution | Separate legacy adapter and limited-coverage labels; preserve files and tighten unsafe path/image reads. |
@@ -125,7 +136,9 @@ Retain compatible wrappers where useful, but update all internal viewers togethe
 
 ## 7. Live/replay UI behavior
 
-Reuse the existing modal/card styles with shared viewer primitives and an explicit managed/legacy adapter. One managed root card gets **Watch** while active and **Replay** whenever recorded history exists, including failed/interrupted runs. History access is available at task level as a paged list, so older sessions remain discoverable without searching chat. Keep controls compact at normal/narrow widths; add no implementation-heavy status panels to the ordinary flow.
+Reuse the existing modal/card styles with shared viewer primitives and an explicit current/older-recording adapter. This adapts stored data, not browser execution. One managed root card gets **Watch** while active and **Replay** whenever recorded history exists, including failed/interrupted runs. History access is available at task level as a paged list, so older sessions remain discoverable without searching chat. Keep controls compact at normal/narrow widths; add no implementation-heavy status panels to the ordinary flow.
+
+Live and Replay should use nearly the full Zeus content window, with the page taking the available area after compact controls. Remove fixed 1100/1200-pixel caps. Include **Fit**, **100%/zoom** with scrolling, and a user-triggered **Full screen** action; opening a viewer must not automatically maximize or steal focus. Preserve the image aspect ratio. Compute overlay scaling/offsets from the actual displayed image, including letterboxing and zoom; do not enlarge a wrapper while leaving a tiny image centered inside it. Keep live/recorded image resolution independent of modal size, and make low-resolution historical images clear rather than claiming scaling restores lost detail. Verify readable representative 1280×720 browser images and reachable controls at 1000×760, 1320×840 and 1920×1080, including full-screen/zoom transitions and long URLs.
 
 Install event listeners before hydration. Bind asynchronous work to task, root, session, generation and viewer instance. Merge session state by its backend version and capture state by its sequence/revision; an older snapshot cannot overwrite a newer frame or revive a terminal session. Ignore late image responses from a closed/replaced viewer and revoke object URLs/cancel polling/unsubscribe on close or switch. Use a bounded reconciliation poll to recover missed events; it must read published state, not invoke actor observation or create screenshots.
 
@@ -133,7 +146,7 @@ Show a stopped/closed/error banner with the last available image and age. A stal
 
 Replay uses cursor pages and a bounded rendered window of action rows. Selecting an action shows its real status, caller, timestamps and available before/after images. Keyboard navigation loads another page at its boundary. At most the current/adjacent images are decoded/prefetched. A target overlay is shown only if its coordinate space, viewport/frame association and capture timing are known; iframe/scroll mismatches disable the overlay rather than drawing a confident wrong box. An unavailable image is not replaced with an unrelated snapshot.
 
-Historical recordings are labelled **Legacy — limited recording**. Do not trust a legacy completion timestamp as current liveness or goal success. No stored HTML executes inside the app viewer. The viewer does not navigate to recorded URLs or replay external effects.
+Historical recordings are labelled **Older recording — limited evidence**. Do not trust an old completion timestamp as current liveness or goal success. No stored HTML executes inside the app viewer. The viewer does not navigate to recorded URLs or replay external effects.
 
 Existing 3B records retain their managed action provenance but are labelled **action evidence only** where independent capture/boundary history was not recorded. Do not misclassify them as fabricated legacy data or manufacture missing before/after frames during migration.
 
@@ -153,24 +166,26 @@ Provide explicit per-recording deletion of visual bytes, with retained metadata 
 
 Initial export/delete controls operate on terminal recordings. Deletion first persists a deleting state, validates owned keys, removes only the named visual artifacts, then records deleted/failed availability; failure must not claim bytes were removed. Export publishes a new folder/manifest only after its bounded copied artifacts validate, and records its source high-water marks and gaps. Concurrent viewer reads must receive a truthful unavailable result without crashing or substituting another frame.
 
-## 9. Normal-launch promotion and compatibility
+## 9. Normal-launch promotion and retirement of old execution
 
-Introduce global `browser_runtime` (`managed-v1` or `legacy`) and an optional task override that normally inherits the global choice. Preserve explicit choices. Resolve once at root-run acceptance and persist the chosen route/source; all Solo/Team/client operations use that root snapshot even if settings change mid-run. Keep development environment overrides explicit and reported. Historical runs without evidence stay unknown, rather than inheriting the current process's route at export time.
+Do **not** add the previously proposed global/task `browser_runtime` selector. Persist runtime version/setup provenance at root-run acceptance for diagnostics and benchmarking, and let every participating role use that same owner. Older runs without evidence stay unknown; an exporting process's current route must not be projected backward into history. Internal historical identifiers such as `legacy` can remain data-format/provenance values, not product modes.
 
-Persist a user-configured pinned interpreter location, with existing app-owned default and explicit development override. Expose concise runtime/setup status in browser settings and a route label on browser cards/debug exports. The prepared repository venv already exists on this installation, but ordinary launches must be configured to find it **without environment flags**. Do not make a working dev checkout proof of packaged installation. No automatic global-Python fallback, download/install or SDK upgrade.
+Persist a user-configured pinned interpreter location, with the existing app-owned default and explicit development override. Expose concise readiness/setup status in browser settings. The prepared repository venv already exists on this installation, but ordinary launches must find it **without environment flags**. Do not make a working dev checkout proof of packaged installation. No automatic global-Python fallback, download/install or SDK upgrade.
 
-Keep legacy as the ordinary default during implementation. After acceptance, make managed mode the built-in default for new and inheriting automation tasks. Existing explicit main/custom-browser selections need a clear compatibility decision/unsupported explanation; do not silently reinterpret them as a managed profile. Keep **Legacy compatibility — limited recording** as an explicit escape route while 3D remains incomplete. Never fall back to it merely because managed startup failed.
+During implementation only, keep the current old-code build runnable until the acceptance gate passes. After acceptance, new and existing tasks use the shared owner as the **only production browser executor**. Remove the old launcher/CDP browser monkey-patch execution branch and its normal-use switches. Keep Python file/network approval instrumentation and read-only older recording adapters; they are separate responsibilities. Temporary test flags must not become a permanent alternative product path.
 
-Update test/evaluation defaults and actual-route fingerprints together. Ordinary desktop journeys must exercise the new default after promotion; only explicitly identified compatibility controls should force legacy. The normal-launch gate must not secretly set a development runtime flag or inherit an interpreter override from the test shell.
+Existing stored main-browser/custom-browser preferences must not silently attach personal data or copy a user profile. Retain the historical values, show that those settings are no longer active, and provide an explicit action to use Zeus's dedicated browser if user acknowledgement is needed. Do not promise personal-browser access as a 3D deliverable; it remains undecided. Retire those execution choices from ordinary settings rather than offering the old engine as a workaround.
+
+Update test/evaluation defaults and actual runtime fingerprints together. Ordinary desktop journeys must exercise the sole new executor. Historical-data controls still test old-format readers without launching the replaced engine. The normal-launch gate must not secretly set a development runtime flag or inherit an interpreter override from the test shell.
 
 Promotion requires all of the following:
 
 1. Current/new offline, image/settings/cancellation and release checks pass; real capture is independently verified.
 2. A fresh native launch with **no runtime/interpreter environment overrides** uses persisted setup, shares one owner across Solo/Team clients, displays current pixels, retains replay and cleans up after Stop/completion. Data-only/text tasks still need no browser installation.
 3. At least one bounded real-model browser task completes its actual workflow and honest final response, with correct recording/cleanup. A correct side effect followed by premature completion or a request-cap failure does not satisfy this gate.
-4. Legacy history and explicit compatibility choices remain readable/truthful, setup failures do not fall back, and no observer creates an extra browser or steals desktop focus.
+4. Older history remains readable/truthful, obsolete profile settings cannot attach personal data, setup failures do not fall back, and no role/observer creates another browser or steals desktop focus.
 
-If independent completion remains the blocker, bring forward a focused Phase 4 initiation/completion repair **before** default promotion. Do not increase trial limits mid-run, weaken grading or keep claiming ordinary browser behavior is fixed while only an opt-in route is exercised. A regression can revert the explicit default to legacy while preserving additive data and the failed evidence.
+If independent completion remains the blocker, bring forward a focused Phase 4 initiation/completion repair **before** promotion. Do not increase trial limits mid-run, weaken grading or keep claiming ordinary browser behavior is fixed while only an opt-in route is exercised. A release regression can roll back to the committed previous application version while preserving additive data/evidence; rollback is not a second engine exposed in the new product.
 
 ## 10. Acceptance matrix
 
@@ -188,8 +203,8 @@ If independent completion remains the blocker, bring forward a focused Phase 4 i
 | Crash/Stop/task deletion | Partial replay survives where retained; orphan state reconciles; collector/subscriptions/process tree end and cannot recreate resources. |
 | Legacy malicious/missing/oversized paths | Foreign IDs, traversal, reparse, changed bytes and huge manifests/images are rejected; old valid history remains labelled limited. |
 | Export/delete | Correct relative/hash references and coverage; no profile/input/user-output deletion, no path escape or active-reader crash. |
-| Ordinary default/setup | No development flags needed; correct route stored per root; missing runtime typed; explicit legacy never confused with managed. |
-| UI/window behavior | Normal and narrow layouts, keyboard access, no render errors; routine tests and synthetic-supervisor diagnostics remain hidden/unfocused. |
+| Ordinary setup/single engine | No development flags or runtime selector needed; version/setup provenance stored per root; all roles share the owner; missing runtime is typed and cannot select the old engine. |
+| UI/window behavior | Large, readable live/replay images; Fit/100%/zoom/full-screen and narrow layouts, reachable controls and correctly scaled overlays; routine tests and synthetic-supervisor diagnostics remain hidden/unfocused. |
 
 Use Rust migration/state/identity tests, strict provider controls, real local browsers and real native desktop journeys. Retain original failures and negative controls. Do not execute agent-generated programs as outcome graders or rely on self-reported wins/success. CI adds these checks to the actual offline allowlist; remote execution must be reported separately from local passing results.
 
@@ -198,16 +213,16 @@ Use Rust migration/state/identity tests, strict provider controls, real local br
 1. **No-LLM transport slice:** production mailbox/collector, binary image read and capture state; prove pixels during a slow action, failures, tab identity and Windows publication races before viewer expansion. If this cannot meet bounds, revisit the transport/capture choice with measured evidence.
 2. **Durable replay slice:** additive schema, boundary associations, coverage/budgets, paged managed/legacy readers, path controls, export/delete and restart recovery. Keep the current default.
 3. **UI slice:** one card plus Watch/Replay/history, freshness/error states, identity/version reconciliation, bounded image loading, responsive styling and background-window checks.
-4. **Observation/setup slice:** calling-role visual delivery, bounded inspection and dynamic-widget controls; persisted runtime configuration/provenance and normal-launch migration/preflight. Preserve 3D unsupported controls.
+4. **Observation/setup slice:** calling-role visual delivery, bounded inspection and dynamic-widget controls; persisted runtime setup/provenance and normal-launch migration/preflight. Personal-browser access stays unapproved; supervised login/handoff in the owned browser stays 3D.
 5. **Software gate:** run the entire current 235-check foundation plus new cases, frontend build, ordinary production compile, optimized runtime and relevant release capture/Stop/image regressions. Check owned processes/listeners and visuals. Freeze sources for live diagnostics.
 6. **At most two live B01 smoke attempts:** Abacus `gpt-6-luna`, medium effort, Responses; 16 total model requests per attempt, one in flight, 8,192 output tokens/request, 1,000,000 token reservation allowance, 24 directives and five minutes. Fresh synthetic data, normal permissions, prepared controller and independent browser/outcome grader. Retain every failure, usage, approval and recording; zero trial retries and no expensive-model escalation. Provider credits remain unknown unless reported. Runs stay hidden.
 
 The proposed 16-request limit is an explicit change from 3B's 12-request diagnostic, which reached the cap after a correct mutation. These are labelled acceptance smoke runs, **not matched capability comparisons or proof that 3C improved intelligence/cost**. Any future comparison must rerun both versions with matched budgets/configuration. If both attempts fail, stop paid testing at that envelope and diagnose; do not retry until green. Any additional live budget needs its own concrete justification.
 
-7. **Promotion:** apply the default-route change only if section 9's gates pass, then verify an ordinary restart and user-facing journey. Otherwise leave the implemented route available explicitly and identify the actual blocker. Keep implementation commits separated by these slices where practical; checkpoint `711ddb7` remains the rollback baseline.
+7. **Promotion/retirement:** make the shared owner the sole production executor only if section 9's gates pass, remove old execution/switches while retaining older-data readers, then verify an ordinary restart and user-facing journey. Otherwise keep the work in its development stage and identify the actual blocker. Keep commits separated by these slices where practical; checkpoint `711ddb7` remains the rollback baseline.
 
 ## 12. Alignment checkpoint
 
-The material choices are sampled masked capture through a bounded independent mailbox, paged action/evidence replay, actual calling-role pixel delivery, explicit quota gaps with no automatic historical deletion, and a visible/frozen runtime choice that can become the ordinary default only after full acceptance. Replay is an evidence timeline rather than a full movie. Legacy compatibility stays explicit; real handoff/login/transfers remain 3D. Reliable completion is a promotion condition, not something a viewer can certify.
+The material choices are sampled masked capture through a bounded independent mailbox, large/readable live and replay viewing, paged action/evidence history, calling-role pixel delivery, explicit quota gaps with no automatic historical deletion, and one shared production browser executor after full acceptance. Older recording compatibility is read-only. Real handoff/login/transfers within the Zeus-owned browser remain 3D; personal-browser access is undecided. Reliable completion is a promotion condition, not something a viewer can certify.
 
-This proposal is ready to review before substantial 3C code changes. No new browser/model experiment or application behavior change was performed while preparing it.
+This proposal is ready to review before substantial 3C code changes. Its original preparation made no application changes. The 2026-10-31 feedback amendment includes the separately requested small viewer size/fit repair; the capture, replay, engine-retirement and full viewing controls remain proposed. No new live-model experiment was used for the amendment.
