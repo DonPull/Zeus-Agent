@@ -29,7 +29,7 @@ test.describe('Real mission bridge with controlled replies, not agent capability
       });
       else if(id==='V01')content=fs.readFileSync(path.join(mission(id).dir,'reference/comparison.json'),'utf8');
       const result=await runMissionTrial({id,page:app.page,appWorkspace:app.workspace,output,experimentId:experiment,
-        build:JSON.parse(process.env.ZEUS_BENCH_BUILD??'null'),models:{master:'phase1-mock',vision:id==='V01'?'phase1-mock':'None'},
+        build:JSON.parse(process.env.ZEUS_BENCH_BUILD??'null'),models:{master:'phase1-mock',vision:id==='V01'?'phase1-mock':'None',visionImageInput:'supported'},
         scriptedFiles:artifact?{[artifact]:hashBytes(content)}:{},portal,stopActor:stopTauri,evaluationLimits:limits,
         decide:async card=>{
           const requested=card.body.blocked_directive;
@@ -39,10 +39,7 @@ test.describe('Real mission bridge with controlled replies, not agent capability
           return null;
         },
         beforeSend:async context=>{
-          if(id==='V01')for(const name of ['7f91c2a0.png','a42d6e83.png']){
-            queueMockResponse(response(directive({type:'analyze_visual',image_path:`attachments/${name}`,query:'Describe this order image.'})));
-            queueMockResponse({model:'phase1-mock',usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10},choices:[{message:{content:'Controlled vision-helper reply; no perception score is implied.'}}]});
-          }
+          if(id==='V01')queueMockResponse(response('Controlled observations for both image inputs; not a perception score.'));
           if(artifact)queueMockResponse(response(directive({type:'write_file',path:artifact,content})));
           // B01 is an intentional false success claim: unchanged server state must fail.
           queueMockResponse(response(directive({type:'final_answer',final_answer:{summary:'Mission complete'}})));
@@ -57,12 +54,12 @@ test.describe('Real mission bridge with controlled replies, not agent capability
       expect(getMockRequests().every(request=>request.body.max_tokens===4096)).toBe(true);
       if(id==='V01'){
         const vision=getMockRequests().filter(request=>Array.isArray(request.body.messages?.[1]?.content));
-        expect(vision).toHaveLength(2);
+        expect(vision).toHaveLength(1);
         for(const [index,name] of ['7f91c2a0.png','a42d6e83.png'].entries()){
-          const actual=vision[index].body.messages[1].content.find(part=>part.type==='image_url').image_url.url;
+          const actual=vision[0].body.messages[1].content.filter(part=>part.type==='image_url')[index].image_url.url;
           expect(actual).toBe('data:image/png;base64,'+fs.readFileSync(path.join(mission(id).dir,'inputs',name)).toString('base64'));
         }
-        expect(result.row.usage.requests_by_role).toEqual({master:4,vision:2});
+        expect(result.row.usage.requests_by_role).toEqual({master:2,vision:1});
       }
       writeDashboard([output],path.join(output,'index.html'));
     }finally{await stopTauri();await portal?.close();await stopMockServer();}

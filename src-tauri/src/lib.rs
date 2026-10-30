@@ -2,11 +2,15 @@
 
 pub mod cookie_vault;
 pub mod accounting;
+pub mod model_routes;
+pub mod model_catalogue;
+pub mod attachments;
 pub mod evaluation;
 pub mod db;
 pub mod chat;
 pub mod browser_manager;
 pub mod gatekeeper;
+pub mod file_paths;
 pub mod gateway;
 pub mod logger;
 pub mod orchestrator;
@@ -65,6 +69,7 @@ pub fn run() {
             chat::update_task_settings,
             chat::delete_task,
             chat::save_task_attachment,
+            attachments::get_attachment_preview,
             settings::get_settings,
             settings::save_settings,
             settings::set_api_key,
@@ -74,6 +79,7 @@ pub fn run() {
             settings::set_xiaomi_api_key,
             settings::has_xiaomi_api_key,
             gateway::fetch_available_models,
+            model_catalogue::fetch_model_catalogue,
             gateway::get_local_model_ids,
             gateway::test_local_endpoint,
             gateway::test_xiaomi_endpoint,

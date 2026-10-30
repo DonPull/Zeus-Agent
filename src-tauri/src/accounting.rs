@@ -21,7 +21,7 @@ pub async fn scope<T>(db: &Arc<Mutex<Connection>>, task_id: Option<&str>, role: 
         "SELECT id FROM runs WHERE task_id = ?1 AND status = 'running' ORDER BY rowid DESC LIMIT 1",
         [id], |row| row.get(0)).ok()));
     CONTEXT.scope(Context { db: db.clone(), task_id: task_id.map(str::to_owned), run_id, role: role.into() },
-        crate::evaluation::within_deadline(future)).await
+        crate::model_routes::scope(db, task_id, role, crate::evaluation::within_deadline(future))).await
 }
 
 pub struct RequestGuard {
@@ -41,10 +41,16 @@ pub fn begin(model: &str, endpoint: &str, body: &serde_json::Value) -> Result<Op
         let conn = context.db.lock().map_err(|e| e.to_string())?;
         let provider = reqwest::Url::parse(endpoint).map(|url| url.origin().ascii_serialization())
             .unwrap_or_else(|_| "unknown".into());
+        let binding = crate::model_routes::current(model)?;
+        let route=binding.as_ref().map(|binding|serde_json::json!({"binding":binding,
+            "resolved_protocol":if body.get("input").is_some(){"responses"}else{"chat"},
+            "image_input_effective":binding.images(),"capability_source":if binding.image_input=="unknown"{"documented_adapter_2026_10_28"}else{"user_declaration"},
+            "transport":if std::env::var("ZEUS_OFFLINE_TEST").as_deref()==Ok("1"){"offline_mock"}else{"provider"}}));
         conn.execute("INSERT INTO credit_events (id, request_id, task_id, run_id, role, model, requested_model, provider,
-            units, usage_known, request_status, raw_usage_json, created_at)
-            VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?5, ?6, 0, 0, 'in_flight', '', ?7)",
-            params![id, context.task_id, context.run_id, context.role, model, provider, now_iso()]).map_err(|e| e.to_string())?;
+            units, usage_known, request_status, raw_usage_json, created_at,connection_id,model_route_json)
+            VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?5, ?6, 0, 0, 'in_flight', '', ?7,?8,?9)",
+            params![id, context.task_id, context.run_id, context.role, model, provider, now_iso(),
+                binding.as_ref().map(|binding|&binding.connection),route.as_ref().map(serde_json::to_string).transpose().map_err(|e|e.to_string())?]).map_err(|e| e.to_string())?;
     }
     Ok(Some(RequestGuard { context, id, requested_model: model.into(), completed: false, allowance }))
 }
@@ -159,6 +165,7 @@ pub struct UsageSummary {
     pub unit_kind: &'static str,
     pub requests_by_role: std::collections::BTreeMap<String, i64>,
     pub requests_by_provider: std::collections::BTreeMap<String, i64>,
+    pub requests_by_connection: std::collections::BTreeMap<String, i64>,
 }
 
 pub fn summarize(conn: &Connection, task: &str) -> Result<UsageSummary, String> {
@@ -171,6 +178,7 @@ pub fn summarize(conn: &Connection, task: &str) -> Result<UsageSummary, String> 
     };
     let by_role = groups("role")?;
     let by_provider = groups("provider")?;
+    let by_connection = groups("connection_id")?;
     conn.query_row("SELECT COUNT(*), COALESCE(SUM(CASE WHEN usage_known=1 THEN 0 ELSE 1 END),0),
         COALESCE(SUM(CASE WHEN usage_known=1 THEN total_tokens ELSE 0 END),0), COALESCE(SUM(input_tokens),0),
         COALESCE(SUM(output_tokens),0), COALESCE(SUM(reasoning_tokens),0), COALESCE(SUM(cached_tokens),0)
@@ -179,6 +187,7 @@ pub fn summarize(conn: &Connection, task: &str) -> Result<UsageSummary, String> 
         output_tokens: r.get(4)?, reasoning_tokens: r.get(5)?, cached_tokens: r.get(6)?,
         provider_credits: None, unit_kind: "tokens_not_provider_credits",
         requests_by_role: by_role, requests_by_provider: by_provider,
+        requests_by_connection: by_connection,
     })).map_err(|e| e.to_string())
 }
 
@@ -267,5 +276,14 @@ mod tests {
         let summary = summarize(&db.lock().unwrap(), "task").unwrap();
         assert_eq!(summary.unknown_requests, 1);
         assert_eq!(summary.provider_credits, None);
+    }
+    #[test]
+    fn restart_interrupts_in_flight_requests_without_fabricating_usage() {
+        let conn=database();
+        conn.execute("INSERT INTO credit_events(id,request_id,task_id,model,units,usage_known,request_status,raw_usage_json,created_at) VALUES('orphan','orphan','task','m',0,0,'in_flight','{}','now')",[]).unwrap();
+        crate::db::init_schema(&conn).unwrap();
+        let status:String=conn.query_row("SELECT request_status FROM credit_events WHERE id='orphan'",[],|row|row.get(0)).unwrap();
+        assert_eq!(status,"interrupted");
+        let summary=summarize(&conn,"task").unwrap();assert_eq!(summary.requests,1);assert_eq!(summary.unknown_requests,1);assert_eq!(summary.known_tokens,0);
     }
 }

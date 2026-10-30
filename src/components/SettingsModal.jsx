@@ -33,7 +33,8 @@ export const getCompany = (model) => {
     return "Other";
 };
 
-export const isLocalModel = (model, localModelIds = []) => {
+export const isLocalModel = (model, localModelIds = [], connection) => {
+    if (connection && connection !== "legacy") return connection === "local" && Boolean(model) && model !== "None";
     if (!model || model === "(None)" || model === "None") return false;
     if (Array.isArray(localModelIds) && localModelIds.includes(model)) return true;
     const m = model.toLowerCase();
@@ -53,7 +54,10 @@ export const isLocalModel = (model, localModelIds = []) => {
 
 import { useRef } from "react";
 
-export const ModelDropdown = ({ value, options, onChange, allowNone = false, getDisabledReason = null, localModelIds = [] }) => {
+export const ModelDropdown = ({ value, options, onChange, allowNone = false, getDisabledReason = null, localModelIds = [], catalogue = [], binding, onBindingChange, role }) => {
+    const connection = binding?.connection || "abacus";
+    const selectedCatalogue = catalogue.find(entry => entry.connection === connection);
+    const selectBinding = patch => onBindingChange?.({ protocol: "auto", image_input: "unknown", source: "explicit", ...binding, connection, model_id: value, ...patch });
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const dropdownRef = useRef(null);
@@ -63,12 +67,10 @@ export const ModelDropdown = ({ value, options, onChange, allowNone = false, get
     if (allowNone) {
         fullOptions.push("(None)");
     }
-    options.forEach(m => {
+    (catalogue.length ? (selectedCatalogue?.models || []) : options).forEach(m => {
         if (m && !fullOptions.includes(m)) fullOptions.push(m);
     });
-    ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-3.8-flash", "deepseek/deepseek-chat", "mimo-v2.6-pro", "mimo-v2.6"].forEach(m => {
-        if (!fullOptions.includes(m)) fullOptions.push(m);
-    });
+    if (value && value !== "None" && !fullOptions.includes(value)) fullOptions.push(value);
 
     const isNoneVal = !value || value === "None" || value === "(None)";
     const displayValue = isNoneVal && allowNone ? "(None)" : (value || "Select model...");
@@ -93,28 +95,54 @@ export const ModelDropdown = ({ value, options, onChange, allowNone = false, get
     }, [open]);
 
     return (
-        <div ref={dropdownRef} style={{ position: "relative", width: "100%" }}>
-            <div
+        <div ref={dropdownRef} className="model-picker column" style={{ position: "relative", width: "100%" }}>
+            {onBindingChange && <div className="column gap-4" style={{ marginBottom: 6 }}>
+                <select className="settings-input" aria-label={`${role} provider`} value={connection}
+                    disabled={!value || value === "None"} onChange={e => selectBinding({connection:e.target.value,source:"explicit",protocol:"auto",image_input:"unknown"})}>
+                    {connection === "legacy" && <option value="legacy">Legacy routing (choose a provider to migrate)</option>}
+                    <option value="abacus">Abacus ChatLLM</option><option value="local">Local endpoint</option>
+                    <option value="gemini">Google API (development)</option><option value="xiaomi">Xiaomi API (development)</option>
+                </select>
+                {selectedCatalogue && selectedCatalogue.status !== "available" && selectedCatalogue.status !== "offline_test_adapter" &&
+                    <small>{selectedCatalogue.status === "not_configured" ? "This connection needs its own key." : "Catalogue unavailable; the current model is retained."}</small>}
+                {binding?.source === "legacy" && <small>Existing route retained. Select Abacus above to use your ChatLLM connection.</small>}
+            </div>}
+            <button
+                type="button" role="combobox" aria-label={`${role} model`} aria-expanded={open} aria-haspopup="listbox"
                 className="settings-input width-fill-available align-center gap-10"
                 style={{ cursor: "pointer", display: "flex", justifyContent: "space-between" }}
                 onClick={() => { setOpen(!open); setSearch(""); }}
             >
-                <div className="align-center gap-10">
+                <div className="align-center gap-10" style={{minWidth:0}}>
                     {displayValue === "(None)" ? (
                         <span style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", opacity: 0.5, fontSize: "12px" }}>⊘</span>
                     ) : (
                         <CompanyIcon company={getCompany(displayValue)} />
                     )}
-                    <span style={{ opacity: displayValue === "(None)" ? 0.6 : 1 }}>{displayValue}</span>
-                    {isLocalModel(displayValue, localModelIds) && (
+                    <span className="model-picker-value" title={displayValue} style={{ opacity: displayValue === "(None)" ? 0.6 : 1 }}>{displayValue}</span>
+                    {isLocalModel(displayValue, localModelIds, connection) && (
                         <span className="local-badge" style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "3px", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.4)", marginLeft: "6px", fontWeight: 600 }}>Local</span>
                     )}
                 </div>
                 <span style={{ opacity: 0.5, fontSize: "0.8em" }}>▼</span>
-            </div>
+            </button>
 
+            {onBindingChange && value && value !== "None" && <details className="model-input-settings">
+                <summary>Model input settings</summary>
+                <label>Exact model ID <input className="settings-input" aria-label={`${role} model ID`} value={value} onChange={e=>{
+                    const model=e.target.value;onChange(model);
+                    onBindingChange({connection:connection==="legacy"?"abacus":connection,model_id:model,protocol:"auto",image_input:"unknown",source:"explicit"});
+                }}/></label>
+                <label>Protocol <select className="settings-input" aria-label={`${role} protocol`} value={binding?.protocol || "auto"} onChange={e=>selectBinding({protocol:e.target.value})}>
+                    <option value="auto">Adapter default</option><option value="chat">Chat Completions</option><option value="responses">Responses</option>
+                </select></label>
+                <label>Image input <select className="settings-input" aria-label={`${role} image input`} value={binding?.image_input || "unknown"} onChange={e=>selectBinding({image_input:e.target.value})}>
+                    <option value="unknown">Documented adapter capability</option><option value="supported">Supported (user declaration)</option><option value="unsupported">Text only</option>
+                </select></label>
+            </details>}
             {open && (
                 <div
+                    role="listbox" aria-label={`${role} models`}
                     style={{
                         position: "absolute", top: "100%", left: 0, right: 0,
                         backgroundColor: "var(--bg-color, #1a1a1a)",
@@ -141,11 +169,11 @@ export const ModelDropdown = ({ value, options, onChange, allowNone = false, get
                         const isNoneOpt = opt === "(None)";
                         const disabledReason = !isNoneOpt && getDisabledReason ? getDisabledReason(opt) : null;
                         const isDisabled = Boolean(disabledReason);
-                        const isLocal = !isNoneOpt && isLocalModel(opt, localModelIds);
+                        const isLocal = !isNoneOpt && isLocalModel(opt, localModelIds, connection);
 
                         return (
                             <div
-                                key={opt}
+                                key={opt} role="option" aria-selected={opt===displayValue} aria-disabled={isDisabled}
                                 className="align-center gap-10"
                                 title={disabledReason || ""}
                                 style={{
@@ -156,7 +184,9 @@ export const ModelDropdown = ({ value, options, onChange, allowNone = false, get
                                 }}
                                 onClick={() => {
                                     if (isDisabled) return;
-                                    onChange(isNoneOpt ? "None" : opt);
+                                    const model = isNoneOpt ? "None" : opt;
+                                    onChange(model);
+                                    onBindingChange?.(isNoneOpt ? null : {connection:connection === "legacy" ? "abacus" : connection,model_id:model,protocol:"auto",image_input:"unknown",source:"explicit"});
                                     setOpen(false);
                                 }}
                                 onMouseOver={(e) => {
@@ -261,6 +291,7 @@ function SettingsModal({ onToast, onClose }) {
     const [xiaomiStatus, setXiaomiStatus] = useState(null);
     const [testingXiaomi, setTestingXiaomi] = useState(false);
     const [availableModels, setAvailableModels] = useState([]);
+    const [modelCatalogue, setModelCatalogue] = useState([]);
     const [localModelIds, setLocalModelIds] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -380,7 +411,9 @@ function SettingsModal({ onToast, onClose }) {
     const handleLoadModels = async (silent = false) => {
         setLoadingModels(true);
         try {
-            const models = await bridge.fetchAvailableModels();
+            const catalogue = await bridge.fetchModelCatalogue();
+            setModelCatalogue(catalogue);
+            const models = [...new Set(catalogue.flatMap(entry => entry.models))];
             setAvailableModels(models);
             try {
                 const localIds = await bridge.getLocalModelIds();
@@ -476,6 +509,12 @@ function SettingsModal({ onToast, onClose }) {
 
     const isNone = isNoneModel;
 
+    const setModelBinding = (role, binding) => setSettings(prev => {
+        const model_bindings = {...prev.model_bindings};
+        if(binding) model_bindings[role] = binding; else delete model_bindings[role];
+        return {...prev,model_bindings};
+    });
+
     const updateSetting = (key, value) => {
         setSettings((prev) => ({ ...prev, [key]: value }));
     };
@@ -492,22 +531,22 @@ function SettingsModal({ onToast, onClose }) {
     const teamValidation = validateTeamConfig(settings);
 
     const getDisabledReasonForRole = (role) => (opt) => {
-        if (!isLocalModel(opt, localModelIds)) return null;
+        if (!isLocalModel(opt, localModelIds, settings.model_bindings?.[role]?.connection)) return null;
 
         const otherRolesWithLocal = [];
-        if (role !== "master" && !isNone(settings.master_model) && isLocalModel(settings.master_model, localModelIds)) {
+        if (role !== "master" && !isNone(settings.master_model) && isLocalModel(settings.master_model, localModelIds, settings.model_bindings?.master?.connection)) {
             otherRolesWithLocal.push("Master");
         }
-        if (role !== "worker" && !isNone(settings.worker_model) && isLocalModel(settings.worker_model, localModelIds)) {
+        if (role !== "worker" && !isNone(settings.worker_model) && isLocalModel(settings.worker_model, localModelIds, settings.model_bindings?.worker?.connection)) {
             otherRolesWithLocal.push("Worker");
         }
-        if (role !== "verifier" && !isNone(settings.verifier_model) && isLocalModel(settings.verifier_model, localModelIds)) {
+        if (role !== "verifier" && !isNone(settings.verifier_model) && isLocalModel(settings.verifier_model, localModelIds, settings.model_bindings?.verifier?.connection)) {
             otherRolesWithLocal.push("Verifier");
         }
-        if (role !== "watcher" && !isNone(settings.watcher_model) && isLocalModel(settings.watcher_model, localModelIds)) {
+        if (role !== "watcher" && !isNone(settings.watcher_model) && isLocalModel(settings.watcher_model, localModelIds, settings.model_bindings?.watcher?.connection)) {
             otherRolesWithLocal.push("Watcher");
         }
-        if (role !== "vision" && !isNone(settings.vision_model) && isLocalModel(settings.vision_model, localModelIds)) {
+        if (role !== "vision" && !isNone(settings.vision_model) && isLocalModel(settings.vision_model, localModelIds, settings.model_bindings?.vision?.connection)) {
             otherRolesWithLocal.push("Vision");
         }
 
@@ -656,11 +695,13 @@ function SettingsModal({ onToast, onClose }) {
                                 value={settings.master_model || "gemini-1.5-pro"}
                                 options={availableModels}
                                 onChange={(v) => updateSetting("master_model", v)}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.master}
+                                onBindingChange={binding=>setModelBinding("master",binding)} role="master"
                                 getDisabledReason={getDisabledReasonForRole("master")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="master-effort-select" value={settings.master_effort} onChange={(v) => updateSetting("master_effort", v)} disabled={isLocalModel(settings.master_model, localModelIds) || isNone(settings.master_model)} />
+                        <EffortDropdown id="master-effort-select" value={settings.master_effort} onChange={(v) => updateSetting("master_effort", v)} disabled={isLocalModel(settings.master_model, localModelIds, settings.model_bindings?.master?.connection) || isNone(settings.master_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Worker</label>
@@ -670,11 +711,13 @@ function SettingsModal({ onToast, onClose }) {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("worker_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.worker}
+                                onBindingChange={binding=>setModelBinding("worker",binding)} role="worker"
                                 getDisabledReason={getDisabledReasonForRole("worker")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="worker-effort-select" value={settings.worker_effort} onChange={(v) => updateSetting("worker_effort", v)} disabled={isLocalModel(settings.worker_model, localModelIds) || isNone(settings.worker_model)} />
+                        <EffortDropdown id="worker-effort-select" value={settings.worker_effort} onChange={(v) => updateSetting("worker_effort", v)} disabled={isLocalModel(settings.worker_model, localModelIds, settings.model_bindings?.worker?.connection) || isNone(settings.worker_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Verifier</label>
@@ -684,11 +727,13 @@ function SettingsModal({ onToast, onClose }) {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("verifier_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.verifier}
+                                onBindingChange={binding=>setModelBinding("verifier",binding)} role="verifier"
                                 getDisabledReason={getDisabledReasonForRole("verifier")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="verifier-effort-select" value={settings.verifier_effort} onChange={(v) => updateSetting("verifier_effort", v)} disabled={isLocalModel(settings.verifier_model, localModelIds) || isNone(settings.verifier_model)} />
+                        <EffortDropdown id="verifier-effort-select" value={settings.verifier_effort} onChange={(v) => updateSetting("verifier_effort", v)} disabled={isLocalModel(settings.verifier_model, localModelIds, settings.model_bindings?.verifier?.connection) || isNone(settings.verifier_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Watcher</label>
@@ -698,11 +743,13 @@ function SettingsModal({ onToast, onClose }) {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("watcher_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.watcher}
+                                onBindingChange={binding=>setModelBinding("watcher",binding)} role="watcher"
                                 getDisabledReason={getDisabledReasonForRole("watcher")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="watcher-effort-select" value={settings.watcher_effort} onChange={(v) => updateSetting("watcher_effort", v)} disabled={isLocalModel(settings.watcher_model, localModelIds) || isNone(settings.watcher_model)} />
+                        <EffortDropdown id="watcher-effort-select" value={settings.watcher_effort} onChange={(v) => updateSetting("watcher_effort", v)} disabled={isLocalModel(settings.watcher_model, localModelIds, settings.model_bindings?.watcher?.connection) || isNone(settings.watcher_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Vision</label>
@@ -712,13 +759,21 @@ function SettingsModal({ onToast, onClose }) {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("vision_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.vision}
+                                onBindingChange={binding=>setModelBinding("vision",binding)} role="vision"
                                 getDisabledReason={getDisabledReasonForRole("vision")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="vision-effort-select" value={settings.vision_effort} onChange={(v) => updateSetting("vision_effort", v)} disabled={isLocalModel(settings.vision_model, localModelIds) || isNone(settings.vision_model)} />
+                        <EffortDropdown id="vision-effort-select" value={settings.vision_effort} onChange={(v) => updateSetting("vision_effort", v)} disabled={isLocalModel(settings.vision_model, localModelIds, settings.model_bindings?.vision?.connection) || isNone(settings.vision_model)} />
                     </div>
 
+                    <label className="column gap-4">Image delivery
+                        <select className="settings-input" aria-label="Image delivery" value={settings.image_delivery || "auto"} onChange={event=>updateSetting("image_delivery",event.target.value)}>
+                            <option value="auto">Auto: direct when supported, otherwise configured helper</option>
+                            <option value="helper">Always use configured vision helper</option>
+                        </select>
+                    </label>
                     {!teamValidation.isValid && (
                         <div
                             id="settings-delegation-warning"

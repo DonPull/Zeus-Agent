@@ -1,3 +1,4 @@
+import MessageAttachments from "./MessageAttachments";
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -505,6 +506,7 @@ function ChatMessage({
     onChoiceDecision,
     onOpenLiveView,
     onOpenReplay,
+    onReuseAttachment,
 }) {
     if (message.role === "user") {
         return (
@@ -513,6 +515,7 @@ function ChatMessage({
                     <div className="chat-bubble-content markdown-body">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                     </div>
+                    <MessageAttachments files={message.attachments} onReuse={onReuseAttachment}/>
                 </div>
             </div>
         );

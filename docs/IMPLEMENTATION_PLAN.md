@@ -1,12 +1,14 @@
 # Zeus Agent: stabilization and development plan
 
-Status: **Roadmap, Phase 1, Phase 2A and native Phase 2B diagnostics approved in conversation. Subsequent major implementation work requires its focused design/environment decisions.**
+Status: **Roadmap, Phase 1, Phase 2A, native Phase 2B diagnostics, Phase 3A and stabilization patch 1 approved in conversation. Stabilization manually retested and commit authorized on 2026-10-30. Subsequent major implementation work requires its focused design/environment decisions.**
 
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).
 
 ## 1. Product decisions and scope
 
 This plan records the agreed product direction and delivery order. It is the current development plan; older milestone documents remain historical context. Existing "completed" labels and the historical 10/10 result are historical claims, not acceptance evidence for this plan.
+
+Manual testing on 2026-10-28 found a native stack-overflow crash, duplicate-answer orchestration and UI/diagnostic gaps. The approved [stabilization patch](STABILIZATION_PATCH_1.md) repairs the reproduced crash, blank model selectors and duplicate publication. [The active issue register](KNOWN_ISSUES.md) separates validated repairs from remaining goal-completion, browser and diagnostic gaps. These repairs do not establish a stable v1. Current economical-model selection is recorded in [the live-test policy](LIVE_TEST_MODEL_POLICY.md).
 
 - Zeus is a general desktop agent for completing user goals. Preserve Rust/Tauri, React, SQLite authority, persist-before-emit, the bridge boundary, task single-flight execution, and task cancellation.
 - Use **Zeus Solo** for one acting agent and **Zeus Team** for coordinated agents. These are working names. Both must use the same execution services and authorization rules.
@@ -17,7 +19,10 @@ This plan records the agreed product direction and delivery order. It is the cur
 - Wordle is a historical diagnostic example, not a product priority, dedicated subsystem, or central benchmark. General browser competence is the objective.
 - Current priorities: trustworthy regression tests and capability benchmarks, current functionality, execution reliability, durable task state, context/memory, and authorization.
 - Before implementing a phase, give a short plain-language description of its tangible effect: user-visible features, specific fixes, or developer/reliability improvements, including what the phase does not yet resolve.
+- Also provide a concise decision list for each functionality, explicitly identifying changes from the current approach. The user's verifier example was illustrative, not an approved implementation proposal.
 - Efficient live models may be used when they materially improve testing; there is no blanket prohibition on live inference. Keep deterministic regression checks where appropriate, choose economical models for targeted integration checks, and retain usage/results. Expensive frontier-model sweeps and substantial benchmark runs still need a bounded plan.
+- Refresh economical live-model choices against dated primary benchmark evidence and the actual Abacus catalogue. Do not equate public API prices with subscription credits or reuse outdated models merely because their adapters are familiar.
+- Recoverable runtime failures should return typed errors and user feedback; native aborts require a demonstrated cause/fix rather than a blanket catch mechanism. Manual crashes remain blockers despite passing scripted tests. Reuse existing UI styles and give changed controls a basic visual/layout check.
 - Later capabilities: image generation/editing, audio and video analysis, transcription, voice interaction, automatic model selection, supervised improvement, and unrestricted operation inside a real sandbox.
 
 ## 2. How each major topic will be handled
@@ -132,6 +137,8 @@ Stretch missions combine these skills: application creation plus visual refineme
 Exit: a frozen benchmark v1, proven graders, raw baseline trials, a cost envelope, and an honest report that can be regenerated from records.
 
 ## 6. Phase 3: stabilize current execution, images, and browsers
+
+Focused proposal after the reviewed Phase 2 checkpoint `f3c1c80`: [Phase 3 reliability design](PHASE_3_RELIABILITY_DESIGN.md). Recommend implementing image/provider/attachment correctness as packet 3A, then shared browser ownership (3B), preview/replay (3C) and handoff/compatibility (3D). This proposed prioritization uses the existing six-mission measurement slice while the broader Phase 2 baseline remains pending. The packet is for alignment before substantial Phase 3 implementation; the following roadmap requirements remain applicable.
 
 ### Shared execution services
 
@@ -427,3 +434,33 @@ Three bounded `gpt-5-nano` diagnostics exposed and confirmed a production gatewa
 Current validation: **31 JavaScript unit tests, 37 mission/grader tests, 53 Rust tests, and 28 browser/desktop integration tests passed (149 total)**. The complete offline command passed with 52 Rust tests, followed by a passing backend run after adding the provider-failure state-transition test. The strict mock rejects the old history format; a two-turn runtime check covers the fix. Coverage includes deadline cancellation, shared-role request limits, unknown usage, directive limits, partial collection errors, false completion claims, and exact image bytes delivered to the mocked vision helper. Browser preview/replay and live image perception remain unproven.
 
 This completes the native diagnostic slice of 2B, not the whole benchmark phase. Native actors share host permissions and authorization remains unverified. Live executable submissions are exported without host-side execution; only exact known scripted controls can be executed by graders. A Windows path-normalization bug causing unnecessary approvals remains a dedicated production repair. Isolated execution/grading, independent authorization observations, a larger frozen pilot, core expansion, and repeated baselines remain pending. Details, actual operational limits, experiment IDs and research references are in [the Phase 2 packet](PHASE_2_BENCHMARK_DESIGN.md). The user reviewed the zero-pass diagnostic report, accepted the explanation, and authorized committing these changes and proceeding on 2026-10-28. Frontend build and `git diff --check` also passed.
+
+## 19. Phase 3A delivery record
+
+Phase 2A/native 2B was committed as `f3c1c80`. The user reviewed and approved the [Phase 3A packet](PHASE_3_RELIABILITY_DESIGN.md), and added a standing requirement for concise decisions with old/new approaches alongside each tangible-impact summary. The verifier example was illustrative and did not authorize a verifier rewrite.
+
+Phase 3A delivers explicit provider/model bindings with Abacus as the new hosted default, connection-labelled catalogues, durable validated attachment IDs, direct multimodal actor input or deterministic configured-helper delivery, atomic acceptance/retry behavior, persisted previews/reuse and typed delivery failures. Existing routes preserve legacy behavior until explicitly changed. Both payload protocols, role accounting and cancellation use shared services. The [bridge contract](../BRIDGE.md) documents the internal API changes and one-time provider selection for legacy Gemini routes.
+
+Two bounded native V01 trials used three requests and 9,815 known tokens, with no unknown usage or trial retries. Both direct actor and helper correctly read all requested screenshot facts. Neither full mission passed: the direct actor returned correct JSON in chat without saving the file; the helper/actor run timed out waiting for normal workspace-write approval, and the external supervisor's approval arrived too late. All original failures remain. A separate hash-verified transcript comparison confirms the image facts without changing the artifact grades. Combined local evidence: `.zeus/evaluations/phase3a-vision-review/index.html` and its `perception-evidence.json`. Provider credits and global authorization remain unknown.
+
+Premature text completion, general Windows permission normalization and preexisting explicit-local permission relaxations remain open work under task-state/authorization phases. These narrow image confirmations do not replace the larger repeated/isolated benchmark. Browser packets 3B-3D retain separate design checkpoints and have not been implemented.
+
+Final validation: **32 JavaScript unit tests, 37 mission/grader checks, 61 Rust tests and 46 browser/desktop integration checks passed (176 total)**, as did the frontend build and `git diff --check`. Changes remain uncommitted for review. Full details, final old/new decisions, experiment IDs and limitations are in section 10 of the Phase 3 packet.
+
+## 20. Manual-test follow-up and priority correction
+
+The user reported an image follow-up stack overflow on 2026-10-28, two duplicate-answer examples, inconsistent UI and weak post-crash event coverage. These are recorded as ZA-001–ZA-006 in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), including the task IDs, actual screenshot size, persisted interrupted run/request evidence, confirmed duplicate-publication mechanisms and concrete regression requirements. The exact overflowing frame remains unverified. The existing attachment handle was correctly reused; explicit reattachment was not required.
+
+A small diagnostics-only follow-up adds an explicit all-conversations debug query and a self-contained export with the full visible transcript, raw master/worker messages, attachment/model metadata and current run/usage snapshots. It labels the backend log as volatile and cannot restore missing pre-crash events. Durable lifecycle logging and the runtime/UI defects remain tracked work. No blanket panic-catching, stack-size increase, conversation strategy rewrite or new inference test was introduced in this diagnostic slice.
+
+The user's suggested GPT-6 Luna and MiMo-V2.6-Flash were researched on Artificial Analysis. A read-only Abacus catalogue check confirmed `gpt-6-luna`; MiMo-V2.6-Flash was not listed. No inference calls were made. [The model policy](LIVE_TEST_MODEL_POLICY.md) replaces stale familiarity-based selection with a dated shortlist, adapter checks and frozen task-appropriate configurations. It does not silently change existing tasks or enable automatic routing.
+
+Recommended next checkpoint: targeted crash reproduction/repair, duplicate-answer completion/publication and Windows workspace permission handling before new browser implementation. Then run a small mixed live acceptance pack as each repaired flow stabilizes, with a broader repeated suite gating the agreed first stable release. Long-term voice/generation/routing features need not postpone verification of the current core.
+
+Diagnostic follow-up validation: 34 JavaScript unit tests, 61 Rust tests and 46 browser/desktop integration checks passed, plus the frontend build and `git diff --check`. The prior 37 unchanged mission/grader checks remain the last validated mission set. The manual crash remains open despite these results. Changes remain uncommitted.
+
+## 21. Stabilization patch 1 delivery
+
+The user authorized the focused repair on 2026-10-28 and useful bounded live testing. [The delivery packet](STABILIZATION_PATCH_1.md) records tangible differences, old/new decisions, native reproduction, exact validation and all seven live trials. The native large-image/fresh-TLS crash has a heap-pinning fix, the undefined-variable dropdown render crash is repaired, final responses publish once, Windows file-policy containment is shared, and a prepared external controller can decide declared synthetic permission cards directly. No browser-service redesign or production Smart approval mode was added.
+
+Validated checks now total 196 (36 JS, 37 mission/grader, 67 Rust, 56 desktop), plus production frontend and release-runtime builds. Three of seven live artifact outcomes passed using Abacus Luna; combined helper execution still has retained completion/protocol/output-limit failures. These development diagnostics are not a repeated capability baseline or complete authorization proof. Provider credits remain unknown. Phase 3B-3D, deterministic task state/memory/completion, broader live acceptance, durable backend logs and full UI polish remain pending. On 2026-10-30 the user confirmed successful manual retesting and authorized committing this checkpoint and moving forward. Next substantial changes still receive a focused design before implementation.

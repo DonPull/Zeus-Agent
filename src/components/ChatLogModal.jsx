@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatTime } from "../utils";
 import * as bridge from "../bridge";
+import { formatDebugReport } from "../debugReport";
 
 function renderEntry(m) {
     const time = m.created_at ? formatTime(m.created_at) : "";
@@ -59,23 +60,13 @@ function ChatLogModal({ taskTitle, taskId, messages }) {
     // hidden pipeline messages that are excluded from the normal projection.
     const copyDebugLog = async () => {
         try {
-            const [backendLog, dbMessages] = await Promise.all([
+            const [backendLog, dbMessages, run, spend] = await Promise.all([
                 bridge.getDebugLog(taskId),
-                bridge.getTaskMessages(taskId, true),
+                bridge.getTaskDebugMessages(taskId),
+                bridge.getTaskRunState(taskId),
+                bridge.getTaskSpend(taskId),
             ]);
-
-            const rawMessages = dbMessages
-                .map(
-                    (m) =>
-                        `[${m.created_at}] seq=${m.seq} role=${m.role} kind=${m.kind} visible=${m.visible}\n${m.content}`
-                )
-                .join("\n----------------------------------------\n");
-
-            await navigator.clipboard.writeText(
-                `===== ZEUS DEBUG LOG (task ${taskId}) =====\n\n` +
-                `--- BACKEND EVENTS ---\n${backendLog || "(empty)"}\n\n` +
-                `--- RAW MESSAGES (incl. hidden) ---\n${rawMessages}`
-            );
+            await navigator.clipboard.writeText(formatDebugReport({taskId,messages:dbMessages,backendLog,run,usage:spend.usage}));
 
             setDebugCopied(true);
             setTimeout(() => setDebugCopied(false), 2000);

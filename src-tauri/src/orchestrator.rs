@@ -759,26 +759,29 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::AnalyzeVisual { image_path, query } => {
-            let (vision_model, vision_effort) = {
-                let conn = _state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                conn.query_row(
-                    "SELECT vision_model, vision_effort FROM tasks WHERE id = ?1",
-                    rusqlite::params![task_id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-                ).unwrap_or_else(|_| ("gemini-3.8-flash".to_string(), "default".to_string()))
+            let (binding,effort,files,images)={
+                let conn=_state.db.lock().map_err(|e|e.to_string())?;
+                let task=crate::chat::load_task(&conn,task_id)?;
+                let binding=task.model_bindings.get("vision").or_else(||task.model_bindings.get("master"))
+                    .cloned().map(crate::model_routes::ModelRef::resolved).ok_or("ATTACHMENT_CAPABILITY: no inspection model selected")?;
+                let files=if let Some(id)=image_path.strip_prefix("attachment:"){vec![crate::attachments::get(&conn,task_id,id)?]}else{vec![]};
+                let images=crate::attachments::image_inputs(&conn,&files)?;
+                (binding,task.vision_effort,files,images)
             };
-            let res = match crate::accounting::scope(&_state.db, Some(task_id), "vision",
-                crate::gateway::analyze_visual(&vision_model, task_id, &image_path, &query, Some(&vision_effort))).await {
-                Ok((analysis, usage, usage_json)) => {
-                    if let Ok(conn) = _state.db.lock() {
-                        crate::chat::record_spend(&conn, task_id, &vision_model, &usage, &usage_json)?;
-                    }
-                    analysis
-                }
-                Err(e) => format!("Visual analysis failed: {}", e),
-            };
-            let result_json = serde_json::json!({ "visual_analysis_result": res });
-            Ok(crate::orchestrator::directive_result_message(&result_json))
+            if binding.images()!="supported"{return Ok(directive_result_message(&json!({"ok":false,"error":{"code":"ATTACHMENT_CAPABILITY","message":"Declare image support for the inspection model or configure a capable helper"}})));}
+            let ids={let conn=_state.db.lock().map_err(|e|e.to_string())?;let run:String=conn.query_row("SELECT id FROM runs WHERE task_id=?1 AND status='running' ORDER BY rowid DESC LIMIT 1",[task_id],|row|row.get(0)).map_err(|e|e.to_string())?;
+                crate::attachments::start_delivery(&conn,&run,&files,&binding)?};
+            let model=binding.model_id.clone();
+            let result=crate::accounting::scope(&_state.db,Some(task_id),"vision",crate::model_routes::with_binding(binding.clone(),async {
+                if image_path.starts_with("attachment:"){crate::gateway::analyze_images(&model,&query,&images,Some(&effort)).await}
+                else{crate::gateway::analyze_visual(&model,task_id,&image_path,&query,Some(&effort)).await}
+            })).await;
+            {let conn=_state.db.lock().map_err(|e|e.to_string())?;crate::attachments::finish_delivery(&conn,&ids,result.as_ref().ok().and_then(|value|value.1.request_id.as_deref()),result.as_ref().err().map(String::as_str))?;}
+            match result {
+                Ok((analysis,usage,raw))=>{let conn=_state.db.lock().map_err(|e|e.to_string())?;crate::chat::record_spend(&conn,task_id,&model,&usage,&raw)?;
+                    Ok(directive_result_message(&json!({"ok":true,"visual_analysis_result":analysis,"model":binding})))},
+                Err(error)=>Ok(directive_result_message(&json!({"ok":false,"error":{"code":error.split(':').next().unwrap_or("VISUAL_PROVIDER"),"message":error}}))),
+            }
         }
         _ => {
             Err("Directive does not support bypass execution.".to_string())

@@ -304,10 +304,13 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
         .map_err(|e| format!("Failed to initialize the database schema: {}", e))?;
 
     // Additive accounting migration. Preserve historical rows and raw provider usage.
+    crate::model_routes::init_schema(connection)?;
+    crate::attachments::init_schema(connection)?;
     for (column, definition) in [
         ("request_id", "TEXT"), ("run_id", "TEXT"), ("role", "TEXT"),
         ("requested_model", "TEXT"), ("provider_request_id", "TEXT"),
         ("provider", "TEXT"),
+        ("connection_id", "TEXT"), ("model_route_json", "TEXT"),
         ("cached_tokens", "INTEGER"), ("usage_known", "INTEGER"), ("request_status", "TEXT"),
     ] {
         let exists = connection.query_row(
@@ -347,6 +350,8 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
     // still marked running therefore cannot still be executing and must not
     // leave the task permanently locked in a running state.
     let recovered_at = now_iso();
+    connection.execute("UPDATE credit_events SET request_status='interrupted' WHERE request_status='in_flight'",[])
+        .map_err(|error|format!("Failed to recover interrupted model requests: {error}"))?;
     connection
         .execute(
             "UPDATE runs

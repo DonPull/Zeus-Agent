@@ -43,7 +43,7 @@ To intentionally regenerate on Windows:
 node tests/benchmarks/missions/v1/V01/reference/render_images.js
 ```
 
-Review/version changed pixels and hashes; fonts/browser versions can change bytes. Efficient live models are available when they materially help testing. This reference-validation stage does not need inference; image delivery and model answers will be tested through Zeus during runtime integration.
+Review/version changed pixels and hashes; fonts/browser versions can change bytes. Efficient live models are available when they materially help testing. Reference validation needs no inference. The Phase 3A runtime checks separately exercise direct actor input and configured-helper input; live perception trials retain the same original task and graders.
 
 ## Real-runtime diagnostics
 
@@ -51,8 +51,10 @@ Review/version changed pixels and hashes; fonts/browser versions can change byte
 
 The separate `zeus-evaluation` executable uses the production Rust library and normal permission policy. Each launch has its own database/workspaces and does not inherit browser profiles or extensions from the repository. Live-provider selection never enables legacy evaluation auto-approval. Exact one-time decisions for known scripted artifacts are recorded as interventions. Native diagnostics wait for normal user/supervisor decisions and record them.
 
-The user chose **native supervised diagnostics** for the first small live check. This shares host permissions and is not an adversarial sandbox, held-out environment, or isolated capability baseline. Global authorization is not evaluated; artifact success alone never becomes a verified pass. Export path/link checks and hashes protect routine accidental mistakes, not a hostile same-user process. Only the data-only D01 diagnostic is exposed by `npm run bench:diagnose`; executable grading stays disabled for live trials.
+The user chose **native supervised diagnostics** for the first small live check. This shares host permissions and is not an adversarial sandbox, held-out environment, or isolated capability baseline. Global authorization is not evaluated; artifact success alone never becomes a verified pass. Export path/link checks and hashes protect routine accidental mistakes, not a hostile same-user process. The data-only D01 and V01 diagnostics are exposed by `npm run bench:diagnose`; executable grading stays disabled for live trials.
 
 Per-process request, in-flight, directive, output, token-reservation, and deadline limits are explicit and shared across roles/retries. Input reservation is serialized request bytes divided by three, **not an exact tokenizer**; reported usage can exceed an estimate. Missing usage stops further dispatch and remains unknown. Provider subscription credits/currency are not inferred. See the [evaluation guide](../../../scripts/eval_harness/README.md) for commands and operational limits.
 
-These increments add developer measurement tools and narrow gateway observability. Browser lifecycle/replay, production image perception, memory, Smart approvals, routing, and Team architecture still need their repair/design phases under the [Phase 2 design](../../../docs/PHASE_2_BENCHMARK_DESIGN.md).
+V01's scripted helper trial uploads real attachment IDs and sends both exact PNG byte sequences in one helper request. The actor receives its observations, writes the scripted comparison and completes: three requests total, attributed to vision (one) and master (two). This is controlled software-delivery evidence, not a capability result. Direct/helper live trials use economical explicit Abacus bindings, at most four requests each and no optimization retries; see the [evaluation guide](../../../scripts/eval_harness/README.md).
+
+Browser lifecycle/replay, durable memory, Smart approvals, automatic model ranking and Team architecture retain separate design/repair phases. Provider identity and image delivery are covered by the [Phase 3A packet](../../../docs/PHASE_3_RELIABILITY_DESIGN.md); the larger repeated and isolated benchmark remains pending under the [Phase 2 design](../../../docs/PHASE_2_BENCHMARK_DESIGN.md).

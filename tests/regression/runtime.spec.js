@@ -11,15 +11,15 @@ const reply = (content, extra = {}) => ({ id: crypto.randomUUID(), model: 'phase
 const directive = value => `\`\`\`zeus-directive\n${JSON.stringify(value)}\n\`\`\``;
 
 test.describe('Offline desktop runtime regression', () => {
-  let page;
+  let page,appWorkspace;
   test.beforeAll(async () => {
     if (process.env.ZEUS_OFFLINE_TEST !== '1') throw new Error('Run with the offline regression command');
     await startMockServer();
-    ({ page } = await launchTauri());
+    ({ page, workspace:appWorkspace } = await launchTauri());
     await expect(page.locator('#app-container')).toBeVisible();
     await page.evaluate(async () => {
       const bridge = window.__ZEUS_BRIDGE__, settings = await bridge.getSettings();
-      await bridge.saveSettings({ ...settings, master_model: 'phase1-mock', worker_model: 'None',
+      await bridge.saveSettings({ ...settings, model_bindings:{},master_model: 'phase1-mock', worker_model: 'None',
         verifier_model: 'None', watcher_model: 'None', vision_model: 'None', default_budget_credits: 50000 });
     });
   });
@@ -31,7 +31,7 @@ test.describe('Offline desktop runtime regression', () => {
     const tasks = await page.evaluate(() => window.__ZEUS_BRIDGE__.listTasks());
     const task = tasks[0];
     await page.evaluate(({ task, overrides }) => window.__ZEUS_BRIDGE__.updateTaskSettings(task.id,
-      { ...task, ...overrides }), { task, overrides });
+      { ...task, ...overrides, model_bindings:overrides.model_bindings }), { task, overrides });
     return task.id;
   }
 
@@ -56,12 +56,70 @@ test.describe('Offline desktop runtime regression', () => {
   });
 
   test('Responses SSE usage follows the same accounting contract', async () => {
-    const tid = await newTask({ master_model: 'gpt-5-mock' });
-    queueMockResponse(reply('4', { model: 'gpt-5-mock', usage: { input_tokens: 75, output_tokens: 1186,
+    const tid = await newTask({ master_model: 'gpt-5-nano' });
+    queueMockResponse(reply('4', { model: 'gpt-5-nano', usage: { input_tokens: 75, output_tokens: 1186,
       output_tokens_details: { reasoning_tokens: 1024 }, total_tokens: 1261 } }));
     await page.evaluate(tid => window.__ZEUS_BRIDGE__.sendUserMessage(tid, 'What is 2+2? Answer only the numeral.', crypto.randomUUID()), tid);
     expect((await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskSpend(tid), tid)).spent_credits).toBe(1261);
     expect(getMockRequests().at(-1).url).toContain('/responses');
+  });
+
+  test('a completed conversational answer mentioning future work is not forced into another reply',async()=>{
+    const tid=await newTask(),before=getMockRequests().length;
+    const answer="I'm Zeus. I can help with writing and automation. Hand over a goal and I'll get to work.";
+    queueMockResponse(reply(answer));
+    await page.evaluate(({tid,prompt})=>window.__ZEUS_BRIDGE__.sendUserMessage(tid,prompt,crypto.randomUUID()),{tid,prompt:'Which assistant are you?'});
+    const messages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(messages.filter(message=>message.role==='assistant'&&message.visible).map(message=>message.content)).toEqual([answer]);
+    expect(messages.some(message=>message.content.includes('SYSTEM AUTO-CONTINUATION'))).toBe(false);
+    expect(getMockRequests().length-before).toBe(1);
+  });
+
+  test('a final-answer preamble and summary publish one result and preserve the raw directive',async()=>{
+    const tid=await newTask(),answer='The two matching icons belong to the same game.';
+    queueMockResponse(reply(answer+'\n'+directive({type:'final_answer',final_answer:{summary:answer}})));
+    await page.evaluate(tid=>window.__ZEUS_BRIDGE__.sendUserMessage(tid,'Compare these example labels.',crypto.randomUUID()),tid);
+    const messages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(messages.filter(message=>message.role==='assistant'&&message.visible).map(message=>message.content)).toEqual([answer]);
+    expect(messages.some(message=>message.kind==='directive'&&!message.visible&&message.content.includes('final_answer'))).toBe(true);
+    await page.reload();
+    const visible=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid),tid);
+    expect(visible.filter(message=>message.role==='assistant').map(message=>message.content)).toEqual([answer]);
+  });
+
+  test('rejected tool syntax requires a bounded explicit repair, not a narration-only completion',async()=>{
+    const tid=await newTask();
+    queueMockResponse(reply(directive({type:'write_file',path:'repaired.txt',content:'once'})+'\n'+directive({type:'final_answer',final_answer:{summary:'Not yet executed'}})));
+    queueMockResponse(reply("I'll save the file now."));
+    queueMockResponse(reply(directive({type:'write_file',path:'repaired.txt',content:'once'})));
+    queueMockResponse(reply(directive({type:'final_answer',final_answer:{summary:'Saved once.'}})));
+    await page.evaluate(tid=>window.__ZEUS_BRIDGE__.sendUserMessage(tid,'Save repaired.txt.',crypto.randomUUID()),tid);
+    const messages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(messages.filter(message=>message.role==='assistant'&&message.visible).map(message=>message.content)).toEqual(['Saved once.']);
+    expect(fs.readFileSync(path.join(appWorkspace,'tasks',tid,'workspace','repaired.txt'),'utf8')).toBe('once');
+  });
+
+  test('a standalone future-action announcement stays interim until the file is actually written',async()=>{
+    const tid=await newTask();
+    queueMockResponse(reply('I’ll save the file and verify it now.'));
+    queueMockResponse(reply(directive({type:'write_file',path:'announced.txt',content:'performed'})));
+    queueMockResponse(reply(directive({type:'final_answer',final_answer:{summary:'The file is saved.'}})));
+    await page.evaluate(tid=>window.__ZEUS_BRIDGE__.sendUserMessage(tid,'Write announced.txt.',crypto.randomUUID()),tid);
+    expect(fs.readFileSync(path.join(appWorkspace,'tasks',tid,'workspace','announced.txt'),'utf8')).toBe('performed');
+    const visible=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid),tid);
+    expect(visible.filter(message=>message.role==='assistant').map(message=>message.content)).toEqual(['The file is saved.']);
+  });
+
+  test('unrepaired model syntax returns a bounded error with every raw reply preserved',async()=>{
+    const tid=await newTask(),before=getMockRequests().length;
+    const malformed=directive({type:'list_dir',path:'.'})+'\n'+directive({type:'final_answer',final_answer:{summary:'No action ran'}});
+    for(let index=0;index<4;index++)queueMockResponse(reply(malformed));
+    await expect(page.evaluate(tid=>window.__ZEUS_BRIDGE__.sendUserMessage(tid,'Exercise the malformed protocol control.',crypto.randomUUID()),tid)).rejects.toThrow('MODEL_PROTOCOL_ERROR');
+    const messages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(messages.filter(message=>message.kind==='directive')).toHaveLength(4);
+    expect(messages.filter(message=>message.role==='assistant'&&message.visible)).toHaveLength(0);
+    expect(getMockRequests().length-before).toBe(4);
+    expect((await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskRunState(tid),tid)).status).toBe('failed');
   });
 
   test('successful output without usage remains one unknown request', async () => {
@@ -88,7 +146,7 @@ test.describe('Offline desktop runtime regression', () => {
   });
 
   test('an empty Responses reply also fails without losing usage', async () => {
-    const tid = await newTask({ master_model: 'gpt-5-mock' });
+    const tid = await newTask({ master_model: 'gpt-5-nano' });
     queueMockResponse(reply('', { usage: { input_tokens: 75, output_tokens: 1186,
       output_tokens_details: { reasoning_tokens: 1024 }, total_tokens: 1261 } }));
     const error = await page.evaluate(async tid => {
@@ -118,6 +176,11 @@ test.describe('Offline desktop runtime regression', () => {
     expect(getMockRequests().length - previousRequests).toBe(3);
     const messages = await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskMessages(tid, true), tid);
     expect(messages.some(m => m.content.includes('reached its unit budget'))).toBe(true);
+    expect(messages.every(message=>message.conversation==='master')).toBe(true);
+    const debugMessages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskDebugMessages(tid),tid);
+    expect(debugMessages.some(message=>message.conversation!=='master')).toBe(true);
+    expect(debugMessages.filter(message=>message.conversation==='master')).toEqual(messages);
+    expect(debugMessages.map(message=>message.seq)).toEqual([...debugMessages].map(message=>message.seq).sort((a,b)=>a-b));
   });
 
   test('Stop cancels an in-flight model and preserves unknown usage', async () => {
@@ -149,18 +212,19 @@ test.describe('Offline desktop runtime regression', () => {
     expect(messages.some(m => m.kind === 'directive_result' && m.content.includes('ZEUS_OFFLINE_APPROVAL'))).toBe(true);
   });
 
-  test('the attachment picker persists the supplied bytes and references the saved file', async () => {
-    const tid = await newTask();
-    const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2S8AAAAASUVORK5CYII=', 'base64');
+  test('the attachment picker stores exact bytes with a durable message reference', async () => {
+    const tid = await newTask({master_model:'gpt-5-nano'});
+    const bytes=fs.readFileSync(path.resolve('tests/benchmarks/missions/v1/V01/inputs/7f91c2a0.png'));
     await page.locator('input[type=file]').setInputFiles({ name: 'fixture.png', mimeType: 'image/png', buffer: bytes });
     await expect(page.locator('#attachment-tray')).toContainText('fixture.png');
-    queueMockResponse(reply('attachment-received'));
+    queueMockResponse(reply(directive({type:'final_answer',final_answer:{summary:'attachment-received'}})));
     await page.locator('#chat-input').fill('Acknowledge the attachment receipt.');
     await page.locator('#chat-send-button').click();
     await expect(page.locator('#chat-messages')).toContainText('attachment-received');
-    const saved = path.join(process.env.ZEUS_TEST_WORKSPACE_ROOT, 'tasks', tid, 'workspace/attachments/fixture.png');
-    expect(fs.readFileSync(saved)).toEqual(bytes);
     const messages = await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskMessages(tid, true), tid);
-    expect(messages.some(m => m.role === 'user' && m.content.includes(saved))).toBe(true);
+    const user=messages.find(message=>message.role==='user'&&message.attachments?.length);
+    expect(user.attachments).toHaveLength(1);
+    const saved=path.join(process.env.ZEUS_TEST_WORKSPACE_ROOT,'tasks',tid,'workspace',user.attachments[0].storage_key);
+    expect(fs.readFileSync(saved)).toEqual(bytes);
   });
 });

@@ -35,13 +35,13 @@ test('request ceiling prevents an extra master HTTP request',async()=>{
   expect(getMockRequests()).toHaveLength(1);expect((await app.spend()).evaluation.request_slots_used).toBe(1);
 });
 test('Responses requests receive max_output_tokens rather than the Chat cap field',async()=>{
-  const app=await launch({}, {master_model:'gpt-5-mock'});queueMockResponse(reply('4'));
+  const app=await launch({}, {master_model:'gpt-5-nano'});queueMockResponse(reply('4'));
   expect(await app.send('What is 2+2? Answer only the numeral.')).toBeNull();
   const request=getMockRequests()[0];expect(request.url).toContain('/responses');expect(request.body.max_output_tokens).toBe(4096);expect(request.body.max_tokens).toBeUndefined();
 });
 
 test('Responses follow-up preserves assistant and user history in a provider-valid format',async()=>{
-  const app=await launch({}, {master_model:'gpt-5-mock'});
+  const app=await launch({}, {master_model:'gpt-5-nano'});
   queueMockResponse(reply('4'));expect(await app.send('What is 2+2? Answer only the numeral.')).toBeNull();
   queueMockResponse(reply('4'));expect(await app.send('Repeat the answer, only the numeral.')).toBeNull();
   const requests=getMockRequests();expect(requests).toHaveLength(2);
@@ -58,7 +58,7 @@ test('unknown usage stops later dispatch rather than treating it as free',async(
   expect(getMockRequests()).toHaveLength(1);expect((await app.spend()).evaluation.unknown_requests).toBe(1);
 });
 
-for(const model of ['phase1-mock','gpt-5-mock'])test(`${model}: HTTP error survives effort retry and protocol fallback guards`,async()=>{
+for(const model of ['phase1-mock','gpt-5-nano'])test(`${model}: HTTP error survives effort retry and protocol fallback guards`,async()=>{
   const app=await launch({}, {master_model:model,master_effort:'low'});
   queueMockResponse({_http_status:400,error:{message:'Invalid conversation item; credential test_key'}});
   const error=await app.send('Say hello.');
@@ -66,14 +66,14 @@ for(const model of ['phase1-mock','gpt-5-mock'])test(`${model}: HTTP error survi
   expect(error).not.toContain('EVAL_LIMIT');expect(error).not.toContain('test_key');
   expect(getMockRequests()).toHaveLength(1);
   const body=getMockRequests()[0].body;
-  expect(model==='gpt-5-mock'?body.reasoning.effort:body.reasoning_effort).toBe('low');
+  expect(model==='gpt-5-nano'?body.reasoning.effort:body.reasoning_effort).toBe('low');
   const spend=await app.spend();expect(spend.usage.unknown_requests).toBe(1);
   const debug=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getDebugLog(id),app.task.id);
   expect(debug).toContain('[gateway_error]');expect(debug).toContain('Invalid conversation item');
   expect(debug).not.toContain('test_key');
 });
 test('incomplete Responses retain billed usage and do not trigger a fallback request',async()=>{
-  const app=await launch({}, {master_model:'gpt-5-mock'});
+  const app=await launch({}, {master_model:'gpt-5-nano'});
   queueMockResponse(reply('partial',{_responses_event:'response.incomplete',usage:{input_tokens:5,output_tokens:10,total_tokens:15}}));
   expect(await app.send('Say hello.')).toContain('response.incomplete');
   expect(getMockRequests()).toHaveLength(1);

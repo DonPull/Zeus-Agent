@@ -202,11 +202,11 @@ pub async fn run_worker(
         .replace("{host_family}", std::env::consts::FAMILY);
 
     let mut history = vec![
-        ChatMessage {
+        ChatMessage { images: Vec::new(),
             role: "system".into(),
             content: system_content.clone(),
         },
-        ChatMessage {
+        ChatMessage { images: Vec::new(),
             role: "user".into(),
             content: "Begin executing your assigned objective. Use native directives (read_file, write_file, run_command, list_dir, search_files, http_request) when they fit; use run_action (Python) for browser automation or multi-step scripts.".into(),
         }
@@ -316,7 +316,7 @@ pub async fn run_worker(
                         task_id, &conversation, "assistant", "chat", text.clone(), Some(units), Some(actual_model), false
                     );
                     persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
-                    history.push(ChatMessage { role: "assistant".into(), content: text.clone() });
+                    history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: text.clone() });
                     break Ok(text); // Worker just replied with text, we consider it their final answer.
                 }
                 orchestrator::MasterReply::MalformedDirective { preamble, error, raw } => {
@@ -347,8 +347,8 @@ pub async fn run_worker(
                     );
                     persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
                     
-                    history.push(ChatMessage { role: "assistant".into(), content: raw });
-                    history.push(ChatMessage { role: "user".into(), content: feedback });
+                    history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: raw });
+                    history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
                 }
                 orchestrator::MasterReply::Directive(_preamble, directive, raw) => {
                     if !matches!(directive, Directive::FinalAnswer { .. }) { crate::evaluation::directive()?; }
@@ -370,7 +370,7 @@ pub async fn run_worker(
                         task_id, &conversation, "assistant", "directive", raw.clone(), None, Some(actual_model.clone()), false
                     );
                     persist_and_emit(state, app_handle, task_id, &mut hidden_directive)?;
-                    history.push(ChatMessage { role: "assistant".into(), content: raw });
+                    history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: raw });
 
                     match directive {
                         Directive::FinalAnswer { final_answer } => {
@@ -378,7 +378,7 @@ pub async fn run_worker(
                                 task_id, &conversation, "assistant", "chat", final_answer.summary.clone(), Some(units), Some(actual_model), false
                             );
                             persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
-                            history.push(ChatMessage { role: "assistant".into(), content: final_answer.summary.clone() });
+                            history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: final_answer.summary.clone() });
                             break Ok(final_answer.summary);
                         }
                         Directive::RunAction { action, success_criteria: _ } => {
@@ -411,7 +411,7 @@ pub async fn run_worker(
                                 task_id, &conversation, "user", "directive_result", msg.clone(), None, None, false
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
-                            history.push(ChatMessage { role: "user".into(), content: msg });
+                            history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: msg });
                         }
                         Directive::AskUserForLogin { reason } => {
                             let mut approval = new_message_for_conversation(
@@ -438,7 +438,7 @@ pub async fn run_worker(
                                 task_id, &conversation, "user", "handoff_result", feedback.clone(), None, None, false
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
-                            history.push(ChatMessage { role: "user".into(), content: feedback });
+                            history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
                         }
                         Directive::ReadFile { .. }
                         | Directive::WriteFile { .. }
@@ -465,7 +465,7 @@ pub async fn run_worker(
                                 task_id, &conversation, "user", "directive_result", msg.clone(), None, None, false
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
-                            history.push(ChatMessage { role: "user".into(), content: msg });
+                            history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: msg });
                         }
                         _ => {
                             // Master-only: delegate, memory, action plan, task title.
@@ -474,7 +474,7 @@ pub async fn run_worker(
                                 task_id, &conversation, "user", "directive_result", feedback.clone(), None, None, false
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
-                            history.push(ChatMessage { role: "user".into(), content: feedback });
+                            history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
                         }
                     }
                 }
@@ -506,7 +506,7 @@ pub async fn run_worker(
             .replace("{workspace_evidence}", &workspace_evidence)
             .replace("{tool_evidence}", &tool_evidence);
 
-        let verifier_messages = vec![ChatMessage {
+        let verifier_messages = vec![ChatMessage { images: Vec::new(),
             role: "user".into(),
             content: verifier_prompt,
         }];
@@ -587,7 +587,7 @@ pub async fn run_worker(
                             task_id, &conversation, "user", "chat", retry_msg.clone(), None, None, false
                         );
                         persist_and_emit(state, app_handle, task_id, &mut hidden_retry)?;
-                        history.push(ChatMessage { role: "user".into(), content: retry_msg });
+                        history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: retry_msg });
 
                         retry_count += 1;
                     }
@@ -793,6 +793,7 @@ fn update_worker_event_and_emit(
     };
 
     let msg = MessageDto {
+        attachments:vec![],
         id: msg_id.to_string(),
         task_id: task_id.to_string(),
         conversation: "master".to_string(),

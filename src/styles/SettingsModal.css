@@ -40,6 +40,23 @@
     border-color: #ffcf3f66;
 }
 
+.model-input-settings { display: block; margin-top: 6px; font-size: 12px; color: var(--zeus-text-dim); }
+.model-input-settings summary { display: list-item; cursor: pointer; padding: 4px 0; }
+.model-input-settings label { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.model-input-settings .settings-input { width: 100%; min-width: 0; }
+.settings-model-row { display: grid; grid-template-columns: 70px minmax(0,1fr) 145px; align-items: start; gap: 10px; }
+.settings-model-row > label:first-child { align-self: center; }
+.settings-model-row > div { min-width: 0; }
+.model-picker-value { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.model-picker > button { width: 100%; text-align: left; }
+.model-picker > button svg { flex-shrink: 0; }
+@media(max-width:850px){.settings-model-row {grid-template-columns:65px minmax(0,1fr);}.settings-model-row > select {grid-column:2;width:100%;}}
+.ui-error-panel { padding: 24px; color: var(--zeus-text); background: var(--zeus-panel); border: 1px solid var(--zeus-border); border-radius: 10px; max-width: 680px; margin: auto; }
+.ui-error-panel p { margin: 0; line-height: 1.5; }
+.ui-error-panel details { display: block; }
+.ui-error-panel summary { display: list-item; cursor: pointer; }
+.ui-error-panel pre { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .settings-button {
     background-color: var(--zeus-panel-2);
     border: 2px solid var(--zeus-border);

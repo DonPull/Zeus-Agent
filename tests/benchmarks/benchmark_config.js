@@ -39,18 +39,21 @@ export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}
     config[key] = Number(config[key]);
   }
   config.roles = {};
+  if (!['auto','helper'].includes(config.image_delivery ?? 'auto')) throw new Error('Invalid image delivery');
   for (const role of ROLES) {
-    if (config[`${role}_provider`] && config[`${role}_provider`] !== 'runtime_selected') {
-      throw new Error('Provider overrides are not supported by the current runtime; choose a model and record its actual endpoint');
+    if (config[`${role}_provider`] && !['abacus','gemini','xiaomi','local','runtime_selected'].includes(config[`${role}_provider`])) {
+      throw new Error('Unsupported provider connection');
     }
     const model = config[`${role}_model`] ?? (role === 'vision' ? 'None' : config.default_model);
     const enabled = typeof model === 'string' && model.trim() !== '' && model.toLowerCase() !== 'none';
     config.roles[role] = { enabled, model: enabled ? model.trim() : null,
-      // The current gateway also has a dynamic local-model registry; the ledger
-      // records the actual endpoint. Do not invent provider identity from a name.
-      provider: config[`${role}_provider`] ?? 'runtime_selected',
+      // Connection identity is explicit; legacy resolution is an opt-in adapter.
+      provider: config[`${role}_provider`] ?? 'abacus',
+      protocol:config[`${role}_protocol`] ?? 'auto',image_input:config[`${role}_image_input`] ?? 'unknown',
       effort: config[`${role}_effort`] ?? 'default' };
     if (!['default', 'low', 'medium', 'high'].includes(config.roles[role].effort)) throw new Error(`Invalid ${role} effort`);
+    if (!['auto','chat','responses'].includes(config.roles[role].protocol)) throw new Error(`Invalid ${role} protocol`);
+    if (!['unknown','supported','unsupported'].includes(config.roles[role].image_input)) throw new Error(`Invalid ${role} image capability`);
   }
   if (!config.roles.master.enabled) throw new Error('The master role must be enabled');
   if (config.architecture === 'solo') {
@@ -64,15 +67,19 @@ export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}
   config.configuration_fingerprint = fingerprint({ architecture: config.architecture, roles: config.roles,
     budget_credits: config.budget_credits, browser_mode: config.browser_mode, permission_policy: config.permission_policy,
     turn_timeout_ms: config.turn_timeout_ms, prompt_timeout_ms: config.prompt_timeout_ms,
-    execution_profile:config.execution_profile,evaluation_limits:config.evaluation_limits });
+    execution_profile:config.execution_profile,evaluation_limits:config.evaluation_limits,image_delivery:config.image_delivery??'auto',supervision_policy:config.supervision_policy??'external-review' });
   return config;
 }
 
 export function taskSettings(config) {
-  const settings = { budget_credits: config.budget_credits, browser_mode: config.browser_mode };
+  const settings = { budget_credits: config.budget_credits, browser_mode: config.browser_mode, model_bindings:{},image_delivery:config.image_delivery??'auto' };
   for (const role of ROLES) {
     settings[`${role}_model`] = config.roles[role].enabled ? config.roles[role].model : 'None';
     settings[`${role}_effort`] = config.roles[role].effort;
+    if(config.roles[role].enabled)settings.model_bindings[role]={
+      connection:config.roles[role].provider==='runtime_selected'?'legacy':config.roles[role].provider,
+      model_id:config.roles[role].model,protocol:config.roles[role].protocol,image_input:config.roles[role].image_input,
+      source:config.roles[role].provider==='runtime_selected'?'legacy':'explicit'};
   }
   return settings;
 }
@@ -80,7 +87,7 @@ export function taskSettings(config) {
 export function assertEffectiveSettings(expected, actual) {
   if (!actual) throw new Error('Task configuration could not be read back');
   for (const [key, value] of Object.entries(expected)) {
-    if (actual[key] !== value) throw new Error(`Effective setting mismatch: ${key}; expected ${value}, received ${actual[key]}`);
+    if ((value&&typeof value==='object'?fingerprint(actual[key])!==fingerprint(value):actual[key]!==value)) throw new Error(`Effective setting mismatch: ${key}; expected ${value}, received ${actual[key]}`);
   }
 }
 

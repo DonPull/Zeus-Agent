@@ -4,6 +4,8 @@ import { ModelDropdown, EffortDropdown, isLocalModel, validateTeamConfig, isNone
 
 const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
     const [settings, setSettings] = useState({
+        model_bindings: task.model_bindings || {},
+        image_delivery:task.image_delivery || "auto",
         master_model: task.master_model || "gemini-1.5-pro",
         worker_model: task.worker_model || "gemini-1.5-pro",
         verifier_model: task.verifier_model || "gemini-1.5-pro",
@@ -19,6 +21,7 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
         browser_executable_path: task.browser_executable_path || ""
     });
     const [availableModels, setAvailableModels] = useState([]);
+    const [modelCatalogue, setModelCatalogue] = useState([]);
     const [localModelIds, setLocalModelIds] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -30,7 +33,9 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
     const handleLoadModels = async (silent = false) => {
         if (!silent) setLoadingModels(true);
         try {
-            const models = await bridge.fetchAvailableModels();
+            const catalogue = await bridge.fetchModelCatalogue();
+            setModelCatalogue(catalogue);
+            const models = [...new Set(catalogue.flatMap(entry => entry.models))];
             if (models && models.length > 0) {
                 setAvailableModels(models);
             } else if (!silent) {
@@ -79,6 +84,12 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
 
     const isNone = isNoneModel;
 
+    const setModelBinding = (role, binding) => setSettings(prev => {
+        const model_bindings = {...prev.model_bindings};
+        if(binding) model_bindings[role] = binding; else delete model_bindings[role];
+        return {...prev,model_bindings};
+    });
+
     const updateSetting = (key, value) => {
         setSettings((prev) => ({ ...prev, [key]: value }));
     };
@@ -95,22 +106,22 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
     const teamValidation = validateTeamConfig(settings);
 
     const getDisabledReasonForRole = (role) => (opt) => {
-        if (!isLocalModel(opt, localModelIds)) return null;
+        if (!isLocalModel(opt, localModelIds, settings.model_bindings?.[role]?.connection)) return null;
 
         const otherRolesWithLocal = [];
-        if (role !== "master" && !isNone(settings.master_model) && isLocalModel(settings.master_model, localModelIds)) {
+        if (role !== "master" && !isNone(settings.master_model) && isLocalModel(settings.master_model, localModelIds, settings.model_bindings?.master?.connection)) {
             otherRolesWithLocal.push("Master");
         }
-        if (role !== "worker" && !isNone(settings.worker_model) && isLocalModel(settings.worker_model, localModelIds)) {
+        if (role !== "worker" && !isNone(settings.worker_model) && isLocalModel(settings.worker_model, localModelIds, settings.model_bindings?.worker?.connection)) {
             otherRolesWithLocal.push("Worker");
         }
-        if (role !== "verifier" && !isNone(settings.verifier_model) && isLocalModel(settings.verifier_model, localModelIds)) {
+        if (role !== "verifier" && !isNone(settings.verifier_model) && isLocalModel(settings.verifier_model, localModelIds, settings.model_bindings?.verifier?.connection)) {
             otherRolesWithLocal.push("Verifier");
         }
-        if (role !== "watcher" && !isNone(settings.watcher_model) && isLocalModel(settings.watcher_model, localModelIds)) {
+        if (role !== "watcher" && !isNone(settings.watcher_model) && isLocalModel(settings.watcher_model, localModelIds, settings.model_bindings?.watcher?.connection)) {
             otherRolesWithLocal.push("Watcher");
         }
-        if (role !== "vision" && !isNone(settings.vision_model) && isLocalModel(settings.vision_model, localModelIds)) {
+        if (role !== "vision" && !isNone(settings.vision_model) && isLocalModel(settings.vision_model, localModelIds, settings.model_bindings?.vision?.connection)) {
             otherRolesWithLocal.push("Vision");
         }
 
@@ -147,11 +158,13 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                                 value={settings.master_model}
                                 options={availableModels}
                                 onChange={(v) => updateSetting("master_model", v)}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.master}
+                                onBindingChange={binding=>setModelBinding("master",binding)} role="master"
                                 getDisabledReason={getDisabledReasonForRole("master")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="task-master-effort-select" value={settings.master_effort} onChange={(v) => updateSetting("master_effort", v)} disabled={isLocalModel(settings.master_model, localModelIds) || isNone(settings.master_model)} />
+                        <EffortDropdown id="task-master-effort-select" value={settings.master_effort} onChange={(v) => updateSetting("master_effort", v)} disabled={isLocalModel(settings.master_model, localModelIds, settings.model_bindings?.master?.connection) || isNone(settings.master_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Worker</label>
@@ -161,11 +174,13 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("worker_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.worker}
+                                onBindingChange={binding=>setModelBinding("worker",binding)} role="worker"
                                 getDisabledReason={getDisabledReasonForRole("worker")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="task-worker-effort-select" value={settings.worker_effort} onChange={(v) => updateSetting("worker_effort", v)} disabled={isLocalModel(settings.worker_model, localModelIds) || isNone(settings.worker_model)} />
+                        <EffortDropdown id="task-worker-effort-select" value={settings.worker_effort} onChange={(v) => updateSetting("worker_effort", v)} disabled={isLocalModel(settings.worker_model, localModelIds, settings.model_bindings?.worker?.connection) || isNone(settings.worker_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Verifier</label>
@@ -175,11 +190,13 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("verifier_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.verifier}
+                                onBindingChange={binding=>setModelBinding("verifier",binding)} role="verifier"
                                 getDisabledReason={getDisabledReasonForRole("verifier")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="task-verifier-effort-select" value={settings.verifier_effort} onChange={(v) => updateSetting("verifier_effort", v)} disabled={isLocalModel(settings.verifier_model, localModelIds) || isNone(settings.verifier_model)} />
+                        <EffortDropdown id="task-verifier-effort-select" value={settings.verifier_effort} onChange={(v) => updateSetting("verifier_effort", v)} disabled={isLocalModel(settings.verifier_model, localModelIds, settings.model_bindings?.verifier?.connection) || isNone(settings.verifier_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Watcher</label>
@@ -189,11 +206,13 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("watcher_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.watcher}
+                                onBindingChange={binding=>setModelBinding("watcher",binding)} role="watcher"
                                 getDisabledReason={getDisabledReasonForRole("watcher")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="task-watcher-effort-select" value={settings.watcher_effort} onChange={(v) => updateSetting("watcher_effort", v)} disabled={isLocalModel(settings.watcher_model, localModelIds) || isNone(settings.watcher_model)} />
+                        <EffortDropdown id="task-watcher-effort-select" value={settings.watcher_effort} onChange={(v) => updateSetting("watcher_effort", v)} disabled={isLocalModel(settings.watcher_model, localModelIds, settings.model_bindings?.watcher?.connection) || isNone(settings.watcher_model)} />
                     </div>
                     <div className="settings-model-row align-center gap-10">
                         <label style={{ minWidth: "65px" }}>Vision</label>
@@ -203,12 +222,20 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
                                 options={availableModels}
                                 onChange={(v) => updateSetting("vision_model", v)}
                                 allowNone={true}
+                                catalogue={modelCatalogue} binding={settings.model_bindings?.vision}
+                                onBindingChange={binding=>setModelBinding("vision",binding)} role="vision"
                                 getDisabledReason={getDisabledReasonForRole("vision")}
                                 localModelIds={localModelIds}
                             />
                         </div>
-                        <EffortDropdown id="task-vision-effort-select" value={settings.vision_effort} onChange={(v) => updateSetting("vision_effort", v)} disabled={isLocalModel(settings.vision_model, localModelIds) || isNone(settings.vision_model)} />
+                        <EffortDropdown id="task-vision-effort-select" value={settings.vision_effort} onChange={(v) => updateSetting("vision_effort", v)} disabled={isLocalModel(settings.vision_model, localModelIds, settings.model_bindings?.vision?.connection) || isNone(settings.vision_model)} />
                     </div>
+                    <label className="column gap-4">Image delivery
+                        <select className="settings-input" aria-label="Image delivery" value={settings.image_delivery || "auto"} onChange={event=>updateSetting("image_delivery",event.target.value)}>
+                            <option value="auto">Auto: direct when supported, otherwise configured helper</option>
+                            <option value="helper">Always use configured vision helper</option>
+                        </select>
+                    </label>
                     {!teamValidation.isValid && (
                         <div
                             id="task-settings-delegation-warning"

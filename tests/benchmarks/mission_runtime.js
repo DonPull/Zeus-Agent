@@ -33,11 +33,11 @@ export function exportMission(id, workspace, destination) {
 }
 
 /** No model decides approvals here. Exact scripted choices or external review only. */
-export async function sendWithApprovals(page,taskId,prompt,{signal,decide=async()=>null,onIntervention=()=>{}}={}) {
-  const pending=page.evaluate(async({taskId,prompt})=>{
-    try {const result=await window.__ZEUS_BRIDGE__.sendUserMessage(taskId,prompt,crypto.randomUUID());return {result};}
+export async function sendWithApprovals(page,taskId,prompt,{signal,decide=async()=>null,onIntervention=()=>{},attachmentIds=[]}={}) {
+  const pending=page.evaluate(async({taskId,prompt,attachmentIds})=>{
+    try {const result=await window.__ZEUS_BRIDGE__.sendUserMessage(taskId,prompt,crypto.randomUUID(),attachmentIds);return {result};}
     catch(error){return {error:String(error)};}
-  },{taskId,prompt});
+  },{taskId,prompt,attachmentIds});
   let complete=false;const result=pending.catch(error=>({error:String(error)})).then(value=>{complete=true;return value;});
   const handled=new Map();
   while(!complete){
@@ -76,14 +76,16 @@ export async function sendWithApprovals(page,taskId,prompt,{signal,decide=async(
 export async function runMissionTrial({id, page, appWorkspace, output, experimentId, build, models={},
   evaluationKind='scripted_runtime', executionProfile='reference-offline', scriptedFiles={},
   beforeSend=async()=>{}, decide, stopActor=async()=>{}, portal=null, browserObservation=null, timeoutMs=60000,
-  evaluationLimits=null,expectedProviderOrigin=null}) {
+  evaluationLimits=null,expectedProviderOrigin=null,supervisionPolicy='external-review',afterExecute=async()=>{}}) {
   const {task,dir}=mission(id), trial=crypto.randomUUID(), interventions=[];
   if(!evaluationLimits)throw new Error('Mission trials require an explicit evaluation-limit manifest');
   if(!['scripted_runtime','capability'].includes(evaluationKind))throw new Error('Invalid evaluation kind');
   if(evaluationKind==='capability'&&executionProfile!=='native-supervised')throw new Error('This driver currently supports native supervised diagnostics only');
   if(evaluationKind!=='scripted_runtime'&&Object.keys(scriptedFiles).length)throw new Error('Reference execution trust cannot be attached to a live trial');
   const configuration=resolveBenchmarkConfig({suite:{architecture:'solo',master_model:models.master??'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',
-    vision_model:models.vision??'None',master_effort:models.effort??'default',budget_credits:1000000,
+    vision_model:models.vision??'None',vision_image_input:models.visionImageInput??'unknown',master_image_input:models.masterImageInput??'unknown',
+    master_protocol:models.masterProtocol??'auto',vision_protocol:models.visionProtocol??'auto',vision_effort:models.visionEffort??'default',
+    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,budget_credits:1000000,
     permission_policy:'normal-approvals-fixture-v1',execution_profile:executionProfile,evaluation_limits:evaluationLimits,
     prompt_timeout_ms:timeoutMs,turn_timeout_ms:timeoutMs}});
   const artifactsDir=path.join(output,'artifacts',trial);
@@ -104,13 +106,13 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       await page.locator('.sidebar-task').filter({has:page.locator(`.sidebar-task-title[title="Mission ${id}"]`)}).click();
       context.workspace=path.join(appWorkspace,'tasks',tid,'workspace');
       context.manifest=deployMission(id,context.workspace);
-      let prompt=task.prompt;
+      let prompt=task.prompt;context.attachments=[];
       if(portal)prompt+=`\nTicket portal URL: ${portal.url}`;
       if(id==='V01'){
         for(const name of fs.readdirSync(path.join(dir,'inputs'))){
           const base64=fs.readFileSync(safeFile(context.workspace,name)).toString('base64');
           const saved=await page.evaluate(({tid,name,base64})=>window.__ZEUS_BRIDGE__.saveTaskAttachment(tid,name,base64),{tid,name,base64});
-          prompt+=`\n[Attached Image: '${saved}' (inspect with analyze_visual if needed)]`;
+          context.attachments.push(saved);
         }
       }
       context.prompt=prompt;
@@ -119,7 +121,8 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       await beforeSend(context);
     },
     execute:async context=>{
-      await sendWithApprovals(page,context.task.id,context.prompt,{signal:context.signal,decide,onIntervention:value=>interventions.push(value)});
+      await sendWithApprovals(page,context.task.id,context.prompt,{signal:context.signal,decide,attachmentIds:context.attachments.map(file=>file.id),onIntervention:value=>interventions.push(value)});
+      await afterExecute({...context,recordIntervention:value=>interventions.push(value)});
       const state=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),context.task.id);
       runId=state?.id??null;
       if(state?.status!=='completed')throw new Error(`Agent run ended with ${state?.status??'unknown'}`);

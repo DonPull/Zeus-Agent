@@ -11,10 +11,12 @@ import { listen } from "@tauri-apps/api/event";
 export const createTask  = (title)          => invoke("create_task",       { title });
 export const listTasks   = ()               => invoke("list_tasks");
 export const getTaskMessages = (taskId, includeHidden = false) => invoke("get_task_messages", { taskId, includeHidden });
+export const getTaskDebugMessages = taskId => invoke("get_task_messages", {taskId,includeHidden:true,includeAllConversations:true});
 export const getTaskSpend = (taskId) => invoke("get_task_spend", { taskId });
 export const getTaskRunState = (taskId) => invoke("get_task_run_state", { taskId });
 export const cancelTaskRun = (taskId) => invoke("cancel_task_run", { taskId });
-export const sendUserMessage = (taskId, content, requestId) => invoke("send_user_message", { taskId, content, requestId });
+export const sendUserMessage = (taskId, content, requestId, attachmentIds = []) => invoke("send_user_message", { taskId, content, requestId, attachmentIds });
+export const onUserMessageAccepted = callback => listen("user-message-accepted",event=>callback(event.payload));
 export const resolvePendingApprovals = (taskId, approved, messageId, note = null) => invoke("resolve_pending_approvals", { taskId, approved, messageId, note });
 export const resolveHandoff = (taskId, approved, note, messageId) => invoke("resolve_handoff", { taskId, approved, note, messageId });
 export const resolveChoice = (taskId, choiceId, customText, messageId) => invoke("resolve_choice", { taskId, choiceId, customText, messageId });
@@ -39,10 +41,12 @@ export const hasGeminiApiKey    = ()              => invoke("has_gemini_api_key"
 export const setXiaomiApiKey    = (apiKey)        => invoke("set_xiaomi_api_key",   { apiKey });
 export const hasXiaomiApiKey    = ()              => invoke("has_xiaomi_api_key");
 export const fetchAvailableModels = ()            => invoke("fetch_available_models");
+export const fetchModelCatalogue = ()             => invoke("fetch_model_catalogue");
 export const getLocalModelIds   = ()              => invoke("get_local_model_ids");
 export const testLocalEndpoint  = (endpoint)      => invoke("test_local_endpoint",   { endpoint });
 export const testXiaomiEndpoint = (endpoint)      => invoke("test_xiaomi_endpoint",  { endpoint });
 export const saveTaskAttachment = (taskId, filename, base64Data) => invoke("save_task_attachment", { taskId, filename, base64Data });
+export const getAttachmentPreview = (taskId, attachmentId) => invoke("get_attachment_preview", {taskId,attachmentId});
 export const getDebugLog       = (taskId)         => invoke("get_debug_log", { taskId });
 
 // ---- Gatekeeper ------------------------------------------------------------

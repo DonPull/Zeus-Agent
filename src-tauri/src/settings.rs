@@ -13,6 +13,10 @@ const KEYRING_XIAOMI_USER: &str = "xiaomi-api-key";
 /// (Settings modal -> "Load available models") and adjust if they differ.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AppSettings {
+    #[serde(default = "default_image_delivery")]
+    pub image_delivery: String,
+    #[serde(default)]
+    pub model_bindings: crate::model_routes::Bindings,
     pub master_model: String,
     pub worker_model: String,
     pub verifier_model: String,
@@ -42,6 +46,7 @@ pub struct AppSettings {
 pub fn default_vision_model() -> String {
     "gemini-3.8-flash".into()
 }
+pub fn default_image_delivery() -> String { "auto".into() }
 
 pub fn default_effort() -> String {
     "default".into()
@@ -59,6 +64,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             master_model: "moonshotai/Kimi-K3".into(),
+            model_bindings: crate::model_routes::Bindings::new(),
+            image_delivery: default_image_delivery(),
             worker_model: "deepseek-ai/DeepSeek-V4-Pro".into(),
             verifier_model: "grok-4.5".into(),
             watcher_model: "grok-4.5".into(),
@@ -102,7 +109,21 @@ fn set_setting(connection: &Connection, key: &str, value: &str) -> Result<(), St
 
 pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
     let defaults = AppSettings::default();
+    let stored_bindings = get_setting(connection, "model_bindings")?;
+    let mut bindings: crate::model_routes::Bindings = stored_bindings.as_deref().map(serde_json::from_str).transpose()
+        .map_err(|e| format!("MODEL_ROUTE: invalid saved defaults: {e}"))?.unwrap_or_default();
+    for role in crate::model_routes::ROLES {
+        let stored_model = get_setting(connection, &format!("{role}_model"))?;
+        let default_model = match role { "master"=>&defaults.master_model,"worker"=>&defaults.worker_model,"verifier"=>&defaults.verifier_model,"watcher"=>&defaults.watcher_model,_=>&defaults.vision_model };
+        let model = stored_model.as_deref().unwrap_or(default_model);
+        if model.is_empty() || model.eq_ignore_ascii_case("none") {bindings.remove(role);continue;}
+        if !model.is_empty() && !model.eq_ignore_ascii_case("none") && !bindings.contains_key(role) {
+            bindings.insert(role.into(),crate::model_routes::ModelRef::new(if stored_model.is_some() {"legacy"} else {"abacus"},model,if stored_model.is_some() {"legacy"} else {"explicit"}));
+        }
+    }
     Ok(AppSettings {
+        image_delivery: get_setting(connection,"image_delivery")?.unwrap_or_else(default_image_delivery),
+        model_bindings: bindings,
         master_model: get_setting(connection, "master_model")?.unwrap_or_else(|| defaults.master_model),
         worker_model: get_setting(connection, "worker_model")?.unwrap_or_else(|| defaults.worker_model),
         verifier_model: get_setting(connection, "verifier_model")?.unwrap_or_else(|| defaults.verifier_model),
@@ -134,6 +155,30 @@ pub fn get_settings(state: State<AppState>) -> Result<AppSettings, String> {
 }
 
 pub fn write_settings(connection: &Connection, settings: &AppSettings) -> Result<(), String> {
+    let transaction = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    write_settings_inner(&transaction,settings)?;
+    transaction.commit().map_err(|e| e.to_string())
+}
+fn write_settings_inner(connection: &Connection, settings: &AppSettings) -> Result<(), String> {
+    if !["auto","helper"].contains(&settings.image_delivery.as_str()){return Err("ATTACHMENT_MODE: expected auto or helper".into());}
+    set_setting(connection,"image_delivery",&settings.image_delivery)?;
+    for (role, binding) in &settings.model_bindings {
+        let model = match role.as_str() {"master"=>&settings.master_model,"worker"=>&settings.worker_model,"verifier"=>&settings.verifier_model,"watcher"=>&settings.watcher_model,"vision"=>&settings.vision_model,_=>return Err("MODEL_ROUTE: invalid role".into())};
+        if model.is_empty() || model.eq_ignore_ascii_case("none") { continue; }
+        binding.validate()?;
+        if binding.model_id != *model { return Err(format!("MODEL_ROUTE: stale {role} binding")); }
+    }
+    let previous = read_settings(connection)?;
+    let mut bindings = settings.model_bindings.clone();
+    for role in crate::model_routes::ROLES {
+        let model = match role {"master"=>&settings.master_model,"worker"=>&settings.worker_model,"verifier"=>&settings.verifier_model,"watcher"=>&settings.watcher_model,_=>&settings.vision_model};
+        if model.is_empty() || model.eq_ignore_ascii_case("none") { bindings.remove(role); }
+        else if !bindings.contains_key(role) {
+            bindings.insert(role.into(),previous.model_bindings.get(role).filter(|binding|binding.model_id==*model).cloned()
+                .unwrap_or_else(||crate::model_routes::ModelRef::new("abacus",model,"explicit")));
+        }
+    }
+    set_setting(connection, "model_bindings", &serde_json::to_string(&bindings).map_err(|e| e.to_string())?)?;
     set_setting(connection, "master_model", &settings.master_model)?;
     set_setting(connection, "worker_model", &settings.worker_model)?;
     set_setting(connection, "verifier_model", &settings.verifier_model)?;
@@ -231,6 +276,7 @@ pub fn set_gemini_api_key(api_key: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn has_gemini_api_key() -> bool {
+    if std::env::var("ZEUS_OFFLINE_TEST").as_deref()==Ok("1"){return false;}
     load_gemini_api_key().is_ok()
 }
 
@@ -257,6 +303,7 @@ pub fn set_xiaomi_api_key(api_key: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn has_xiaomi_api_key() -> bool {
+    if std::env::var("ZEUS_OFFLINE_TEST").as_deref()==Ok("1"){return false;}
     load_xiaomi_api_key().is_ok()
 }
 

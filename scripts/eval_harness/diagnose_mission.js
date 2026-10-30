@@ -5,26 +5,39 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {mission} from '../../tests/benchmarks/mission_kit.js';
-import {runMissionTrial} from '../../tests/benchmarks/mission_runtime.js';
+import {runMissionTrial,sendWithApprovals} from '../../tests/benchmarks/mission_runtime.js';
 import {launchTauri,stopTauri} from '../../tests/e2e/testUtils.js';
 import {atomicWrite,writeDashboard,appendScore,buildScoreRecord,loadScores} from '../../tests/benchmarks/score_recorder.js';
 import {repoRoot,sourceBuild} from './runner.js';
+import {createSyntheticSupervisor} from './synthetic_supervisor.js';
 
-const args=process.argv.slice(2);let live=false,model='gpt-5-nano',id='D01';
+const args=process.argv.slice(2);let live=false,model='gpt-6-luna',id='D01',delivery='direct',visionModel=null,supervision='synthetic',effort='medium',protocol='responses',approvalControl=false,followups=false;
 for(let index=0;index<args.length;index++){
   if(args[index]==='--live')live=true;
   else if(args[index]==='--dry-run')live=false;
-  else if(['--model','--mission'].includes(args[index])){
+  else if(args[index]==='--approval-control')approvalControl=true;
+  else if(args[index]==='--followups')followups=true;
+  else if(['--model','--mission','--delivery','--vision-model','--supervision','--effort','--protocol'].includes(args[index])){
     const key=args[index],value=args[++index];if(!value||value.startsWith('--'))throw new Error(`Missing value for ${key}`);
-    if(key==='--model')model=value;else id=value;
+    if(key==='--model')model=value;else if(key==='--mission')id=value;else if(key==='--delivery')delivery=value;else if(key==='--vision-model')visionModel=value;
+    else if(key==='--supervision')supervision=value;else if(key==='--effort')effort=value;else protocol=value;
   }else throw new Error(`Unknown argument: ${args[index]}`);
 }
 // Executable submissions require a later isolated grader; this first diagnostic
 // uses data-only grading and never executes an agent output in the evaluator.
-if(id!=='D01')throw new Error('The initial native diagnostic is limited to D01; do not run a model matrix through this command');
-const limits={max_requests:6,max_tokens:100000,max_in_flight:1,max_output_tokens:4096,max_directives:12,wall_time_ms:180000};
+if(!['D01','V01'].includes(id))throw new Error('Native diagnostics are limited to the data-only D01/V01 graders');
+if(!['direct','helper'].includes(delivery))throw new Error('Delivery must be direct or helper');
+if(!['synthetic','manual'].includes(supervision)||!['low','medium','high'].includes(effort)||!['auto','chat','responses'].includes(protocol))throw new Error('Invalid supervision, effort or protocol');
+if(followups&&id!=='V01')throw new Error('Follow-up diagnostic is defined only for V01');
+const helper=id==='V01'&&delivery==='helper'?(visionModel??model):null;
+// The combined V01 variant contains the artifact mission plus two separate
+// reinspection turns; the original 12-request allowance ended before its last
+// answer. Keep that capped result, and label this larger operating envelope.
+const limits={max_requests:followups?18:id==='V01'?8:10,max_tokens:1000000,max_in_flight:1,max_output_tokens:8192,max_directives:24,wall_time_ms:300000};
 const experiment=`native-diagnostic-${crypto.randomUUID()}`,output=path.join(repoRoot,'.zeus/evaluations',experiment);
 const manifest={experiment_id:experiment,mission:id,task_version:mission(id).task.version,model,provider:'abacus-routellm',
+  image_delivery:id==='V01'?delivery:null,vision_model:helper,
+  supervision,effort,protocol,approval_control:approvalControl,followups,
   execution_profile:'native-supervised',permission_policy:'normal-approvals-fixture-v1',limits,
   trial_retries:0,attempts:1,provider_credits:null,warning:'Native host permissions; independently graded outcome, partial authorization coverage. Not an isolated baseline.'};
 if(!live){console.log(JSON.stringify({dry_run:true,...manifest},null,2));process.exit(0);}
@@ -52,19 +65,50 @@ try{
   // Query the supported catalogue through the app; never read/print API keys.
   const preflight=await app.page.evaluate(()=>Promise.race([
     (async()=>({key:await window.__ZEUS_BRIDGE__.hasApiKey(),
-      models:await window.__ZEUS_BRIDGE__.fetchAvailableModels(),local:await window.__ZEUS_BRIDGE__.getLocalModelIds()}))(),
+      catalogue:await window.__ZEUS_BRIDGE__.fetchModelCatalogue()}))(),
     new Promise((_,reject)=>setTimeout(()=>reject(new Error('Provider catalogue preflight timed out')),15000)),
   ]));
   if(!preflight.key)throw new Error('No RouteLLM credential is configured; refusing implicit local fallback');
-  if(!preflight.models.includes(model))throw new Error(`Requested model is absent from the supported catalogue: ${model}`);
-  if(preflight.local.includes(model))throw new Error('Model ID is registered as local; refusing provider ambiguity');
+  const catalogue=preflight.catalogue.find(entry=>entry.connection==='abacus');
+  if(catalogue?.status!=='available')throw new Error('Abacus model catalogue is unavailable');
+  for(const selected of [model,helper].filter(Boolean))if(!catalogue.models.includes(selected))throw new Error(`Requested model is absent from the Abacus catalogue: ${selected}`);
   manifest.catalogue_checked_at=new Date().toISOString();
   atomicWrite(path.join(output,'experiment.json'),JSON.stringify(manifest,null,2));
   console.log(JSON.stringify({diagnostic_started:experiment,output,model,cdp:app.cdpUrl,limits},null,2));
+  let supervisor;
   const result=await runMissionTrial({id,page:app.page,appWorkspace:app.workspace,output,experimentId:experiment,build:manifest.build,
-    models:{master:model,effort:'low'},evaluationKind:'capability',executionProfile:'native-supervised',timeoutMs:180000,
+    models:{master:model,vision:helper??'None',delivery:helper?'helper':'auto',effort,visionEffort:effort,
+      masterProtocol:protocol,visionProtocol:protocol,masterImageInput:id==='V01'?'supported':'unknown',visionImageInput:helper?'supported':'unknown'},
+    supervisionPolicy:(supervision==='synthetic'?'external-synthetic-supervisor-v1':'external-review')+(approvalControl?'+ask-artifact':'')+(followups?'+image-followups-v1':''),
+    beforeSend:async context=>{supervisor=createSyntheticSupervisor({taskId:context.task.id,workspace:context.workspace,
+      files:[...fs.readdirSync(path.join(mission(id).dir,'inputs')),...mission(id).task.artifacts]});
+      if(approvalControl)await app.page.evaluate(({tid,name})=>window.__ZEUS_BRIDGE__.addFilePermission(tid,name,'ask','write','exact'),{tid:context.task.id,name:mission(id).task.artifacts[0]});},
+    afterExecute:async context=>{
+      if(!followups)return;
+      const prompts=[
+        'Without another upload, use analyze_visual to inspect the original BEFORE screenshot again. Reply only with JSON containing order_id and currency.',
+        'Now inspect the original AFTER screenshot again with analyze_visual, without reattaching it. Reply only with JSON containing order_id and currency.',
+      ];
+      const expected=JSON.parse(fs.readFileSync(path.join(mission(id).dir,'reference/comparison.json'),'utf8'));
+      for(const prompt of prompts){
+        await sendWithApprovals(app.page,context.task.id,prompt,{decide:supervisor,signal:context.signal,onIntervention:context.recordIntervention});
+        const visible=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id),context.task.id);
+        const text=visible.filter(message=>message.role==='assistant'&&message.kind==='chat').at(-1)?.content??'';
+        const observed=JSON.parse(text.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+        if(observed.order_id!==expected.order_id||observed.currency!==expected.currency)throw new Error('Stored-image follow-up facts did not match the original fixture');
+      }
+      const spend=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskSpend(id),context.task.id);
+      if((spend.usage.requests_by_role.vision??0)<2)throw new Error('Follow-up trial did not perform both requested image inspections');
+      context.checks.push({id:'stored_image_followups',passed:true,evidence:'Two text-only follow-ups re-inspected original attachment handles and returned the correct order/currency.'});
+    },
+    evaluationKind:'capability',executionProfile:'native-supervised',timeoutMs:limits.wall_time_ms,
     evaluationLimits:limits,expectedProviderOrigin:'https://routellm.abacus.ai',stopActor:stopTauri,
     decide:async card=>{
+      if(supervision==='synthetic'){
+        const decision=await supervisor(card);
+        console.log(JSON.stringify({supervisor_decision:{id:card.id,type:card.body.blocked_directive?.type,...decision}}));
+        return decision;
+      }
       console.log(JSON.stringify({approval_pending:{id:card.id,task_id:card.task_id,kind:card.kind,
         summary:card.body.summary,blocked_directive:card.body.blocked_directive},instruction:'Review in the separate Zeus window; no automatic approval is applied.'},null,2));
       return {wait_for_user:true};

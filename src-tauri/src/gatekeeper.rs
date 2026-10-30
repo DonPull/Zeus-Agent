@@ -205,8 +205,8 @@ pub async fn negotiate_watcher_policy(
     );
 
     let messages = vec![
-        GatewayMsg { role: "system".into(), content: sys_prompt },
-        GatewayMsg { role: "user".into(), content: prompt },
+        GatewayMsg { images: Vec::new(), role: "system".into(), content: sys_prompt },
+        GatewayMsg { images: Vec::new(), role: "user".into(), content: prompt },
     ];
 
     let (text, _, _, _) = crate::accounting::scope(&state.db, if scope == "global" { None } else { Some(scope.as_str()) }, "policy_editor",
@@ -234,120 +234,55 @@ impl std::str::FromStr for PermissionVerdict {
 }
 
 pub fn evaluate_file_permission(
-    conn: &Connection,
-    task_id: &str,
-    target_path: &str,
-    permission_type: &str,
+    conn: &Connection, task_id: &str, target_path: &str, permission_type: &str,
 ) -> Result<PermissionVerdict, String> {
-    // Whitelist: automatically allow read/write/delete if target_path is inside the task's workspace.
-    if let Ok(workspace_dir) = crate::utils::workspace_root() {
-        let task_workspace = workspace_dir.join("tasks").join(task_id).join("workspace");
-        if let Ok(canon_workspace) = task_workspace.canonicalize() {
-            let canon_workspace_str = canon_workspace.to_string_lossy().replace("\\", "/").replace("\\\\?\\", "");
-            let target_norm = target_path.replace("\\", "/").replace("\\\\?\\", "");
-            if target_norm.starts_with(&canon_workspace_str) {
-                return Ok(PermissionVerdict::Allow);
-            }
-        } else {
-            // If the workspace directory does not exist yet, we can check prefix directly without canonicalizing.
-            let task_workspace_str = task_workspace.to_string_lossy().replace("\\", "/").replace("\\\\?\\", "");
-            let target_norm = target_path.replace("\\", "/").replace("\\\\?\\", "");
-            if target_norm.starts_with(&task_workspace_str) {
-                return Ok(PermissionVerdict::Allow);
-            }
+    let workspace=crate::utils::workspace_root()?.join("tasks").join(task_id).join("workspace");
+    evaluate_file_permission_in_workspace(conn,task_id,target_path,permission_type,&workspace)
+}
+fn evaluate_file_permission_in_workspace(
+    conn:&Connection,task_id:&str,target_path:&str,permission_type:&str,workspace:&std::path::Path,
+)->Result<PermissionVerdict,String>{
+    let target=match crate::file_paths::resolve(&workspace,target_path){
+        Ok(target)=>target,
+        Err(error)=>{crate::logger::log(task_id,"gatekeeper",&error);return Ok(PermissionVerdict::Ask);}
+    };
+    let mut stmt=conn.prepare("SELECT scope,path,action,match_type FROM permissions WHERE scope IN ('global',?1) AND permission_type=?2").map_err(|e|e.to_string())?;
+    let rows=stmt.query_map(params![task_id,permission_type],|row|Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?,row.get::<_,String>(3)?))).map_err(|e|e.to_string())?;
+    let mut best_match=None;
+    for row in rows {
+        let (scope,rule,action,kind)=row.map_err(|e|e.to_string())?;
+        let verdict=action.parse::<PermissionVerdict>().unwrap_or(PermissionVerdict::Ask);
+        let matched=if kind=="regex" {
+            regex::RegexBuilder::new(&rule).case_insensitive(cfg!(windows)).build().ok()
+                .is_some_and(|regex|regex.is_match(&target.resolved)||regex.is_match(&target.lexical)||regex.is_match(target_path))
+        }else if let Ok(identity)=crate::file_paths::resolve(&workspace,&rule) {
+            let matches=|root:&str,path:&str|if kind=="exact"{root==path}else{crate::file_paths::within(root,path)};
+            matches(&identity.resolved,&target.resolved)||matches(&identity.lexical,&target.lexical)
+        }else{false};
+        if matched {
+            let specificity=rule.len()+if kind=="exact"{1000}else{0};
+            update_best_match_logging(&mut best_match,verdict,specificity,scope!="global",&rule,&action);
         }
     }
-
-    let is_local = conn.query_row(
-        "SELECT master_model FROM tasks WHERE id = ?1",
-        rusqlite::params![task_id],
-        |row| row.get::<_, String>(0)
-    ).map(|m| crate::gateway::is_local_model(&m)).unwrap_or(false);
-
-    let auto_allow_mode = is_local
-        || std::env::var("ZEUS_AUTO_ALLOW_NEW_FILES").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
-        || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
-
+    // Preserve existing task/global specificity semantics, but resolve explicit
+    // policy before any automatic workspace/local/evaluation allowance.
+    if let Some((verdict,_,_,_,_))=best_match{return Ok(verdict);}
+    if !target.physically_resolved{return Ok(PermissionVerdict::Ask);}
+    let workspace_identity=crate::file_paths::resolve(workspace,&workspace.to_string_lossy())?;
+    if workspace_identity.physically_resolved&&!crate::file_paths::is_reparse(&workspace)&&crate::file_paths::within(&workspace_identity.resolved,&target.resolved){
+        return Ok(PermissionVerdict::Allow);
+    }
+    let auto_allow_mode=crate::model_routes::task_is_local(conn,task_id,"master")
+        ||std::env::var("ZEUS_AUTO_ALLOW_NEW_FILES").map(|v|v=="1"||v.eq_ignore_ascii_case("true")).unwrap_or(false)
+        ||std::env::var("ZEUS_EVAL_MODE").map(|v|v=="1"||v.eq_ignore_ascii_case("true")).unwrap_or(false);
     if auto_allow_mode {
-        // Check if file was created by the agent in this session
-        if is_session_created_path(target_path) {
-            return Ok(PermissionVerdict::Allow);
+        if is_session_created_path(&target.resolved){return Ok(PermissionVerdict::Allow);}
+        if permission_type=="read" {
+            let sensitive=["c:/windows","c:/program files","c:/programdata"].iter().any(|root|crate::file_paths::within(root,&target.resolved));
+            if !sensitive{return Ok(PermissionVerdict::Allow);}
         }
-
-        // Check read permissions (open across normal user drives, protected for system files)
-        if permission_type == "read" {
-            let norm = target_path.replace("\\", "/").to_lowercase();
-            let is_sensitive_os = norm.starts_with("c:/windows") || norm.starts_with("c:/program files") || norm.starts_with("c:/programdata");
-            if !is_sensitive_os {
-                return Ok(PermissionVerdict::Allow);
-            }
-        }
-
-        // Check write permissions for brand new files (auto-allow creation & track path when in eval mode)
-        if permission_type == "write" {
-            let p = std::path::Path::new(target_path);
-            if !p.exists() {
-                register_session_created_path(target_path);
-                return Ok(PermissionVerdict::Allow);
-            }
-        }
+        if permission_type=="write"&&!target.path.exists(){register_session_created_path(&target.resolved);return Ok(PermissionVerdict::Allow);}
     }
-
-    let mut stmt = conn
-        .prepare("SELECT scope, path as rule_path, action, match_type FROM permissions WHERE scope IN ('global', ?1) AND permission_type = ?2")
-        .map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-    let rows = stmt
-        .query_map(params![task_id, permission_type], |row| {
-            let scope: String = row.get(0)?;
-            let rule_path: String = row.get(1)?;
-            let action: String = row.get(2)?;
-            let match_type: String = row.get(3)?;
-            Ok((scope, rule_path, action, match_type))
-        })
-        .map_err(|e| format!("Database query error: {}", e))?;
-
-    let mut best_match: Option<(PermissionVerdict, usize, bool, String, String)> = None;
-
-    let target_path_norm = target_path.replace("\\", "/");
-
-    for row_res in rows {
-        if let Ok((scope, rule_path, action, match_type)) = row_res {
-            let verdict = action.parse::<PermissionVerdict>().unwrap_or(PermissionVerdict::Ask);
-            let is_task_scope = scope != "global";
-            let rule_path_norm = rule_path.replace("\\", "/");
-            
-            if match_type == "exact" {
-                if target_path_norm == rule_path_norm {
-                    let specificity = rule_path_norm.len() + 1000;
-                    if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
-                        crate::logger::log(task_id, "gatekeeper", &format!("Matched exact file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
-                    }
-                }
-            } else if match_type == "regex" {
-                if let Ok(re) = regex::Regex::new(&rule_path) {
-                    if re.is_match(&target_path_norm) || re.is_match(target_path) {
-                        let specificity = rule_path.len();
-                        if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
-                            crate::logger::log(task_id, "gatekeeper", &format!("Matched regex file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
-                        }
-                    }
-                }
-            } else {
-                if target_path_norm.starts_with(&rule_path_norm) {
-                    let specificity = rule_path_norm.len();
-                    if update_best_match_logging(&mut best_match, verdict, specificity, is_task_scope, &rule_path, &action) {
-                        crate::logger::log(task_id, "gatekeeper", &format!("Matched prefix file rule `{}` ({}) with specificity {}", rule_path, scope, specificity));
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some((verdict, _, _, _, _)) = best_match {
-        return Ok(verdict);
-    }
-
     Ok(PermissionVerdict::Ask)
 }
 
@@ -563,11 +498,7 @@ pub fn evaluate_command_action(
     }
 
     // Fallback: Safe developer command prefixes in eval/benchmark mode or local model mode
-    let is_local = conn.query_row(
-        "SELECT master_model FROM tasks WHERE id = ?1",
-        rusqlite::params![task_id],
-        |row| row.get::<_, String>(0)
-    ).map(|m| crate::gateway::is_local_model(&m)).unwrap_or(false);
+    let is_local = crate::model_routes::task_is_local(conn,task_id,"master");
 
     let auto_allow_commands = is_local
         || std::env::var("ZEUS_AUTO_ALLOW_COMMANDS").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
@@ -747,8 +678,8 @@ pub async fn evaluate_network_action(
     let action_desc = format!("Action: HTTP {}\nURL: {}\nBody: {}", method, url, body.unwrap_or("None"));
 
     let messages = vec![
-        GatewayMsg { role: "system".into(), content: sys_prompt },
-        GatewayMsg { role: "user".into(), content: action_desc },
+        GatewayMsg { images: Vec::new(), role: "system".into(), content: sys_prompt },
+        GatewayMsg { images: Vec::new(), role: "user".into(), content: action_desc },
     ];
 
     let (text, _, _, _) = crate::accounting::scope(&state.db, Some(task_id), "watcher",
@@ -862,8 +793,8 @@ pub async fn evaluate_browser_action(
     };
 
     let messages = vec![
-        GatewayMsg { role: "system".into(), content: sys_prompt },
-        GatewayMsg { role: "user".into(), content: action_desc.clone() },
+        GatewayMsg { images: Vec::new(), role: "system".into(), content: sys_prompt },
+        GatewayMsg { images: Vec::new(), role: "user".into(), content: action_desc.clone() },
     ];
 
     let (text, _, _, _) = crate::accounting::scope(&state.db, Some(task_id), "watcher",
@@ -1117,6 +1048,34 @@ mod tests {
         for (cmd, expected) in more_commands {
             assert_eq!(check("task-2", cmd), expected);
         }
+    }
+
+    #[test]
+    fn workspace_containment_never_overrides_explicit_policy_or_matches_siblings() {
+        let conn=setup_test_db();
+        let root=std::env::temp_dir().join(format!("zeus-policy-{}",crate::db::new_id()));
+        let workspace=root.join("workspace");std::fs::create_dir_all(&workspace).unwrap();
+        let check=|path:&str,kind:&str|evaluate_file_permission_in_workspace(&conn,"task-1",path,kind,&workspace).unwrap();
+        for kind in ["read","write","delete"]{assert_eq!(check("nested/new.json",kind),PermissionVerdict::Allow);}
+        assert_eq!(check(&workspace.join("new.json").to_string_lossy(),"write"),PermissionVerdict::Allow);
+        assert_eq!(check("../outside.json","write"),PermissionVerdict::Ask);
+        assert_eq!(check(&root.join("workspace-other/new.json").to_string_lossy(),"write"),PermissionVerdict::Ask);
+        conn.execute("INSERT INTO permissions(id,scope,path,action,permission_type,match_type,created_at,updated_at) VALUES('workspace-deny','task-1','private','deny','read','prefix','now','now')",[]).unwrap();
+        assert_eq!(check("private/key.txt","read"),PermissionVerdict::Deny);
+        assert_eq!(check("private-other/key.txt","read"),PermissionVerdict::Allow);
+        assert_eq!(check("private/key.txt","write"),PermissionVerdict::Allow);
+        #[cfg(windows)]{
+            assert_eq!(check("PRIVATE/key.txt","read"),PermissionVerdict::Deny);
+            assert_eq!(check(&workspace.canonicalize().unwrap().join("private/key.txt").to_string_lossy(),"read"),PermissionVerdict::Deny);
+            assert_eq!(check("C:relative.txt","write"),PermissionVerdict::Ask);
+            assert_eq!(check("private./key.txt","read"),PermissionVerdict::Ask);
+            let network=r"\\zeus-invalid.example\share\private\key.txt";
+            assert_eq!(check(network,"read"),PermissionVerdict::Ask);
+            conn.execute("INSERT INTO permissions(id,scope,path,action,permission_type,match_type,created_at,updated_at) VALUES('network-deny','global',?1,'deny','read','prefix','now','now')",[r"\\zeus-invalid.example\share\private"]).unwrap();
+            assert_eq!(check(network,"read"),PermissionVerdict::Deny);
+            assert_eq!(check(r"\\zeus-invalid.example\share\private\..\other.txt","read"),PermissionVerdict::Ask);
+        }
+        std::fs::remove_dir(workspace).unwrap();std::fs::remove_dir(root).unwrap();
     }
 
     #[test]

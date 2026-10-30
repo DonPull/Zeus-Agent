@@ -10,6 +10,7 @@ import * as bridge from "./bridge";
 import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import SettingsModal from "./components/SettingsModal";
+import UiErrorBoundary from "./components/UiErrorBoundary";
 import TaskSettingsModal from "./components/TaskSettingsModal";
 import BrowserSessionReplayModal from "./components/BrowserSessionReplayModal";
 import BrowserLiveViewModal from "./components/BrowserLiveViewModal";
@@ -390,10 +391,6 @@ function App() {
         // events are already guarded using the task ID.
         const taskAtSend = activeTaskId;
 
-        if (typeof overrideContent !== "string") {
-            setInputValue("");
-            setAttachments([]);
-        }
         setSending(true);
         setSendingTaskId(taskAtSend);
         setThinkingStage("connecting");
@@ -405,34 +402,30 @@ function App() {
         streamFlushedRef.current = false;
         setDirectiveMode(false);
 
+        let unlistenAccepted=null;
+        const originalDraft=inputValue;
         try {
-            let content = rawContent;
-            if (pendingAttachments.length > 0) {
-                const notes = [];
-                for (const att of pendingAttachments) {
-                    try {
-                        const savedPath = await bridge.saveTaskAttachment(taskAtSend, att.name, att.base64Data);
-                        if (att.isImage) {
-                            notes.push(`[Attached Image: '${savedPath}' (inspect with analyze_visual if needed)]`);
-                        } else {
-                            notes.push(`[Attached File: '${savedPath}']`);
-                        }
-                    } catch (uploadErr) {
-                        console.error("Failed to save attachment:", uploadErr);
-                        showToast(`Failed to upload attachment ${att.name}: ${uploadErr}`, "error", 5000);
-                    }
-                }
-                if (notes.length > 0) {
-                    content = content ? `${content}\n\n${notes.join("\n")}` : notes.join("\n");
+            const stored=[];
+            for(const att of pendingAttachments){
+                try {
+                    const file=att.saved || await bridge.saveTaskAttachment(taskAtSend,att.name,att.base64Data);
+                    stored.push(file);
+                    setAttachments(previous=>previous.map(item=>item.id===att.id?{...item,saved:file,error:null}:item));
+                } catch(error) {
+                    setAttachments(previous=>previous.map(item=>item.id===att.id?{...item,error:String(error)}:item));
+                    throw new Error(`Attachment ${att.name} was not sent: ${error}. Retry or remove it to continue.`);
                 }
             }
-
-            const requestId = createRequestId();
-            const result = await bridge.sendUserMessage(
-                taskAtSend,
-                content,
-                requestId,
-            );
+            const requestId=createRequestId();
+            unlistenAccepted=await bridge.onUserMessageAccepted(payload=>{
+                if(payload.task_id!==taskAtSend||payload.request_id!==requestId)return;
+                if(typeof overrideContent!=="string"&&activeTaskIdRef.current===taskAtSend){
+                    setInputValue(current=>current===originalDraft?"":current);
+                    const sentIds=new Set(pendingAttachments.map(file=>file.id));
+                    setAttachments(previous=>previous.filter(file=>!sentIds.has(file.id)));
+                }
+            });
+            const result=await bridge.sendUserMessage(taskAtSend,rawContent,requestId,stored.map(file=>file.id));
             if (activeTaskIdRef.current === taskAtSend) {
                 setSpend({ spent_credits: result.spent_credits, budget_credits: result.budget_credits });
                 // Reconcile drops the optimistic echo and guarantees the list
@@ -483,6 +476,7 @@ function App() {
                 if (activeTaskIdRef.current === taskAtSend) await reconcileMessages(taskAtSend);
             }
         } finally {
+            if(unlistenAccepted)unlistenAccepted();
             sendLockRef.current = false;
             setSending(false);
             setSendingTaskId(null);
@@ -491,6 +485,14 @@ function App() {
                 await reconcileRunState(taskAtSend);
             }
         }
+    };
+
+    const handleReuseAttachment = file => {
+        if(file.task_id!==activeTaskIdRef.current)return;
+        setAttachments(previous=>previous.some(item=>item.saved?.id===file.id)?previous:[...previous,{
+            id:file.id,name:file.filename,size:file.byte_count,isImage:file.mime_type.startsWith("image/"),
+            previewUrl:file.previewUrl,saved:file,
+        }]);
     };
 
     const handleStop = async () => {
@@ -796,7 +798,9 @@ function playNotificationChime(type = "complete") {
             )}
 
             <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} closeOnHover={false}>
-                <SettingsModal onClose={() => setIsSettingsOpen(false)} onToast={showToast} />
+                <UiErrorBoundary onRecover={() => setIsSettingsOpen(false)}>
+                    <SettingsModal onClose={() => setIsSettingsOpen(false)} onToast={showToast} />
+                </UiErrorBoundary>
             </Modal>
 
             <Modal isOpen={isTaskPermsOpen} onClose={() => setIsTaskPermsOpen(false)} closeOnHover={false}>
@@ -812,7 +816,7 @@ function playNotificationChime(type = "complete") {
 
             <Modal isOpen={isTaskSettingsOpen} onClose={() => setIsTaskSettingsOpen(false)} closeOnHover={false}>
                 {activeTask && (
-                    <TaskSettingsModal
+                    <UiErrorBoundary onRecover={() => setIsTaskSettingsOpen(false)}><TaskSettingsModal
                         task={activeTask}
                         onClose={() => setIsTaskSettingsOpen(false)}
                         onToast={showToast}
@@ -821,7 +825,7 @@ function playNotificationChime(type = "complete") {
                             setIsTaskSettingsOpen(false);
                             showToast("Task settings saved", "success", 3000);
                         }}
-                    />
+                    /></UiErrorBoundary>
                 )}
             </Modal>
 
@@ -922,6 +926,7 @@ function playNotificationChime(type = "complete") {
                                     onHandoffDecision={handleHandoffDecision}
                                     onChoiceDecision={handleChoiceDecision}
                                     onOpenReplay={handleOpenReplay}
+                                    onReuseAttachment={handleReuseAttachment}
                                     onOpenLiveView={handleOpenLiveView}
                                 />
                             ))}
@@ -967,6 +972,7 @@ function playNotificationChime(type = "complete") {
                                             <span className="attachment-doc-icon">📄</span>
                                         )}
                                         <span className="attachment-name" title={att.name}>{att.name}</span>
+                                        {att.error&&<span role="alert" title={att.error}>Upload failed: retry send or remove</span>}
                                         <button
                                             type="button"
                                             className="attachment-remove-btn"
@@ -984,7 +990,7 @@ function playNotificationChime(type = "complete") {
                             <button
                                 id="chat-attach-button"
                                 type="button"
-                                title="Attach images or files (or paste screenshots with Ctrl+V)"
+                                title="Attach files or paste screenshots. Up to 8 files / 30 MiB total; static PNG, JPEG or WebP images: 10 MiB / 25 MP each. Unsent uploads may be cleaned up after 7 days."
                                 onClick={() => fileInputRef.current?.click()}
                             >
                                 <span style={{ fontSize: "22px", fontWeight: "bold", lineHeight: 1 }}>+</span>
