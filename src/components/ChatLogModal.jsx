@@ -66,7 +66,18 @@ function ChatLogModal({ taskTitle, taskId, messages }) {
                 bridge.getTaskRunState(taskId),
                 bridge.getTaskSpend(taskId),
             ]);
-            await navigator.clipboard.writeText(formatDebugReport({taskId,messages:dbMessages,backendLog,run,usage:spend.usage}));
+            let browser;
+            try{
+                const [runtime,all]=await Promise.all([bridge.getManagedBrowserStatus(),bridge.getManagedBrowserSessions(taskId)]);
+                const sessions=all.slice(-20),actions=[];let bytes=0,truncated=all.length>sessions.length;
+                for(const session of sessions){
+                    const batch=await bridge.getManagedBrowserActions(taskId,session.session_id);
+                    for(const action of batch){const size=JSON.stringify(action).length;if(bytes+size>2000000){truncated=true;break;}actions.push(action);bytes+=size;}
+                    if(batch.length===100)truncated=true;
+                }
+                browser={runtime_at_export:runtime,sessions,actions,coverage:{total_sessions:all.length,max_sessions:20,max_actions_per_session:100,max_action_characters:2000000,truncated}};
+            }catch(error){browser={error:String(error),coverage:{available:false}};}
+            await navigator.clipboard.writeText(formatDebugReport({taskId,messages:dbMessages,backendLog,run,usage:spend.usage,browser}));
 
             setDebugCopied(true);
             setTimeout(() => setDebugCopied(false), 2000);

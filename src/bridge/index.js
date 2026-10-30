@@ -26,6 +26,10 @@ export const deleteTask  = (taskId)         => invoke("delete_task",        { ta
 export { convertFileSrc } from "@tauri-apps/api/core";
 export const getBrowserHistory = (taskId)   => invoke("get_browser_history", { taskId });
 export const getBrowserSession = (taskId, sessionId) => invoke("get_browser_session", { taskId, sessionId });
+export const getManagedBrowserSessions = (taskId) => invoke("get_managed_browser_sessions", { taskId });
+export const getManagedBrowserStatus = () => invoke("get_managed_browser_status");
+export const getManagedBrowserActions = (taskId, sessionId, after = 0) => invoke("get_managed_browser_actions", { taskId, sessionId, after });
+export const getManagedBrowserObservation = (taskId) => invoke("get_managed_browser_observation", { taskId });
 export const getVaultAccounts = (domain)    => invoke("get_vault_accounts", { domain });
 export const getVaultAccount = (id)         => invoke("get_vault_account",  { id });
 export const saveVaultAccount = (entry)     => invoke("save_vault_account", { entry });

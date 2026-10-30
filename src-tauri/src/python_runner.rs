@@ -20,7 +20,13 @@ pub struct ActionOutcome {
 /// not configured). Returns the command path string used.
 fn detect_python() -> Option<String> {
     for candidate in ["python", "python3", "py"] {
-        let ok = std::process::Command::new(candidate)
+        let mut probe = std::process::Command::new(candidate);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            probe.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+        }
+        let ok = probe
             .arg("--version")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -44,6 +50,29 @@ pub async fn run_python_action(
     timeout_secs: u64,
     browser_port: Option<u16>,
 ) -> Result<ActionOutcome, String> {
+    run_python_action_scoped(app_handle,task_id,workspace,code,timeout_secs,browser_port,None).await
+}
+
+#[derive(Clone)]
+pub struct BrowserScriptContext {
+    pub run_id:String,
+    pub caller:String,
+    pub cancel:tokio_util::sync::CancellationToken,
+}
+struct IpcOwner{stop:tokio_util::sync::CancellationToken,listener:Option<tokio::task::JoinHandle<()>>,app:Option<tauri::AppHandle>,context:Option<BrowserScriptContext>}
+impl Drop for IpcOwner{fn drop(&mut self){
+    self.stop.cancel();if let Some(listener)=self.listener.take(){listener.abort();}
+    if let (Some(app),Some(context))=(&self.app,&self.context){let state=app.state::<AppState>();
+        if let Some(task)=self.context.as_ref().and_then(|_|state.db.lock().ok().and_then(|conn|conn.query_row("SELECT task_id FROM runs WHERE id=?1",[&context.run_id],|r|r.get::<_,String>(0)).ok())){
+            let _=crate::managed_browser::invalidate_approvals(&state,app,&task,&context.run_id,Some(&context.caller));
+        }
+        state.browser_manager.managed.release(&context.run_id,&context.caller);}
+}}
+
+pub async fn run_python_action_scoped(
+    app_handle:Option<tauri::AppHandle>,task_id:Option<String>,workspace:&Path,code:&str,
+    timeout_secs:u64,browser_port:Option<u16>,browser_context:Option<BrowserScriptContext>,
+)->Result<ActionOutcome,String>{
     let interpreter = detect_python().ok_or_else(|| {
         "No Python interpreter found (tried `python`, `python3`, `py`). Install Python 3.11 and make sure it is on your PATH.".to_string()
     })?;
@@ -52,6 +81,9 @@ pub async fn run_python_action(
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
 
     let tid_opt = task_id.clone();
+    let ipc_token=format!("{}{}",crate::db::new_id(),crate::db::new_id());
+    let ipc_stop=browser_context.as_ref().map(|context|context.cancel.child_token()).unwrap_or_default();
+    let mut ipc_owner=IpcOwner{stop:ipc_stop.clone(),listener:None,app:app_handle.clone(),context:browser_context.clone()};
     let session_id = format!("sess_{}", crate::db::new_id());
     let history_dir = if let Some(ref tid) = tid_opt {
         crate::utils::workspace_root()
@@ -68,15 +100,23 @@ pub async fn run_python_action(
             ipc_port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
             let app_clone = app.clone();
             let tid_clone = tid.clone();
-            tokio::spawn(async move {
-                while let Ok((stream, _)) = listener.accept().await {
-                    let app_conn = app_clone.clone();
-                    let tid_conn = tid_clone.clone();
-                    tokio::spawn(async move {
-                        handle_ipc_connection(stream, app_conn, tid_conn).await;
-                    });
-                }
-            });
+            let context=browser_context.clone();let token=ipc_token.clone();let stop=ipc_stop.clone();
+            ipc_owner.listener=Some(tokio::spawn(async move {
+                let mut connections=tokio::task::JoinSet::new();
+                loop{tokio::select!{
+                    _=stop.cancelled()=>break,
+                    result=listener.accept()=>{
+                        let Ok((stream,_))=result else{break};
+                        if connections.len()>=16{drop(stream);continue;}
+                        let app=app_clone.clone();let task=tid_clone.clone();let context=context.clone();let token=token.clone();let stop=stop.clone();
+                        connections.spawn(async move{tokio::select!{
+                            _=stop.cancelled()=>{},
+                            _=handle_ipc_connection(stream,app,task,context,token)=>{},
+                        }});
+                    },
+                    _=connections.join_next(),if !connections.is_empty()=>{},
+                }}
+            }));
         }
     }
 
@@ -133,6 +173,7 @@ def _zeus_ipc_send(msg):
     if not f:
         return None
     try:
+        msg['ipc_token'] = os.environ.get('ZEUS_IPC_TOKEN', '')
         f.write(json.dumps(msg) + '\n')
         f.flush()
         resp_line = f.readline()
@@ -185,6 +226,8 @@ def _zeus_audit_hook(event, args):
             return
         cmd_lower = cmd_str_clean.lower()
         if 'playwright' in cmd_lower and ('driver' in cmd_lower or 'node' in cmd_lower):
+            if os.environ.get('ZEUS_MANAGED_SCRIPT') == '1':
+                raise PermissionError('Use zeus_browser.call instead of launching an unmanaged Playwright driver')
             return
         req = {"type": "command", "command": cmd_str_clean}
         if not _ask_gatekeeper(req):
@@ -379,6 +422,8 @@ def _zeus_finalize_session():
 atexit.register(_zeus_finalize_session)
 
 try:
+    if os.environ.get('ZEUS_MANAGED_SCRIPT') == '1':
+        raise ImportError('Managed browser uses the owner client, not Playwright monkey patches')
     import playwright.sync_api
     import random
     
@@ -543,7 +588,11 @@ except Exception:
     pass
 "#;
 
-    let final_code = format!("{}\n{}", sandbox_preamble, code);
+    let client=if browser_context.is_some(){
+        let source=serde_json::to_string(include_str!("../browser_service/client.py")).map_err(|e|e.to_string())?;
+        format!("\nimport types as _zeus_types\n_zeus_client = _zeus_types.ModuleType('zeus_browser')\n_zeus_client.__dict__['_send'] = _zeus_ipc_send\nexec({source}, _zeus_client.__dict__)\nsys.modules['zeus_browser'] = _zeus_client\n")
+    }else{String::new()};
+    let final_code = format!("{}\n{}\n{}", sandbox_preamble,client, code);
     std::fs::write(&script_path, final_code)
         .map_err(|e| format!("Failed to write the action script: {}", e))?;
 
@@ -555,11 +604,13 @@ except Exception:
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONUTF8", "1")
         .env("ZEUS_IPC_PORT", ipc_port.to_string());
+    command.env("ZEUS_IPC_TOKEN",&ipc_token).env("ZEUS_MANAGED_SCRIPT",if browser_context.is_some(){"1"}else{"0"});
+    if browser_context.is_some(){command.env_remove("ZEUS_BROWSER_WS_ENDPOINT").env_remove("ZEUS_BROWSER_HTTP_ENDPOINT").env_remove("ZEUS_BROWSER_HISTORY_DIR");}
         
     if let Some(ref tid) = tid_opt {
         command.env("ZEUS_TASK_ID", tid);
         command.env("ZEUS_BROWSER_SESSION_ID", &session_id);
-        if let Some(ref hdir) = history_dir {
+        if let Some(ref hdir) = history_dir.as_ref().filter(|_|browser_context.is_none()) {
             command.env("ZEUS_BROWSER_HISTORY_DIR", hdir);
         }
     }
@@ -574,6 +625,8 @@ except Exception:
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
 
     let mut child = command
         .spawn()
@@ -681,16 +734,29 @@ use tauri::{Emitter, Manager};
 use crate::db::AppState;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
+async fn bounded_ipc_line<R:tokio::io::AsyncBufRead+Unpin>(reader:&mut R,line:&mut String)->Result<usize,std::io::Error>{
+    let mut bytes=Vec::new();
+    loop{
+        let chunk=reader.fill_buf().await?;if chunk.is_empty(){return Ok(0);}
+        let count=chunk.iter().position(|byte|*byte==b'\n').map(|n|n+1).unwrap_or(chunk.len());
+        if bytes.len()+count>1024*1024{return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,"IPC frame limit"));}
+        let done=chunk[count-1]==b'\n';bytes.extend_from_slice(&chunk[..count]);reader.consume(count);if done{break;}
+    }
+    let len=bytes.len();*line=String::from_utf8(bytes).map_err(|e|std::io::Error::new(std::io::ErrorKind::InvalidData,e))?;Ok(len)
+}
+
 async fn handle_ipc_connection(
     mut stream: tokio::net::TcpStream,
     app_handle: tauri::AppHandle,
     task_id: String,
+    browser_context:Option<BrowserScriptContext>,
+    ipc_token:String,
 ) {
     let (reader, mut writer) = stream.split();
     let mut reader = tokio::io::BufReader::new(reader);
     let mut line = String::new();
 
-    while let Ok(bytes) = reader.read_line(&mut line).await {
+    while let Ok(bytes) = bounded_ipc_line(&mut reader,&mut line).await {
         if bytes == 0 { break; }
         
         let req: serde_json::Value = match serde_json::from_str(&line) {
@@ -703,6 +769,27 @@ async fn handle_ipc_connection(
 
         let req_type = req["type"].as_str().unwrap_or("");
         let state = app_handle.state::<AppState>();
+
+        if browser_context.is_some()&&req["ipc_token"].as_str()!=Some(&ipc_token){
+            let _=writer.write_all(b"{\"ok\":false,\"error\":{\"code\":\"BROWSER_AUTH\",\"message\":\"Invalid client token\"}}\n").await;break;
+        }
+        if let Some(context)=&browser_context{
+            if req_type=="managed_browser"{
+                let response=match serde_json::from_value::<crate::managed_browser::BrowserCommand>(req["command"].clone()){
+                    Ok(command)=>match crate::evaluation::directive(){
+                        Ok(())=>match Box::pin(crate::managed_browser::execute(&state,&app_handle,&task_id,&context.run_id,&context.cancel,&context.caller,command)).await{
+                            Ok(value)=>value,Err(error)=>serde_json::json!({"ok":false,"error":{"code":error.split(':').next().unwrap_or("BROWSER_ERROR"),"message":error}}),
+                        },
+                        Err(error)=>serde_json::json!({"ok":false,"error":{"code":"EVAL_LIMIT","message":error}}),
+                    },
+                    Err(_)=>serde_json::json!({"ok":false,"error":{"code":"BROWSER_ARGUMENT","message":"Invalid browser command"}}),
+                };
+                let _=writer.write_all(format!("{}\n",response).as_bytes()).await;let _=writer.flush().await;line.clear();continue;
+            }
+            if matches!(req_type,"browser_session_started"|"browser_live_frame"|"browser_session_completed"){
+                let _=writer.write_all(b"{\"ok\":false,\"error\":{\"code\":\"BROWSER_UNTRUSTED_EVENT\",\"message\":\"Actor events are not browser evidence\"}}\n").await;line.clear();continue;
+            }
+        }
 
         if req_type == "browser_session_started" {
             let session_id = req["session_id"].as_str().unwrap_or("").to_string();

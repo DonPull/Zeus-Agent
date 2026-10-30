@@ -1,5 +1,5 @@
 use crate::chat::{
-    finish_cancelled_run, new_message_for_conversation, persist_and_emit, record_spend, MessageDto,
+    new_message_for_conversation, persist_and_emit, record_spend, MessageDto,
 };
 use crate::db::{new_id, now_iso, AppState};
 use crate::gateway::{self, ChatMessage};
@@ -155,6 +155,7 @@ pub async fn run_worker(
 ) -> Result<String, String> {
     let worker_id = new_id();
     let conversation = format!("worker:{}", worker_id);
+    let _browser_lease=state.browser_manager.managed.lease_guard(run_id,&conversation);
     let now = now_iso();
 
     // 1. Create the worker in the DB
@@ -194,12 +195,13 @@ pub async fn run_worker(
     let started_msg_id = started_msg.id.clone();
 
     // 2. Setup the worker's chat history
-    let system_content = WORKER_SYSTEM_PROMPT
+    let mut system_content = WORKER_SYSTEM_PROMPT
         .replace("{name}", &delegate.name)
         .replace("{objective}", &delegate.objective)
         .replace("{success_criteria}", &delegate.success_criteria)
         .replace("{host_os}", std::env::consts::OS)
         .replace("{host_family}", std::env::consts::FAMILY);
+    if crate::managed_browser::enabled(){system_content.push_str(crate::managed_browser::PROMPT);}
 
     let mut history = vec![
         ChatMessage { images: Vec::new(),
@@ -278,7 +280,6 @@ pub async fn run_worker(
                 res = &mut stream_future => res,
                 _ = cancellation_token.cancelled() => {
                     crate::logger::log(task_id, "worker", "Cancellation token triggered. Aborting model stream.");
-                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
                     return Err("RUN_CANCELLED".into());
                 }
             };
@@ -384,20 +385,23 @@ pub async fn run_worker(
                         Directive::RunAction { action, success_criteria: _ } => {
                             let workspace = crate::utils::task_workspace(task_id)?;
                             let task_data = crate::chat::load_task(&state.db.lock().unwrap(), task_id).map_err(|e| e.to_string())?;
-                            let browser_port = state.browser_manager.ensure_browser(task_id, &task_data.browser_mode, &task_data.browser_executable_path).ok();
+                            let browser_port = if crate::managed_browser::enabled(){None}else{state.browser_manager.ensure_browser(task_id, &task_data.browser_mode, &task_data.browser_executable_path).ok()};
+                            let browser_context=if crate::managed_browser::enabled(){
+                                state.browser_manager.managed.release(run_id,&conversation);
+                                Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("{conversation}/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()})
+                            }else{None};
                             
-                            let action_future = crate::python_runner::run_python_action(
+                            let action_future = crate::python_runner::run_python_action_scoped(
                                 Some(app_handle.clone()),
                                 Some(task_id.to_string()),
                                 &workspace, &action.code, action.timeout_secs,
-                                browser_port
+                                browser_port,browser_context,
                             );
                             tokio::pin!(action_future);
 
                             let outcome = tokio::select! {
                                 result = &mut action_future => result.map_err(|e| e.to_string())?,
                                 _ = cancellation_token.cancelled() => {
-                                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
                                     return Err("RUN_CANCELLED".into());
                                 }
                             };
@@ -414,6 +418,11 @@ pub async fn run_worker(
                             history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: msg });
                         }
                         Directive::AskUserForLogin { reason } => {
+                            if crate::managed_browser::enabled(){
+                                let feedback=orchestrator::directive_result_message(&json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Visible login/handoff is not enabled on the managed route"}}));
+                                let mut result=new_message_for_conversation(task_id,&conversation,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
+                                history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});continue;
+                            }
                             let mut approval = new_message_for_conversation(
                                 task_id, &conversation, "event", "handoff", json!({ "status": "pending", "reason": reason }).to_string(), None, None, true
                             );
@@ -439,6 +448,12 @@ pub async fn run_worker(
                             );
                             persist_and_emit(state, app_handle, task_id, &mut hidden_result)?;
                             history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
+                        }
+                        Directive::BrowserAction { command } => {
+                            let feedback=Box::pin(crate::managed_browser::tool(state,app_handle,task_id,run_id,cancellation_token,&conversation,command)).await?;
+                            let mut result=new_message_for_conversation(task_id,&conversation,"user","directive_result",feedback.clone(),None,None,false);
+                            persist_and_emit(state,app_handle,task_id,&mut result)?;
+                            history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});
                         }
                         Directive::ReadFile { .. }
                         | Directive::WriteFile { .. }
@@ -517,7 +532,6 @@ pub async fn run_worker(
             res = crate::accounting::scope(&state.db, Some(task_id), "verifier",
                 gateway::chat_completion(&verifier_model, &verifier_messages, Some(&verifier_effort))) => res,
             _ = cancellation_token.cancelled() => {
-                finish_cancelled_run(state, app_handle, task_id, run_id)?;
                 return Err("RUN_CANCELLED".into());
             }
         };
@@ -793,6 +807,7 @@ fn update_worker_event_and_emit(
     };
 
     let msg = MessageDto {
+        projection_version:None,
         attachments:vec![],
         id: msg_id.to_string(),
         task_id: task_id.to_string(),

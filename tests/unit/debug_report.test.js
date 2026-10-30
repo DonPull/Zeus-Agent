@@ -23,3 +23,11 @@ test('missing backend events are explicitly unavailable and cannot be mistaken f
     assert.match(report,/Restart loses these events/);assert.match(report,/previous-process events are not retained/);
     assert.match(report,/--- LATEST RUN ---\nnull/);assert.match(report,/RAW MESSAGES.*\n\(empty\)/);
 });
+
+test('browser evidence reports its bounds without truncating the full chat',()=>{
+    const content='Full conversation '.repeat(10000);
+    const report=formatDebugReport({taskId:'t',messages:[{seq:1,id:'m',conversation:'master',visible:true,role:'user',kind:'chat',content}],browser:{runtime_at_export:{enabled:false,route:'legacy'},sessions:[{status:'interrupted'}],coverage:{truncated:true,max_actions_per_session:100}}});
+    assert.ok(report.includes(content));assert.match(report,/MANAGED BROWSER JOURNAL/);assert.match(report,/"truncated": true/);assert.match(report,/No chat text truncation/);
+    assert.match(report,/"runtime_at_export":\s*\{\s*"enabled": false/);
+    assert.match(report,/"route": "legacy"/);
+});

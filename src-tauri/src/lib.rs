@@ -9,6 +9,9 @@ pub mod evaluation;
 pub mod db;
 pub mod chat;
 pub mod browser_manager;
+pub mod browser_store;
+pub mod managed_browser;
+pub mod process_tree;
 pub mod gatekeeper;
 pub mod file_paths;
 pub mod gateway;
@@ -21,7 +24,7 @@ pub mod worker;
 pub mod output_compressor;
 
 use std::fs;
-use tauri::{generate_context, Manager};
+use tauri::generate_context;
 
 pub fn run() {
     // Resolve and create the workspace root (%APPDATA%\zeus-agent) plus its subfolders
@@ -42,13 +45,17 @@ pub fn run() {
         }
     }
 
+    // Apply test visibility before Tauri creates any native windows. Hiding in
+    // setup is too late: each fresh test process can flash and take focus first.
+    let mut context = generate_context!();
+    if std::env::var("ZEUS_TEST_HIDE_WINDOW").as_deref() == Ok("1") {
+        for window in &mut context.config_mut().app.windows {
+            window.visible = false;
+            window.focus = false;
+        }
+    }
+
     tauri::Builder::default()
-        .setup(|app| {
-            if std::env::var("ZEUS_TEST_HIDE_WINDOW").as_deref() == Ok("1") {
-                if let Some(window) = app.get_webview_window("main") { window.hide()?; }
-            }
-            Ok(())
-        })
         .manage(db::AppState {
             db: std::sync::Arc::new(std::sync::Mutex::new(connection)),
             active_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -95,11 +102,15 @@ pub fn run() {
             browser_manager::finish_browser_handoff,
             browser_manager::get_browser_history,
             browser_manager::get_browser_session,
+            managed_browser::get_managed_browser_sessions,
+            managed_browser::get_managed_browser_status,
+            managed_browser::get_managed_browser_actions,
+            managed_browser::get_managed_browser_observation,
             cookie_vault::get_vault_accounts,
             cookie_vault::get_vault_account,
             cookie_vault::save_vault_account,
             cookie_vault::delete_vault_account,
         ])
-        .run(generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

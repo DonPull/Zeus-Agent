@@ -1,6 +1,6 @@
 # Zeus Agent: stabilization and development plan
 
-Status: **Roadmap, Phase 1, Phase 2A, native Phase 2B diagnostics, Phase 3A and stabilization patch 1 approved in conversation. Stabilization manually retested and commit authorized on 2026-10-30. Subsequent major implementation work requires its focused design/environment decisions.**
+Status: **Roadmap, Phase 1, Phase 2A, native Phase 2B diagnostics, Phase 3A, stabilization patch 1 and Phase 3B approved in conversation. Phase 3B implemented and locally validated on 2026-10-30 as development opt-in. The coordinated viewer/default rollout and subsequent major work require their focused designs.**
 
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).
 
@@ -23,6 +23,7 @@ Manual testing on 2026-10-28 found a native stack-overflow crash, duplicate-answ
 - Efficient live models may be used when they materially improve testing; there is no blanket prohibition on live inference. Keep deterministic regression checks where appropriate, choose economical models for targeted integration checks, and retain usage/results. Expensive frontier-model sweeps and substantial benchmark runs still need a bounded plan.
 - Refresh economical live-model choices against dated primary benchmark evidence and the actual Abacus catalogue. Do not equate public API prices with subscription credits or reuse outdated models merely because their adapters are familiar.
 - Recoverable runtime failures should return typed errors and user feedback; native aborts require a demonstrated cause/fix rather than a blanket catch mechanism. Manual crashes remain blockers despite passing scripted tests. Reuse existing UI styles and give changed controls a basic visual/layout check.
+- Routine automated tests should run in the background without flashing windows or stealing the user's focus. Hidden test windows must start hidden; background Python/command tools should capture output without opening consoles. Preserve intentional app/browser/handoff visibility. Reuse existing command-specific Codex approvals with plain invocations where possible.
 - Later capabilities: image generation/editing, audio and video analysis, transcription, voice interaction, automatic model selection, supervised improvement, and unrestricted operation inside a real sandbox.
 
 ## 2. How each major topic will be handled
@@ -140,7 +141,9 @@ Exit: a frozen benchmark v1, proven graders, raw baseline trials, a cost envelop
 
 Focused proposal after the reviewed Phase 2 checkpoint `f3c1c80`: [Phase 3 reliability design](PHASE_3_RELIABILITY_DESIGN.md). Recommend implementing image/provider/attachment correctness as packet 3A, then shared browser ownership (3B), preview/replay (3C) and handoff/compatibility (3D). This proposed prioritization uses the existing six-mission measurement slice while the broader Phase 2 baseline remains pending. The packet is for alignment before substantial Phase 3 implementation; the following roadmap requirements remain applicable.
 
-After the user's successful stabilization retest, checkpoint `42bd730` commits Phase 3A and stabilization patch 1. The next focused proposal is [Phase 3B browser ownership](PHASE_3B_BROWSER_OWNERSHIP_DESIGN.md), prepared on 2026-10-30 with code findings, primary-source research, old/new decisions, dependency preflight, lifecycle/IPC contracts and real-browser acceptance gates. It is a design for alignment, not implemented browser functionality. Deterministic task completion/memory and the retained helper failures remain open; the browser work does not silently replace Phase 4.
+After the user's successful stabilization retest, checkpoint `42bd730` commits Phase 3A and stabilization patch 1. [Phase 3B browser ownership](PHASE_3B_BROWSER_OWNERSHIP_DESIGN.md), proposal checkpoint `d375c83`, was approved and implemented on 2026-10-30. [Its delivery record](PHASE_3B_WORK_LOG.md) describes the shared Solo/Team owner, lazy acquisition, authenticated service/client, actual action journal, Stop/restart handling and backend-versioned status card. The isolated pinned runtime is explicitly prepared; `ZEUS_MANAGED_BROWSER=1` remains a development opt-in until 3C provides compatible Live View/Replay. The legacy default/history remain accessible.
+
+Phase 3B validation: **229 offline checks plus three release regressions passed**, frontend build and ordinary production compile passed. Two same-build Abacus Luna B01 attempts were retained: one falsely claimed tools were unavailable and did no work; the other correctly updated the ticket through one browser session, but hit the fixed 12-request cap before final-answer completion. No fully verified live pass or broader capability baseline is claimed. Known goal-completion failures are still high priority; the browser service does not silently replace Phase 4. The next browser design packet is 3C (capture, hydration, replay and rollout); visible handoff/profile compatibility stays 3D. Revisit deterministic initiation/completion before promoting a stable release, preserving the failures and independent graders.
 
 ### Shared execution services
 

@@ -80,6 +80,8 @@ pub struct TaskDto {
 
 #[derive(Serialize, Clone)]
 pub struct MessageDto {
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub projection_version:Option<i64>,
     pub attachments: Vec<crate::attachments::Attachment>,
     pub id: String,
     pub task_id: String,
@@ -279,12 +281,26 @@ pub(crate) fn finish_durable_run(
     load_run_state(connection, run_id)
 }
 
-pub(crate) fn finish_cancelled_run(
-    state: &State<'_, AppState>,
-    app_handle: &tauri::AppHandle,
+// Only the root send boundary finalizes cancellation. Persist the terminal
+// state and its projections together, so repeated finalization cannot publish
+// another notice or release a task while a worker is still unwinding.
+fn persist_cancelled_run(
+    connection: &Connection,
     task_id: &str,
     run_id: &str,
-) -> Result<(), String> {
+) -> Result<(RunStateDto, Vec<MessageDto>), String> {
+    let transaction = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    let run = load_run_state(&transaction, run_id)?;
+    if run.task_id != task_id {
+        return Err("RUN_OWNERSHIP: run belongs to another task".into());
+    }
+    if run.status == "cancelled" {
+        return Ok((run, Vec::new()));
+    }
+    if !matches!(run.status.as_str(), "running" | "stopping") {
+        return Err("RUN_NOT_ACTIVE: cannot cancel a terminal run".into());
+    }
+    let mut messages = Vec::new();
     let mut cancellation_message = new_message(
         task_id,
         "event",
@@ -294,17 +310,16 @@ pub(crate) fn finish_cancelled_run(
         None,
         true,
     );
-    persist_and_emit(state, app_handle, task_id, &mut cancellation_message)?;
+    cancellation_message.id = format!("run-cancelled:{run_id}");
+    insert_message(&transaction, &mut cancellation_message)?;
+    messages.push(cancellation_message);
 
     // If an action plan has an active in_progress step, mark it interrupted
-    let latest_plan = {
-        let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-        conn.query_row(
+    let latest_plan = transaction.query_row(
             "SELECT content FROM messages WHERE task_id = ?1 AND kind = 'action_plan' ORDER BY rowid DESC LIMIT 1",
             params![task_id],
             |row| row.get::<_, String>(0),
-        ).optional().ok().flatten()
-    };
+        ).optional().map_err(|e| e.to_string())?;
     if let Some(plan_raw) = latest_plan {
         let mut updated = false;
         let mut new_payload = plan_raw.clone();
@@ -349,23 +364,30 @@ pub(crate) fn finish_cancelled_run(
                 None,
                 true,
             );
-            let _ = persist_and_emit(state, app_handle, task_id, &mut msg);
+            insert_message(&transaction, &mut msg)?;
+            messages.push(msg);
         }
     }
 
-    let cancelled_run = {
-        let connection = state
-            .db
-            .lock()
-            .map_err(|e| format!("Database lock error: {}", e))?;
+    transaction.execute("UPDATE attachment_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='dispatched'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
+    let cancelled_run = finish_durable_run(&transaction, run_id, task_id, "cancelled", None)?;
+    transaction.commit().map_err(|e| e.to_string())?;
+    Ok((cancelled_run, messages))
+}
 
-        finish_durable_run(&connection, run_id, task_id, "cancelled", None)?
+fn finish_cancelled_run(
+    state: &State<'_, AppState>,
+    app_handle: &tauri::AppHandle,
+    task_id: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    let (cancelled_run, messages) = {
+        let connection = state.db.lock().map_err(|e| e.to_string())?;
+        persist_cancelled_run(&connection, task_id, run_id)?
     };
-    {
-        let conn=state.db.lock().map_err(|e|e.to_string())?;
-        conn.execute("UPDATE attachment_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='dispatched'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
+    for message in messages {
+        emit_message(app_handle, task_id, &message);
     }
-
     emit_run_state(app_handle, &cancelled_run);
     Ok(())
 }
@@ -400,20 +422,27 @@ const MESSAGE_COLUMNS: &str =
     "id, task_id, conversation, role, kind, content, credits_used, model, created_at, rowid, visible";
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
+    let kind:String=row.get(4)?;let content:String=row.get(5)?;
+    let projection_version=if kind=="managed_browser_session"{serde_json::from_str::<serde_json::Value>(&content).ok().and_then(|value|value["version"].as_i64())}else{None};
     Ok(MessageDto {
+        projection_version,
         attachments: vec![],
         id: row.get(0)?,
         task_id: row.get(1)?,
         conversation: row.get(2)?,
         role: row.get(3)?,
-        kind: row.get(4)?,
-        content: row.get(5)?,
+        kind,
+        content,
         credits_used: row.get(6)?,
         model: row.get(7)?,
         created_at: row.get(8)?,
         seq: row.get(9)?,
         visible: row.get(10)?,
     })
+}
+
+pub(crate) fn load_message(connection:&Connection,id:&str)->Result<MessageDto,String>{
+    connection.query_row(&format!("SELECT {MESSAGE_COLUMNS} FROM messages WHERE id=?1"),[id],row_to_message).map_err(|e|e.to_string())
 }
 
 pub fn load_task(connection: &Connection, task_id: &str) -> Result<TaskDto, String> {
@@ -468,6 +497,7 @@ pub(crate) fn new_message_for_conversation(
     visible: bool,
 ) -> MessageDto {
     MessageDto {
+        projection_version:None,
         attachments:vec![],
         id: new_id(),
         task_id: task_id.to_string(),
@@ -484,7 +514,7 @@ pub(crate) fn new_message_for_conversation(
 }
 
 /// Persists the message and stamps its authoritative `seq` from the DB rowid.
-fn insert_message(connection: &Connection, message: &mut MessageDto) -> Result<(), String> {
+pub(crate) fn insert_message(connection: &Connection, message: &mut MessageDto) -> Result<(), String> {
     connection
         .execute(
             "INSERT INTO messages (id, task_id, conversation, role, kind, content, credits_used, model, created_at, visible)
@@ -502,7 +532,7 @@ fn insert_message(connection: &Connection, message: &mut MessageDto) -> Result<(
 
 /// Emits a message to the frontend. P0: this is the ONLY channel through which
 /// messages reach the UI — send_user_message returns no message payloads.
-fn emit_message(app_handle: &tauri::AppHandle, task_id: &str, message: &MessageDto) {
+pub(crate) fn emit_message(app_handle: &tauri::AppHandle, task_id: &str, message: &MessageDto) {
     let _ = app_handle.emit(
         "task-message",
         serde_json::json!({ "task_id": task_id, "message": message }),
@@ -628,6 +658,7 @@ pub fn load_master_history(connection: &Connection, task_id: &str, model: &str, 
         system_prompt.push_str("\n\n[TASK MEMORY - PRESERVE THIS CONTEXT]\n");
         system_prompt.push_str(&memory);
     }
+    if crate::managed_browser::enabled(){system_prompt.push_str(crate::managed_browser::PROMPT);}
     let mut history = vec![ChatMessage { images: Vec::new(),
         role: "system".into(),
         content: system_prompt,
@@ -1143,7 +1174,9 @@ pub async fn send_user_message(
     let _=app_handle.emit("user-message-accepted",serde_json::json!({"task_id":task_id,"request_id":request_id,"message_id":user_message.id}));
     let run_id = durable_run.id.clone();
 
-    let turn_result = execute_user_turn(&state, &app_handle, &task_id, &run_id, &content, user_message, cancellation_token).await;
+    let mut turn_result = execute_user_turn(&state, &app_handle, &task_id, &run_id, &content, user_message, cancellation_token).await;
+    let browser_terminal=match &turn_result{Ok(_)=>"completed",Err(error) if error=="RUN_CANCELLED"=>"cancelled",Err(_)=>"failed"};
+    if let Err(error)=state.browser_manager.managed.finish(&state,&app_handle,&task_id,&run_id,browser_terminal).await{turn_result=Err(error);}
 
     match turn_result {
         Ok(res) => Ok(res),
@@ -1406,7 +1439,6 @@ async fn execute_user_turn(
     //    to `history` (and persist them) before re-calling the master.
     for _iteration in 0..orchestrator::max_orchestration_iterations() {
         if cancellation_token.is_cancelled() {
-            finish_cancelled_run(&state, &app_handle, &task_id, &run_id)?;
             return Err("RUN_CANCELLED".into());
         }
 
@@ -1527,12 +1559,6 @@ async fn execute_user_turn(
                         );
                         let _ = persist_and_emit(&state, &app_handle, &task_id, &mut partial_msg);
                     }
-                    finish_cancelled_run(
-                        &state,
-                        &app_handle,
-                        &task_id,
-                        &run_id,
-                    )?;
                     return Err("RUN_CANCELLED".into());
                 }
             }
@@ -1856,13 +1882,18 @@ async fn execute_user_turn(
                         success_criteria,
                     } => {
                         let workspace = crate::utils::task_workspace(task_id)?;
-                        let action_future = crate::python_runner::run_python_action(
+                        let browser_context=if crate::managed_browser::enabled(){
+                            state.browser_manager.managed.release(run_id,"master");
+                            Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("master/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()})
+                        }else{None};
+                        let action_future = crate::python_runner::run_python_action_scoped(
                             Some(app_handle.clone()),
                             Some(task_id.to_string()),
                             &workspace,
                             &action.code,
                             action.timeout_secs,
                             None,
+                            browser_context,
                         );
 
                         tokio::pin!(action_future);
@@ -1873,12 +1904,6 @@ async fn execute_user_turn(
                                 // Returning from this scope drops the action
                                 // future and its child, which has kill_on_drop
                                 // enabled by run_python_action.
-                                finish_cancelled_run(
-                                    &state,
-                                    &app_handle,
-                                    &task_id,
-                                    &run_id,
-                                )?;
                                 return Err("RUN_CANCELLED".into());
                             }
                         };
@@ -1992,6 +2017,7 @@ async fn execute_user_turn(
                         }
                     }
                     Directive::DelegateTask { delegate } => {
+                        state.browser_manager.managed.yield_control(run_id);
                         let worker_future = crate::worker::run_worker(
                             &state,
                             &app_handle,
@@ -2007,12 +2033,6 @@ async fn execute_user_turn(
                         let outcome = tokio::select! {
                             result = &mut worker_future => result,
                             _ = cancellation_token.cancelled() => {
-                                finish_cancelled_run(
-                                    &state,
-                                    &app_handle,
-                                    &task_id,
-                                    &run_id,
-                                )?;
                                 return Err("RUN_CANCELLED".into());
                             }
                         };
@@ -2482,6 +2502,11 @@ async fn execute_user_turn(
                         }
                     }
                     Directive::AskUserForLogin { reason } => {
+                        if crate::managed_browser::enabled(){
+                            let feedback=orchestrator::directive_result_message(&serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Visible login/handoff is not enabled on the managed route"}}));
+                            let mut result=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
+                            history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});continue;
+                        }
                         let summary = format!("Login Required: {}", reason);
                         let blocked_dir = Directive::AskUserForLogin { reason: reason.clone() };
                         let mut approval_message = new_message(
@@ -2554,17 +2579,17 @@ async fn execute_user_turn(
                         ).await?;
                     }
                     Directive::ConfigureBrowser { permissions: _, viewport: _ } => {
-                        let res_json = serde_json::json!({
+                        let res_json = if crate::managed_browser::enabled(){serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Custom browser configuration is not enabled on the managed route"}})}else{serde_json::json!({
                             "configure_browser_result": "Browser configuration applied successfully."
-                        });
+                        })};
                         let feedback = orchestrator::directive_result_message(&res_json);
                         let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
                         persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
                     }
                     Directive::InstallBrowserExtension { extension_path } => {
-                        let path_exists = std::path::Path::new(&extension_path).exists();
-                        let res_json = if path_exists {
+                        let path_exists = !crate::managed_browser::enabled()&&std::path::Path::new(&extension_path).exists();
+                        let res_json = if crate::managed_browser::enabled(){serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Extension installation is not enabled on the managed route"}})}else if path_exists {
                             serde_json::json!({
                                 "install_browser_extension_result": format!("Browser extension at '{}' will be loaded on next browser launch.", extension_path)
                             })
@@ -2579,13 +2604,19 @@ async fn execute_user_turn(
                         history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
                     }
                     Directive::ManageBrowserExtension { extension_id, action } => {
-                        let res_json = serde_json::json!({
+                        let res_json = if crate::managed_browser::enabled(){serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Extension management is not enabled on the managed route"}})}else{serde_json::json!({
                             "manage_browser_extension_result": format!("Extension '{}' action '{}' processed.", extension_id, action)
-                        });
+                        })};
                         let feedback = orchestrator::directive_result_message(&res_json);
                         let mut hidden_result = new_message(&task_id, "user", "directive_result", feedback.clone(), None, None, false);
                         persist_and_emit(&state, &app_handle, &task_id, &mut hidden_result)?;
                         history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: feedback });
+                    }
+                    Directive::BrowserAction { command } => {
+                        let feedback=Box::pin(crate::managed_browser::tool(state,app_handle,task_id,run_id,&cancellation_token,"master",command)).await?;
+                        let mut result=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);
+                        persist_and_emit(state,app_handle,task_id,&mut result)?;
+                        history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});
                     }
                     Directive::AnalyzeVisual { image_path, query } => {
                         let feedback = execute_gated_native_directive(
@@ -2699,11 +2730,14 @@ pub fn update_task_settings(state: State<'_, AppState>, task_id: String, setting
 }
 
 #[tauri::command]
-pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
+pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle, task_id: String) -> Result<(), String> {
     // Ensure any active run is cancelled so it doesn't continue processing
-    if let Some(token) = state.active_runs.lock().unwrap().remove(&task_id) {
+    if let Some(token) = state.active_runs.lock().unwrap().get(&task_id).cloned() {
         token.cancel();
     }
+    let browser_run={let conn=state.db.lock().map_err(|e|e.to_string())?;
+        conn.query_row("SELECT run_id FROM managed_browser_sessions WHERE task_id=?1 ORDER BY created_at DESC LIMIT 1",[&task_id],|row|row.get::<_,String>(0)).optional().map_err(|e|e.to_string())?};
+    if let Some(run)=browser_run{state.browser_manager.managed.finish(&state,&app_handle,&task_id,&run,"cancelled").await?;}
 
     let mut connection = state
         .db
@@ -2714,6 +2748,10 @@ pub async fn delete_task(state: State<'_, AppState>, task_id: String) -> Result<
         .transaction()
         .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
+    tx.execute("DELETE FROM managed_browser_artifacts WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
+    tx.execute("DELETE FROM managed_browser_actions WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
+    tx.execute("DELETE FROM managed_browser_tabs WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
+    tx.execute("DELETE FROM managed_browser_sessions WHERE task_id=?1",[&task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM attachment_deliveries WHERE attachment_id IN (SELECT id FROM attachments WHERE task_id=?1)",params![task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM message_attachments WHERE attachment_id IN (SELECT id FROM attachments WHERE task_id=?1)",params![task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM attachments WHERE task_id=?1",params![task_id]).map_err(|e|e.to_string())?;
@@ -2761,6 +2799,9 @@ pub(crate) async fn execute_gated_native_directive(
     cancellation_token: &CancellationToken,
     directive: Directive,
 ) -> Result<String, String> {
+    if crate::managed_browser::enabled()&&matches!(&directive,Directive::ConfigureBrowser{..}|Directive::InstallBrowserExtension{..}|Directive::ManageBrowserExtension{..}){
+        return Ok(orchestrator::directive_result_message(&serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Browser configuration/extension compatibility is not enabled on the managed route"}})));
+    }
     // Keep the large native-action state machine off the caller's stack.
     // Fresh TLS handshakes under nested visual inspection otherwise overflow
     // Tokio's normal Windows stack; loopback HTTPS regression covers this.
@@ -2893,7 +2934,6 @@ async fn execute_gated_native_directive_inner(
             {
                 Ok(v) => v,
                 Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
-                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
                     return Err("RUN_CANCELLED".into());
                 }
                 Err(e) => return Err(e),
@@ -2901,7 +2941,6 @@ async fn execute_gated_native_directive_inner(
             match wait_until_no_pending_approvals(state.inner(), task_id, cancellation_token).await {
                 Ok(()) => {}
                 Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
-                    finish_cancelled_run(state, app_handle, task_id, run_id)?;
                     return Err("RUN_CANCELLED".into());
                 }
                 Err(e) => return Err(e),
@@ -2941,7 +2980,6 @@ async fn apply_resolved_approval(
     ).await {
         Ok(v) => v,
         Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
-            finish_cancelled_run(state, app_handle, task_id, run_id)?;
             return Err("RUN_CANCELLED".into());
         }
         Err(e) => return Err(e),
@@ -2949,7 +2987,6 @@ async fn apply_resolved_approval(
     match wait_until_no_pending_approvals(state.inner(), task_id, cancellation_token).await {
         Ok(()) => {}
         Err(e) if e == "Task cancelled" || cancellation_token.is_cancelled() => {
-            finish_cancelled_run(state, app_handle, task_id, run_id)?;
             return Err("RUN_CANCELLED".into());
         }
         Err(e) => return Err(e),
@@ -3074,6 +3111,58 @@ mod tests {
             active_runs: Mutex::new(HashMap::new()),
             browser_manager: crate::browser_manager::BrowserManager::new(),
         }
+    }
+
+    fn cancellation_fixture() -> (Connection, String) {
+        let connection = Connection::open_in_memory().unwrap();
+        crate::db::init_schema(&connection).unwrap();
+        connection.execute(
+            "INSERT INTO tasks (id,title,status,budget_credits,spent_credits,created_at,updated_at,master_model,worker_model,verifier_model,watcher_model,browser_mode)
+             VALUES ('cancel-task','Cancellation test','active',10000,0,'n','n','','','','','sandbox')",
+            [],
+        ).unwrap();
+        let run = begin_durable_run(&connection, "cancel-task", "first-request").unwrap();
+        let mut plan = new_message("cancel-task", "assistant", "action_plan",
+            serde_json::json!({"markdown":"Current plan","steps":[{"id":"step-1","title":"Work","status":"in_progress"}]}).to_string(),
+            None, None, true);
+        insert_message(&connection, &mut plan).unwrap();
+        (connection, run.id)
+    }
+
+    #[test]
+    fn cancellation_is_once_per_root_and_old_finalization_cannot_release_a_later_run() {
+        let (connection, run_id) = cancellation_fixture();
+        let (run, messages) = persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap();
+        assert_eq!(run.status, "cancelled");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].kind, "chat");
+        assert!(messages[0].seq > 0);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&messages[1].content).unwrap()["steps"][0]["status"], "interrupted");
+        let (repeated, emitted) = persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap();
+        assert!(emitted.is_empty());
+        assert_eq!(repeated.completed_at, run.completed_at);
+        assert!(persist_cancelled_run(&connection, "foreign-task", &run_id).is_err());
+
+        let later = begin_durable_run(&connection, "cancel-task", "second-request").unwrap();
+        assert!(persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap().1.is_empty());
+        let task_status: String = connection.query_row("SELECT status FROM tasks WHERE id='cancel-task'", [], |row| row.get(0)).unwrap();
+        assert_eq!(task_status, "running");
+        persist_cancelled_run(&connection, "cancel-task", &later.id).unwrap();
+        let notices: i64 = connection.query_row("SELECT COUNT(*) FROM messages WHERE kind='chat' AND role='event'", [], |row| row.get(0)).unwrap();
+        assert_eq!(notices, 2, "one notice for each distinct run, never one per stack layer");
+    }
+
+    #[test]
+    fn cancellation_rolls_back_notice_and_plan_if_the_terminal_state_cannot_commit() {
+        let (connection, run_id) = cancellation_fixture();
+        connection.execute_batch("CREATE TRIGGER fail_cancel BEFORE UPDATE OF status ON runs WHEN NEW.status='cancelled'
+            BEGIN SELECT RAISE(ABORT,'injected cancellation persistence failure'); END;").unwrap();
+        assert!(persist_cancelled_run(&connection, "cancel-task", &run_id).is_err());
+        assert_eq!(load_run_state(&connection, &run_id).unwrap().status, "running");
+        let count: i64 = connection.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1, "failed finalization must not leave a notice or interrupted plan");
+        connection.execute_batch("DROP TRIGGER fail_cancel;").unwrap();
+        assert_eq!(persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap().1.len(), 2);
     }
 
     #[test]

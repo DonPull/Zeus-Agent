@@ -19,7 +19,7 @@ import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
 import ActionPlanPanel from "./components/ActionPlanPanel";
-import { formatCredits, mergeMessages } from "./utils";
+import { formatCredits, mergeMessages, reconcileMessageSnapshot } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
 
@@ -104,13 +104,13 @@ function App() {
     };
 
     // P0: the ONE reconcile path. Re-fetches the visible message list from the
-    // DB and replaces local state wholesale, guarded by the active task.
-    // Guarantees "live state" === "state after refresh" by construction.
+    // DB, preserving only newer backend-versioned resource projections that
+    // arrived while the snapshot was in flight, guarded by the active task.
     const reconcileMessages = async (taskId) => {
         try {
             const fresh = await bridge.getTaskMessages(taskId);
             if (activeTaskIdRef.current !== taskId) return;
-            setMessages(fresh);
+            setMessages(previous=>activeTaskIdRef.current===taskId?reconcileMessageSnapshot(previous,fresh):previous);
         } catch (err) {
             showToast(`Failed to load messages: ${err}`);
         }

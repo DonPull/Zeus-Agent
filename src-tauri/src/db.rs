@@ -306,6 +306,8 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
     // Additive accounting migration. Preserve historical rows and raw provider usage.
     crate::model_routes::init_schema(connection)?;
     crate::attachments::init_schema(connection)?;
+    crate::browser_store::init_schema(connection)?;
+    crate::browser_store::recover(connection)?;
     for (column, definition) in [
         ("request_id", "TEXT"), ("run_id", "TEXT"), ("role", "TEXT"),
         ("requested_model", "TEXT"), ("provider_request_id", "TEXT"),

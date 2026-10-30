@@ -40,6 +40,10 @@ pub struct ActionPlanStep {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Directive {
+    BrowserAction {
+        #[serde(flatten)]
+        command: crate::managed_browser::BrowserCommand,
+    },
     RunAction {
         action: ActionSpec,
         #[serde(default)]
@@ -500,6 +504,7 @@ pub async fn execute_directive_bypass_gatekeeper(
     directive: Directive,
 ) -> Result<String, String> {
     match directive {
+        Directive::BrowserAction { .. } => Err("BROWSER_OWNER_REQUIRED: use the shared run-scoped browser executor".into()),
         Directive::HttpRequest { url, method, body } => {
             let client = reqwest::Client::new();
             let mut req = client.request(
@@ -531,10 +536,11 @@ pub async fn execute_directive_bypass_gatekeeper(
                 Some(custom_dir) if !custom_dir.trim().is_empty() => std::path::PathBuf::from(custom_dir),
                 _ => crate::utils::task_workspace(task_id)?,
             };
-            let output_future = tokio::process::Command::new("cmd")
-                .args(&["/c", &command])
-                .current_dir(execution_dir)
-                .output();
+            let mut process = tokio::process::Command::new("cmd");
+            process.args(&["/c", &command]).current_dir(execution_dir);
+            #[cfg(windows)]
+            process.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+            let output_future = process.output();
             
             let output_result = tokio::time::timeout(
                 std::time::Duration::from_secs(1800),

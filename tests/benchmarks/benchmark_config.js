@@ -29,6 +29,8 @@ export function environmentOverrides(env = process.env) {
 
 export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}, cli = {}, task = {} } = {}) {
   const config = { ...DEFAULTS, ...defaults, ...suite, ...profile, ...cli, ...task };
+  config.browser_service??='legacy';
+  if(!['legacy','managed-v1'].includes(config.browser_service))throw new Error('Invalid browser service');
   if (!['solo', 'team'].includes(config.architecture)) throw new Error(`Invalid architecture: ${config.architecture}`);
   if (!['smoke', 'standard', 'full'].includes(config.profile)) throw new Error(`Invalid profile: ${config.profile}`);
   if (!['legacy-eval-with-user-simulator', 'scripted-no-tools-offline', 'normal-approvals-fixture-v1'].includes(config.permission_policy)) {
@@ -65,7 +67,7 @@ export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}
   }
   // Watcher authorization is independent of Solo/Team collaboration.
   config.configuration_fingerprint = fingerprint({ architecture: config.architecture, roles: config.roles,
-    budget_credits: config.budget_credits, browser_mode: config.browser_mode, permission_policy: config.permission_policy,
+    budget_credits: config.budget_credits, browser_mode: config.browser_mode, browser_service:config.browser_service, permission_policy: config.permission_policy,
     turn_timeout_ms: config.turn_timeout_ms, prompt_timeout_ms: config.prompt_timeout_ms,
     execution_profile:config.execution_profile,evaluation_limits:config.evaluation_limits,image_delivery:config.image_delivery??'auto',supervision_policy:config.supervision_policy??'external-review' });
   return config;

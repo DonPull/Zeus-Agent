@@ -87,7 +87,7 @@ export async function stopMockServer() {
   }
 }
 
-export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = 'debug', reuseWorkspace = null } = {}) {
+export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = 'debug', reuseWorkspace = null, managedBrowser=false, browserPython=null, allowMissingBrowserRuntime=false } = {}) {
   if (tauriProcess && tauriProcess.exitCode === null) throw new Error('A test app is already running');
   const offline = process.env.ZEUS_OFFLINE_TEST === '1';
   if (offline && useRealApi) throw new Error('Offline tests cannot launch a live-provider runtime');
@@ -107,6 +107,12 @@ export async function launchTauri(useRealApi = false, { policy = 'standard', eva
   const env = { ...process.env, ZEUS_TEST_WORKSPACE_ROOT: workspace,
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
     WEBVIEW2_USER_DATA_FOLDER: path.join(workspace, 'webview'), ZEUS_TEST_HIDE_WINDOW: visible ? '0' : '1' };
+  delete env.ZEUS_MANAGED_BROWSER;delete env.ZEUS_BROWSER_PYTHON;
+  if(managedBrowser){
+    const interpreter=browserPython??path.join(root,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
+    if(!allowMissingBrowserRuntime&&!fs.existsSync(interpreter))throw new Error('Prepare the isolated browser runtime explicitly: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install');
+    env.ZEUS_MANAGED_BROWSER='1';env.ZEUS_BROWSER_PYTHON=interpreter;
+  }
   // Provider selection never grants execution privileges. Legacy suites must opt in.
   for (const key of ['ZEUS_EVAL_MODE','ZEUS_AUTO_ALLOW_COMMANDS','ZEUS_AUTO_ALLOW_NEW_FILES','ZEUS_UNLIMITED_BUDGET','ZEUS_UNLIMITED_ITERATIONS','ZEUS_EVALUATION_LIMITS']) delete env[key];
   if (policy === 'legacy-evaluation') env.ZEUS_EVAL_MODE = '1';

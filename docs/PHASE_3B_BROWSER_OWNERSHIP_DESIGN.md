@@ -1,8 +1,10 @@
 # Phase 3B: one owned browser session per run
 
-Status: **Focused proposal for alignment; no browser implementation changes yet.** Prepared 2026-10-30 against `42bd730`, the manually retested Phase 3A/stabilization checkpoint. This expands sections 6–8 of [the Phase 3 packet](PHASE_3_RELIABILITY_DESIGN.md). The user's instruction to move forward authorizes preparation; the standing workflow still requires alignment on substantial implementation decisions.
+Status: **Approved and implemented on 2026-10-30; local software gates passed. Development opt-in only, pending the 3C viewer gate.** Prepared against `42bd730`, the manually retested Phase 3A/stabilization checkpoint; proposal committed as `d375c83`. This expands sections 6–8 of [the Phase 3 packet](PHASE_3_RELIABILITY_DESIGN.md). [Implementation and evidence](PHASE_3B_WORK_LOG.md) records 229 passing offline checks, three passing release cases, and both live outcomes: one failed initiation, one independently correct browser update whose execution hit its request cap. No fully verified end-to-end live pass is claimed. The design below preserves the approved scope; its preflight-only statements describe the proposal checkpoint.
 
 ## 1. Tangible differences
+
+**Normal-launch testing note:** 3B's ownership changes apply only when the app starts with the explicit managed opt-in. A normal launch still exercises the legacy browser/recording path. [Setup](../scripts/browser_service/README.md) and [the user's manual-test investigation](PHASE_3B_MANUAL_FOLLOWUP.md). Default rollout waits for 3C's coherent viewer; this phase alone does not fix normal-launch Live View/Replay.
 
 For a browser task, Zeus Solo and Zeus Team should reuse one managed browser session across tool calls, Python scripts and worker handoffs. A data-processing script should launch no browser. Finishing a script should not end the session; the root run ending or being cancelled should close owned resources. Startup failures should become useful errors rather than disappearing into a fallback. An ordinary approval wait should preserve the session.
 

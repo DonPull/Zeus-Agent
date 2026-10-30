@@ -1,6 +1,6 @@
 # Reliability issues and manual-test findings
 
-Updated: 2026-10-29. This is the active stabilization backlog, linked from the implementation plan. A passing regression suite covers its tested cases; it does not establish production stability. The approved [stabilization patch](STABILIZATION_PATCH_1.md) records validated repairs and all live failures. Goal completion, browser reliability and several diagnostic/UI improvements remain open.
+Updated: 2026-10-30. This is the active stabilization backlog, linked from the implementation plan. A passing regression suite covers its tested cases; it does not establish production stability. The approved [stabilization patch](STABILIZATION_PATCH_1.md) and [Phase 3B delivery record](PHASE_3B_WORK_LOG.md) record validated repairs and all live failures. Goal completion, browser viewing/compatibility and several diagnostic/UI improvements remain open.
 
 ## ZA-001 — Native stack overflow during stored-image follow-up
 
@@ -55,9 +55,13 @@ New attachment chips, provider controls and advanced model settings include inli
 
 “Use in next message” explicitly adds the same stored attachment to a new message's input. It is **not required for follow-up inspection**: the actor can invoke `analyze_visual` with the historical handle, as the reported conversation demonstrates. The label makes that distinction unclear. Prefer a subtle optional “Attach again” action or remove it from the normal flow after reviewing the reuse journey. Do not require users to reattach images for ordinary follow-up questions, and do not resend every historical image on every turn. Durable memory/compaction must retain discoverable handles and input ownership.
 
+Manual follow-up on 2026-10-30 found permission titles inherited `user-select:none` from a shared header helper. Titles now explicitly allow text selection, covering approval/handoff/choice cards. A desktop check drags over a real title, verifies selected text, then approves the ordinary card. Broader UI polish remains pending.
+
 ## ZA-005 — Correct perception without completing the requested artifact
 
 **Priority: high. Status: workspace-policy defect repaired; reliable goal completion remains open.**
+
+Phase 3B's two fixed-build Luna B01 browser attempts reproduce the broader orchestration gap. One falsely claimed browser tools were unavailable despite receiving the managed-tool contract; no tool was invoked. The other made the correct update through one real browser, recovered from a wrong locator, and independently passed all five outcome criteria, but exhausted its 12-request allowance before final-answer completion. Planning/narration/protocol-repair turns contributed overhead. Both failures remain retained; this does not prove an insufficiently intelligent model or a broken browser service. Deterministic initiation/completion and accurate tool availability are still required. See [exact records and usage](PHASE_3B_WORK_LOG.md#two-fixed-build-live-diagnostics).
 
 The seven stabilization diagnostics retain both passes and failures. Direct Luna V01 and D01 generated correct artifacts, and one helper run wrote the correct file after an immediate real supervisor approval. That helper run still failed its combined follow-up execution at a request cap; other helper runs stopped with prose, protocol problems or provider output exhaustion. Three of seven artifact outcomes passed; no fully verified authorization passes are claimed. See the stabilization packet for exact configurations and the combined report. General deterministic task state/completion is still required; upgrading the model or relaxing the grader is not the repair.
 
@@ -83,6 +87,28 @@ Keep deterministic software/negative-control tests, add targeted real-provider p
 
 Opening the global model list called `getDisabledReasonForRole`, which referenced an undefined `connection`. React's render exception removed the UI. It now reads the selected role binding. Previous tests wrote settings through the bridge and missed the dropdown interaction. The new desktop test opens/selects every role in global and task settings, saves/reopens, and fails on unexpected page errors. Scoped settings/root render boundaries show recoverable feedback; a controlled fault test verifies recovery without treating ordinary test exceptions as acceptable. These boundaries do not catch native aborts or arbitrary asynchronous errors.
 
+## ZA-008 — Parsed inline directives leak into narration; retry advice ignores prior effects
+
+**Priority: medium for publication; high before automatic recovery/retry. Status: observed in retained Phase 3B live evidence; not repaired in this browser-owner slice.**
+
+The second B01 run parsed and executed an inline `update_action_plan` directive, but the JSON remained in the visible narration. The runtime's generic request-cap error also suggested resending the message even though the browser had already saved the ticket. No duplicate mutation occurred, and the new journal does not automatically retry uncertain effects. Before enabling automatic recovery, fix backend publication boundaries and make error advice respect completed/uncertain work. Keep the raw conversation and real side-effect audit as regression fixtures; do not hide command content using frontend visibility heuristics.
+
+## ZA-009 — Browser ownership foundation delivered; viewer/default rollout incomplete
+
+**Priority: high. Status: managed owner locally validated as development opt-in; Live View/Replay and compatibility pending 3C/3D.**
+
+Phase 3B implements one session per task/root run across Solo/Team/scripts, lazy acquisition, readiness validation, normal policy binding, durable actual-action journaling, stable status projection, root cleanup and restart uncertainty. Seven real-browser probes, 17 new desktop checks, relevant existing regressions and three release cases passed. The second bounded live B01 attempt confirmed one session and graceful cleanup with zero owned descendants. These checks establish their cases, not universal browser competence or a completed goal.
+
+`ZEUS_MANAGED_BROWSER=1` remains development opt-in. The normal legacy route is not silently replaced while the new route lacks a usable live/replay viewer. 3C must add independent capture, hydration, replay/retention and coverage-aware legacy readers; 3D adds actual human handoff, profiles/login and supported compatibility. Do not claim the user's live-preview/replay problems are fixed by 3B alone. [Delivery, decisions and setup](PHASE_3B_WORK_LOG.md).
+
+The subsequent manual Wordle diagnostic used the **legacy route**, with a stored CDP worker prompt and no managed sessions. Its four `sess_*` lifecycles are script recordings; the supplied log has only one explicit process spawn. The worker then downloaded every `.js` URL in the page resource inventory, including unrelated advertising integrations. This explains the Python network cards; it is not proof of prompt injection or a reason to auto-allow those domains. Hidden-control targeting, unknown feedback treated as absent, five-games/five-wins objective drift and the “at any cost” recovery instruction remain general execution/supervision work. One legacy approval remained pending after cancellation; general run-bound approval expiry remains open. [Investigation and scoped repairs](PHASE_3B_MANUAL_FOLLOWUP.md). Debug exports now explicitly label the current exporting process's route even with no managed sessions.
+
+## ZA-010 — Duplicate Stop notices from nested cancellation handlers
+
+**Priority: medium. Status: reproduced from the call paths, repaired and targeted native checks passed.**
+
+Workers, master loop/tool waits and the outer send error boundary each called `finish_cancelled_run`. A delegated cancellation could therefore persist three distinct notices, matching the user's log. Children now propagate `RUN_CANCELLED`; only the root boundary finalizes after unwinding/owned browser cleanup. Notice, interrupted plan, attachment cancellation and terminal run state commit together. Re-entry returns the existing cancelled run without another notice or accidentally releasing a newer task run. No frontend text deduplication or history deletion is used. Checks cover master/worker/verifier waits, a worker approval, database/visible uniqueness after reload, transaction rollback and per-run identity.
+
 ## Next stabilization checkpoint
 
-The focused repair packet for the reported runtime/UI blockers is implemented and validated. Keep the current goal-completion failures visible before declaring a stable v1. Next design checkpoints remain deterministic task state/completion and browser ownership/preview/replay, each with tangible differences and old/new decisions before implementation. Continue durable diagnostics and the scoped UI cleanup; broaden live acceptance with fixed configurations and retained failures. Stabilization validation: 196 checks (36 JS, 37 mission/grader, 67 Rust, 56 desktop), production frontend build, release runtime build and an additional passing release fresh-TLS large-image regression. Remote CI remains unverified.
+The earlier stabilization packet passed 196 checks and the user's manual retest. Phase 3B's original build passed 229 offline checks and three release cases. Its manual-test follow-up now passes **235 offline checks (41 Node, 37 mission/grader, 73 Rust, 7 real Python-browser probes, 77 desktop)**, production frontend build/compile and three rebuilt release cases. The original two live diagnostics show progress in the browser service and unresolved end-to-end orchestration; neither is a fully verified pass, and no additional live-model trials were used for the follow-up. Next focused browser design is 3C; deterministic task state/completion remains a high-priority prerequisite to a reliable v1. Continue scoped UI/publication recovery and mixed live acceptance with frozen configurations and retained failures. Remote CI remains unverified.

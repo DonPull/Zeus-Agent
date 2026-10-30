@@ -1,4 +1,5 @@
 import MessageAttachments from "./MessageAttachments";
+import ManagedBrowserSessionCard from "./ManagedBrowserSessionCard";
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -522,6 +523,7 @@ function ChatMessage({
     }
 
     if (message.role === "event") {
+        if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message}/>;
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
         if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;

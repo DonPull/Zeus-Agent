@@ -85,7 +85,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
   const configuration=resolveBenchmarkConfig({suite:{architecture:'solo',master_model:models.master??'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',
     vision_model:models.vision??'None',vision_image_input:models.visionImageInput??'unknown',master_image_input:models.masterImageInput??'unknown',
     master_protocol:models.masterProtocol??'auto',vision_protocol:models.visionProtocol??'auto',vision_effort:models.visionEffort??'default',
-    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,budget_credits:1000000,
+    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,browser_service:models.browserService??'legacy',budget_credits:1000000,
     permission_policy:'normal-approvals-fixture-v1',execution_profile:executionProfile,evaluation_limits:evaluationLimits,
     prompt_timeout_ms:timeoutMs,turn_timeout_ms:timeoutMs}});
   const artifactsDir=path.join(output,'artifacts',trial);
@@ -100,6 +100,8 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       await page.evaluate(({tid,settings})=>window.__ZEUS_BRIDGE__.updateTaskSettings(tid,settings),{tid,settings});
       const actual=await page.evaluate(async tid=>(await window.__ZEUS_BRIDGE__.listTasks()).find(t=>t.id===tid),tid);
       assertEffectiveSettings(settings,actual);
+      const browserService=await page.evaluate(()=>window.__ZEUS_BRIDGE__.getManagedBrowserStatus());
+      if(browserService.enabled!==(configuration.browser_service==='managed-v1'))throw infrastructure('Actual browser service does not match the declared configuration');
       const active=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskSpend(tid),tid);
       if(fingerprint(active.evaluation?.limits)!==fingerprint(evaluationLimits))throw infrastructure('Active evaluation limits do not match the manifest');
       await page.evaluate(async()=>{await window.__ZEUS_REFRESH_TASKS__?.();});
@@ -130,7 +132,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
     collect:async context=>{
       if(!context.task)return {};
       const tid=context.task.id;
-      messages=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id,true),tid);
+      messages=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskDebugMessages(id),tid);
       const spend=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskSpend(id),tid);
       const state=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),tid);
       usage=spend.usage;limits=spend.evaluation;runId=state?.id??runId;
@@ -141,6 +143,34 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       }
       context.observation={unitsUsed:usage?.unknown_requests===0?spend.spent_credits:null,messageCount:messages.length,
         runMeta:{task_id:tid,run_id:runId,usage,evaluation_limits:limits,interventions}};
+      const browserEvidence=typeof browserObservation==='function'?await browserObservation():browserObservation;
+      const browserSessions=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),tid);
+      if(browserSessions.length){
+        const browserActions=[];let truncated=false,images=0;
+        for(const session of browserSessions){
+          let after=0;
+          while(browserActions.length<1000){
+            const batch=await page.evaluate(({task,session,after})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session,after),{task:tid,session:session.session_id,after});
+            browserActions.push(...batch);if(batch.length<100)break;after=batch.at(-1).seq;
+          }
+          if(browserActions.length>=1000)truncated=true;
+        }
+        for(const action of browserActions){
+          const artifact=action.response?JSON.parse(action.response).result?.artifact:null;
+          if(!artifact)continue;
+          if(images>=10){artifact.export_status='image export limit';continue;}
+          try{
+            const relative=path.relative(context.workspace,artifact.path);
+            const source=safeFile(context.workspace,relative,2*1024*1024),bytes=fs.readFileSync(source);
+            if(hashBytes(bytes)!==artifact.sha256)throw new Error('changed screenshot bytes');
+            const name=`browser-${artifact.id}.jpg`,destination=path.join(artifactsDir,name);fs.writeFileSync(destination,bytes);images++;
+            context.artifacts.push({path:path.relative(output,destination),sha256:artifact.sha256});
+          }catch(error){action.artifact_export_error=String(error.message);}
+        }
+        const destination=path.join(artifactsDir,'browser-journal.json');
+        atomicWrite(destination,JSON.stringify({sessions:browserSessions,actions:browserActions,coverage:{truncated,max_actions:1000,max_images:10,images}},null,2));
+        context.artifacts.push({path:path.relative(output,destination),sha256:hashBytes(fs.readFileSync(destination))});
+      }
       atomicWrite(path.join(artifactsDir,'messages.json'),JSON.stringify(messages,null,2));
       const debug=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getDebugLog(id),tid);
       atomicWrite(path.join(artifactsDir,'debug.log'),String(debug).slice(-2_000_000));
@@ -161,7 +191,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       }
       if(executable&&!trustedExecution){
         outcome={mission_id:id,outcome_status:'not_evaluated',criteria:[{id:'isolated_grading',status:'not_evaluated',evidence:'No isolated executor or exact known-control hash; exported code was not executed'}]};
-      }else outcome=await gradeMission(id,exported,{trustedExecution,portal,browserObservation});
+      }else outcome=await gradeMission(id,exported,{trustedExecution,portal,browserObservation:browserEvidence});
       atomicWrite(path.join(artifactsDir,'assessment.json'),JSON.stringify(outcome,null,2));
       for(const file of ['export.json','assessment.json']){
         const full=path.join(artifactsDir,file);context.artifacts.push({path:path.relative(output,full),sha256:hashBytes(fs.readFileSync(full))});

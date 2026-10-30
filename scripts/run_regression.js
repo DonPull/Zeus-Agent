@@ -25,5 +25,10 @@ function run(command, args, cwd = root) {
 if (selected('unit')) run(process.execPath, ['--test', ...fs.readdirSync(path.join(root, 'tests/unit')).filter(f => f.endsWith('.test.js')).map(f => `tests/unit/${f}`)]);
 if (selected('missions')) run(process.execPath, ['--test', 'tests/missions/graders.test.js']);
 if (selected('backend')) run('cargo', ['test', '--lib', '--locked'], path.join(root, 'src-tauri'));
-if (selected('ui')) run(process.execPath, [path.join(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config=playwright.offline.config.js']);
+if (selected('ui')) {
+  const browserPython=path.join(root,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
+  if(!fs.existsSync(browserPython)){console.error('Prepare the isolated browser runtime explicitly: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install');code||=1;}
+  else run(browserPython,['tests/browser_service/test_service.py']);
+  run(process.execPath, [path.join(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config=playwright.offline.config.js']);
+}
 process.exitCode = code;

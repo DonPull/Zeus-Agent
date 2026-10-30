@@ -878,6 +878,7 @@
 .approval-card.denied { border-color: #ff5c5c55; }
 
 .approval-card-title {
+    user-select: text;
     color: var(--zeus-text);
     font-family: 'Lato-Bold';
     font-size: 15px;

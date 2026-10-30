@@ -36,6 +36,13 @@ test.describe('Offline desktop runtime regression', () => {
   }
 
   test('real bridge, streaming, usage, message ordering, and reload reconciliation', async () => {
+    // Native visibility is independent of DOM visibility: background tests
+    // must still render and execute the real webview without occupying the desktop.
+    const nativeWindow=await page.evaluate(async()=>({
+      visible:await window.__TAURI_INTERNALS__.invoke('plugin:window|is_visible',{label:'main'}),
+      focused:await window.__TAURI_INTERNALS__.invoke('plugin:window|is_focused',{label:'main'}),
+    }));
+    expect(nativeWindow).toEqual({visible:false,focused:false});
     const tid = await newTask();
     queueMockResponse(reply('4'));
     await page.locator('#chat-input').fill('What is 2+2? Answer only the numeral.');
@@ -62,6 +69,27 @@ test.describe('Offline desktop runtime regression', () => {
     await page.evaluate(tid => window.__ZEUS_BRIDGE__.sendUserMessage(tid, 'What is 2+2? Answer only the numeral.', crypto.randomUUID()), tid);
     expect((await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskSpend(tid), tid)).spent_credits).toBe(1261);
     expect(getMockRequests().at(-1).url).toContain('/responses');
+  });
+
+  test('debug export identifies the active legacy route even with no browser sessions',async()=>{
+    await newTask();
+    await page.evaluate(()=>{
+      window.__ORIGINAL_CLIPBOARD_WRITE__=navigator.clipboard.writeText;
+      navigator.clipboard.writeText=async text=>{window.__COPIED_DEBUG__=text;};
+    });
+    try {
+      await page.locator('#chat-log-button').click();
+      await page.locator('#chat-log-copy-debug').click();
+      await expect.poll(()=>page.evaluate(()=>window.__COPIED_DEBUG__??'')).toContain('runtime_at_export');
+      const report=await page.evaluate(()=>window.__COPIED_DEBUG__);
+      const browser=JSON.parse(report.split('--- MANAGED BROWSER JOURNAL (coverage stated in snapshot) ---')[1].split('--- BACKEND EVENTS')[0]);
+      expect(browser.runtime_at_export).toMatchObject({enabled:false,route:'legacy'});
+      expect(browser.sessions).toEqual([]);
+    } finally {
+      await page.evaluate(()=>{navigator.clipboard.writeText=window.__ORIGINAL_CLIPBOARD_WRITE__;delete window.__ORIGINAL_CLIPBOARD_WRITE__;delete window.__COPIED_DEBUG__;});
+      await page.reload();
+      await expect(page.locator('#app-container')).toBeVisible();
+    }
   });
 
   test('a completed conversational answer mentioning future work is not forced into another reply',async()=>{
@@ -195,7 +223,40 @@ test.describe('Offline desktop runtime regression', () => {
     const spend = await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskSpend(tid), tid);
     expect(spend.usage.unknown_requests).toBe(1);
     expect(spend.usage.provider_credits).toBeNull();
+    await expectSingleStopNotice(tid);
   });
+
+  async function expectSingleStopNotice(tid) {
+    const notice='Zeus stopped this run at your request.';
+    const messages=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(messages.filter(message=>message.content===notice)).toHaveLength(1);
+    await expect(page.locator('#chat-messages').getByText(notice,{exact:true})).toHaveCount(1);
+    await page.reload();
+    await expect(page.locator('#app-container')).toBeVisible();
+    const reloaded=await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskMessages(tid,true),tid);
+    expect(reloaded.filter(message=>message.content===notice)).toHaveLength(1);
+  }
+
+  for(const boundary of ['worker stream','worker permission','verifier stream']) {
+    test(`Stop at ${boundary} publishes one durable root notice`,async()=>{
+      const tid=await newTask({worker_model:'phase1-worker',verifier_model:boundary==='verifier stream'?'phase1-verifier':'None'});
+      const before=getMockRequests().length;
+      queueMockResponse(reply(directive({type:'delegate_task',delegate:{name:'Stop boundary',objective:'Wait for a controller cancellation.',success_criteria:'No external effects.'}})));
+      if(boundary==='worker stream')queueMockResponse(reply('late worker result',{_delay_ms:20000}));
+      else if(boundary==='worker permission')queueMockResponse(reply(directive({type:'run_command',command:'echo ZEUS_CANCELLED_PERMISSION'})));
+      else {
+        queueMockResponse(reply(directive({type:'final_answer',final_answer:{summary:'Ready for verification.'}})));
+        queueMockResponse(reply(JSON.stringify({passed:true,feedback:'late verifier result',blockers:[]}),{_delay_ms:20000}));
+      }
+      await page.locator('#chat-input').fill('Start the synthetic worker and wait.');
+      await page.locator('#chat-send-button').click();
+      if(boundary==='worker permission')await expect(page.locator('.approval-card.pending')).toBeVisible();
+      else await expect.poll(()=>getMockRequests().length).toBe(before+(boundary==='verifier stream'?3:2));
+      await page.locator('#chat-send-button').click();
+      await expect.poll(async()=>(await page.evaluate(tid=>window.__ZEUS_BRIDGE__.getTaskRunState(tid),tid)).status).toBe('cancelled');
+      await expectSingleStopNotice(tid);
+    });
+  }
 
   test('a native command waits for a real approval card and the decision persists', async () => {
     const tid = await newTask();
@@ -205,6 +266,15 @@ test.describe('Offline desktop runtime regression', () => {
     await page.locator('#chat-send-button').click();
     const card = page.locator('.approval-card.pending');
     await expect(card).toBeVisible();
+    const heading=card.locator('.approval-card-title');
+    await expect(heading).toHaveCSS('user-select','text');
+    const box=await heading.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box.x+2,box.y+box.height/2);
+    await page.mouse.down();
+    await page.mouse.move(box.x+box.width-2,box.y+box.height/2,{steps:10});
+    await page.mouse.up();
+    expect(await page.evaluate(()=>window.getSelection()?.toString())).toMatch(/run command/i);
     await card.getByRole('button', { name: 'Approve (Once)' }).click();
     await expect(page.locator('#chat-messages')).toContainText('approval-complete');
     const messages = await page.evaluate(tid => window.__ZEUS_BRIDGE__.getTaskMessages(tid, true), tid);

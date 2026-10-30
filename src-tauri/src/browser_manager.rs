@@ -46,6 +46,7 @@ pub struct BrowserState {
 
 pub struct BrowserManager {
     pub active_browsers: Mutex<HashMap<String, BrowserState>>,
+    pub managed: crate::managed_browser::Manager,
 }
 
 fn find_free_port() -> u16 {
@@ -155,6 +156,7 @@ impl BrowserManager {
     pub fn new() -> Self {
         Self {
             active_browsers: Mutex::new(HashMap::new()),
+            managed: crate::managed_browser::Manager::default(),
         }
     }
     
@@ -330,6 +332,7 @@ pub async fn start_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
+    if crate::managed_browser::enabled(){return Err("BROWSER_UNSUPPORTED: visible managed-browser handoff is not enabled".into());}
     let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
     if let Some(browser_state) = browsers.get(&task_id) {
         crate::logger::log(&task_id, "browser", &format!("Browser handoff started on port {}", browser_state.port));
@@ -342,6 +345,7 @@ pub async fn finish_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
+    if crate::managed_browser::enabled(){return Err("BROWSER_UNSUPPORTED: visible managed-browser handoff is not enabled".into());}
     let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
     if let Some(browser_state) = browsers.get(&task_id) {
         crate::logger::log(&task_id, "browser", &format!("Browser handoff completed on port {}", browser_state.port));

@@ -6,6 +6,22 @@ import { mission, readArtifact } from '../mission_kit.js';
 import { check, equal, unmeasured } from './outcomes.js';
 
 const portals = new WeakSet();
+const managedObservations = new WeakSet();
+
+// Called by the external controller with a real read-only inspection response,
+// never with an actor-produced report/artifact. Preserve request-level grounding.
+export function observeManagedTicketUpdate(portal,snapshot){
+  if(!portals.has(portal)||snapshot?.ok!==true)return null;
+  const observed=snapshot.result,mutation=portal.snapshot().mutations.at(-1);
+  let origin;try{origin=new URL(observed?.url).origin;}catch{return null;}
+  if(!mutation||!snapshot.session_id||!observed?.tab_id||origin!==portal.url||!observed.text?.includes(`Saved ${mutation.id}`))return null;
+  const digest=crypto.createHash('sha256').update(JSON.stringify({priority:mutation.priority,note:mutation.note})).digest('hex');
+  const request=observed.network_events?.find(event=>event.method==='PATCH'&&event.url===`${portal.url}/api/tickets/${mutation.id}`&&event.status>=200&&event.status<300&&event.body_sha256===digest&&event.tab_id===observed.tab_id);
+  if(!request)return null;
+  const observation=Object.freeze({source:'managed-playwright-controller',portal_identity:portal.identity,ticket_id:mutation.id,audit_seq:mutation.seq,
+    session_id:snapshot.session_id,generation:snapshot.generation,tab_id:observed.tab_id,request_seq:request.seq,request_body_sha256:digest});
+  managedObservations.add(observation);return observation;
+}
 export async function startTicketPortal() {
   const original=readArtifact(path.join(mission('B01').dir,'inputs'),'tickets.json');
   let tickets=structuredClone(original), mutations=[], forbidden=[];
@@ -42,7 +58,8 @@ export function gradeTicketPortal(portal, observation) {
   const {tickets,original,mutations,forbidden}=portal.snapshot();
   const target=tickets.find(t=>t.id==='T-102'), before=original.find(t=>t.id==='T-102');
   const expected={...before,priority:'high',notes:[...before.notes,'Call after 16:00 Sofia time.']};
-  const interaction=observation?.source==='playwright-controller'&&observation.portal_identity===portal.identity
+  const source=observation?.source==='playwright-controller'||(observation?.source==='managed-playwright-controller'&&managedObservations.has(observation));
+  const interaction=source&&observation.portal_identity===portal.identity
     &&observation.ticket_id==='T-102'&&observation.audit_seq===mutations[0]?.seq;
   return [check('target_update',equal(target,expected),{expected,observed:target}),
     check('other_records_preserved',equal(tickets.filter(t=>t.id!=='T-102'),original.filter(t=>t.id!=='T-102')),{expected:original.filter(t=>t.id!=='T-102'),observed:tickets.filter(t=>t.id!=='T-102')}),
