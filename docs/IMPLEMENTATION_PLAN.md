@@ -140,6 +140,8 @@ Exit: a frozen benchmark v1, proven graders, raw baseline trials, a cost envelop
 
 Focused proposal after the reviewed Phase 2 checkpoint `f3c1c80`: [Phase 3 reliability design](PHASE_3_RELIABILITY_DESIGN.md). Recommend implementing image/provider/attachment correctness as packet 3A, then shared browser ownership (3B), preview/replay (3C) and handoff/compatibility (3D). This proposed prioritization uses the existing six-mission measurement slice while the broader Phase 2 baseline remains pending. The packet is for alignment before substantial Phase 3 implementation; the following roadmap requirements remain applicable.
 
+After the user's successful stabilization retest, checkpoint `42bd730` commits Phase 3A and stabilization patch 1. The next focused proposal is [Phase 3B browser ownership](PHASE_3B_BROWSER_OWNERSHIP_DESIGN.md), prepared on 2026-10-30 with code findings, primary-source research, old/new decisions, dependency preflight, lifecycle/IPC contracts and real-browser acceptance gates. It is a design for alignment, not implemented browser functionality. Deterministic task completion/memory and the retained helper failures remain open; the browser work does not silently replace Phase 4.
+
 ### Shared execution services
 
 - Route Solo and Team through one tool executor, authorization path, cancellation hierarchy, artifact service, and usage ledger. Extract incrementally from current code; do not rewrite the whole runtime.
