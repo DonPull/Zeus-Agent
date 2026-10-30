@@ -4,6 +4,8 @@ Status: **3A approved and implemented. The subsequent approved [stabilization pa
 
 Prepared: 2026-10-28. Reviewed baseline: `f3c1c80`, containing Phase 2A/native 2B and the confirmed Responses history repair. That checkpoint has 149 passing automated checks and a passing frontend build. This packet follows the user's requirement to align on substantial changes before implementation.
 
+Current browser checkpoint: Phase 3B and its follow-ups are committed as `711ddb7`. [The focused 3C proposal](PHASE_3C_LIVE_VIEW_REPLAY_DESIGN.md) now expands preview/replay, agent observations and the normal-launch rollout gate. Sections 6–8 below preserve the original direction and are not a claim that those later features are already implemented.
+
 ## 1. Recommendation and tangible differences
 
 Start with **3A: reliable image attachments**, including the provider identity needed to deliver them correctly. Then tackle browser ownership and observations in separate increments. The six-mission diagnostic subset supports targeted repairs; a larger Phase 2 pilot, isolated executable grading, held-out tasks and repeated capability baselines remain pending. Moving to these repairs before expanding the baseline is a proposed reprioritization, not a claim that Phase 2 is finished.
