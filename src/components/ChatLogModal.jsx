@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ModalCloseButton from './ModalCloseButton';
 import { formatTime } from "../utils";
 import * as bridge from "../bridge";
 import { formatDebugReport } from "../debugReport";
@@ -35,7 +36,7 @@ function renderEntry(m) {
     return `[${time}] EVENT\n${m.content}\n`;
 }
 
-function ChatLogModal({ taskTitle, taskId, messages }) {
+function ChatLogModal({ taskTitle, taskId, messages, onClose }) {
     const [copied, setCopied] = useState(false);
     const [debugCopied, setDebugCopied] = useState(false);
 
@@ -112,6 +113,7 @@ function ChatLogModal({ taskTitle, taskId, messages }) {
                     >
                         <label>{copied ? "Copied!" : "Copy all"}</label>
                     </button>
+                    <ModalCloseButton label="Close chat log" onClick={onClose}/>
                 </div>
             </div>
 

@@ -836,6 +836,7 @@ function playNotificationChime(type = "complete") {
                         taskId={activeTask.id}
                         taskTitle={activeTask.title}
                         messages={visibleMessages}
+                        onClose={() => setIsChatLogOpen(false)}
                     />
                 )}
             </Modal>

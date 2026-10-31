@@ -24,3 +24,9 @@ export function browserDuration(session,now=Date.now()){
     return `${hours?`${hours}h `:''}${hours||minutes?`${minutes}m `:''}${seconds%60}s`;
 }
 export const browserActor=caller=>caller==='master'?'Zeus':caller?.startsWith('worker:')?'Worker':caller==='observer'?'Observer':caller?.includes('/script:')?'Script':'Agent';
+
+export function replaySpeed(value){
+    if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(String(value).trim()))return null;
+    const number=Number(value),rounded=Math.round((number+Number.EPSILON)*10)/10;
+    return Number.isFinite(rounded)&&rounded>=0.1?rounded:null;
+}

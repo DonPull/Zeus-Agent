@@ -12,6 +12,10 @@
   --zeus-glow: 0 0 20px #ffd35bb8, 0 0 2px #ff0, 0 0 5px #ff6f00;
   --zeus-accent: #ffcf3f;
   --danger: #ff5c5c;
+  --zeus-scroll-track: #14121a;
+  --zeus-scroll-thumb: #555261;
+  --zeus-scroll-hover: #80798c;
+  color-scheme: dark;
 
   /* consumed by common.css (spinner, switch, bullet-point) */
   --main-color-1: #14121a;
@@ -58,7 +62,14 @@ body {
 
 body * {
   display: flex;
+  scrollbar-width: thin;
+  scrollbar-color: var(--zeus-scroll-thumb) var(--zeus-scroll-track);
 }
+
+*::-webkit-scrollbar { width:8px; height:8px; }
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner { background:var(--zeus-scroll-track); }
+*::-webkit-scrollbar-thumb { background:var(--zeus-scroll-thumb); border-radius:8px; }
+*::-webkit-scrollbar-thumb:hover { background:var(--zeus-scroll-hover); }
 
 a {
   all: unset;

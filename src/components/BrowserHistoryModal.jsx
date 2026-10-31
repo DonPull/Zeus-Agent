@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import Modal from './Modal';
+import ModalCloseButton from './ModalCloseButton';
 import * as bridge from '../bridge';
 
 export default function BrowserHistoryModal({isOpen,onClose,taskId,onOpenReplay}){
@@ -11,7 +12,7 @@ export default function BrowserHistoryModal({isOpen,onClose,taskId,onOpenReplay}
         return()=>{disposed=true;};
     },[isOpen,taskId,offset]);
     return <Modal isOpen={isOpen} onClose={onClose} className="browser-history-window">
-        <div className="column gap-15"><div className="align-center justify-space-between"><strong>Browser history</strong><button className="modal-close-button" onClick={onClose} aria-label="Close browser history">✕</button></div>
+        <div className="column gap-15"><div className="align-center justify-space-between"><strong>Browser history</strong><ModalCloseButton onClick={onClose} label="Close browser history"/></div>
             <span>Recorded actions and available images. Older recordings have limited evidence.</span>
             {error?<span role="alert">{error}</span>:!data?'Loading recordings…':!data.recordings.length?'No browser recordings for this task.':<div className="column gap-10">{data.recordings.map(item=><button className="browser-history-row" key={item.session_id} disabled={['starting','active','finalizing'].includes(item.status)} onClick={()=>onOpenReplay(item.session_id,taskId)}><strong>{item.kind==='older'?'Older recording':item.status}</strong><span>{item.time_source==='recording_file_modified'?'File updated: ':''}{item.created_at}</span><span>{['starting','active','finalizing'].includes(item.status)?'Recording in progress':'Replay →'}</span></button>)}</div>}
             {data?.older_scan_truncated&&<span>Only the first 1,000 older entries were scanned.</span>}

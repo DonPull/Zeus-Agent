@@ -26,7 +26,7 @@ test('real before/after evidence pages, failed action, export and explicit image
     await app.page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__?.());await app.page.locator('.sidebar-task').filter({has:app.page.locator('.sidebar-task-title[title="Recording acceptance"]')}).click();
     await app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'Replay',exact:true}).click();
     await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
-    await app.page.locator('#replay-next-button').click();await expect(app.page.locator('.browser-viewer-action')).toContainText('fill');
+    await app.page.locator('#replay-next-button').click();await expect(app.page.locator('.browser-viewer-action')).toContainText('Fill');
     await app.page.getByRole('combobox',{name:'Action image timing'}).selectOption('before');await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
     await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('2');await expect.poll(()=>app.page.locator('#replay-screenshot-img').evaluate(img=>img.clientWidth)).toBe(2560);
     await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('fit');

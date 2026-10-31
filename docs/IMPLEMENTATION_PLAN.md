@@ -149,6 +149,8 @@ The approved [Phase 3C design](PHASE_3C_LIVE_VIEW_REPLAY_DESIGN.md) is implement
 
 The user then approved a focused [browser UX, links and execution follow-up](BROWSER_UX_FOLLOWUP.md) before 3D. It replaces webview-navigating artifact links with task-file metadata/reveal and OS web opening; makes Watch active-only and Replay terminal-only; fixes viewed capture at 8 FPS/quality 80 without adaptive throttling; consolidates readable replay navigation/playback; moves recording export to developer tooling; and adds coherent keyboard input plus bounded readiness/result checks. Native document previews, compression, conversation portability and personal-browser access remain future decisions. This follow-up does not replace 3D or Phase 4, or establish an agent capability/speed improvement by itself.
 
+The user subsequently requested [replay UI refinements](REPLAY_UI_REFINEMENT.md): free numeric playback rates, seamless image loading, stable rows/URLs, clearer metadata, centered zoomed images, title-bar full screen, shared modal close controls and dark scrollbars. This remains a focused presentation/reliability patch; later architectural phases still require their agreed design checkpoints.
+
 ### Shared execution services
 
 - Route Solo and Team through one tool executor, authorization path, cancellation hierarchy, artifact service, and usage ledger. Extract incrementally from current code; do not rewrite the whole runtime.

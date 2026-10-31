@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {browserBadge,browserDuration,browserTime,browserActor} from '../../src/browserView.js';
+import {browserBadge,browserDuration,browserTime,browserActor,replaySpeed} from '../../src/browserView.js';
 test('displayed-frame freshness distinguishes live, stale, error, waiting and terminal states',()=>{
     assert.deepEqual(browserBadge('active',{state:'live'},1000,2500),{label:'Live',tone:'live'});
     assert.deepEqual(browserBadge('active',{state:'live'},1000,6000),{label:'Outdated · 5s',tone:'outdated'});
@@ -8,6 +8,11 @@ test('displayed-frame freshness distinguishes live, stale, error, waiting and te
     assert.equal(browserBadge('active',{state:'capture_error'},1000,2500).tone,'error');
     assert.equal(browserBadge('active',{state:'no_tab'},1000,2500).label,'No open tab');
     assert.equal(browserBadge('active',{state:'waiting'},null,2500).label,'Waiting for image');
+});
+
+test('replay speed accepts positive decimal rates, rounds to tenths and rejects invalid values',()=>{
+    for(const [input,value] of [['0.4',0.4],['.4',0.4],['0.44',0.4],['0.46',0.5],['0.15',0.2],['2',2],['25.6',25.6],['10000',10000]])assert.equal(replaySpeed(input),value);
+    for(const value of ['',0,'0.04','-2','Infinity','NaN','1e9','words'])assert.equal(replaySpeed(value),null);
 });
 test('replay durations and local action times are readable without opaque actor identifiers',()=>{
     assert.equal(browserDuration({duration_ms:42000}),'42s');

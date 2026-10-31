@@ -1,8 +1,9 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import Modal from './Modal';
+import ModalCloseButton,{ModalIconButton} from './ModalCloseButton';
 import * as bridge from '../bridge';
 import {fitBrowserImage} from '../utils';
-import {browserTerminal as terminal,browserBadge,browserTime,browserDuration,browserActor} from '../browserView';
+import {browserTerminal as terminal,browserBadge,browserTime,browserDuration,browserActor,replaySpeed} from '../browserView';
 
 const PILL=116,JUMPS=[-100,-75,-50,-25,-5,-1,1,5,25,50,75,100];
 
@@ -10,7 +11,7 @@ export default function BrowserViewer({isOpen,onClose,taskId,sessionId,mode='rep
     const [record,setRecord]=useState(null),[snapshot,setSnapshot]=useState(null),[selected,setSelected]=useState(1),[catalogue,setCatalogue]=useState([]);
     const [relation,setRelation]=useState('after'),[error,setError]=useState(''),[notice,setNotice]=useState(''),[src,setSrc]=useState(null),[shown,setShown]=useState(null);
     const [zoom,setZoom]=useState('fit'),[scale,setScale]=useState({scaleX:1,scaleY:1}),[clock,setClock]=useState(Date.now()),[deleting,setDeleting]=useState(false),[full,setFull]=useState(false);
-    const [playing,setPlaying]=useState(false),[rate,setRate]=useState('2'),[imageReady,setImageReady]=useState(false),[stripScroll,setStripScroll]=useState(0),[stripWidth,setStripWidth]=useState(800);
+    const [playing,setPlaying]=useState(false),[rate,setRate]=useState(2),[rateDraft,setRateDraft]=useState('2'),[imageReady,setImageReady]=useState(false),[stripScroll,setStripScroll]=useState(0),[stripWidth,setStripWidth]=useState(800);
     const stage=useRef(null),img=useRef(null),viewer=useRef(null),strip=useRef(null),url=useRef(null),imageRequest=useRef(null),pending=useRef(null),imageEpoch=useRef(0);
     const live=mode==='live',older=sessionId?.startsWith('sess_'),modernLive=live&&!older;
     const action=record?.actions?.find(row=>row.seq===selected),total=record?.total_actions||0;
@@ -33,12 +34,18 @@ export default function BrowserViewer({isOpen,onClose,taskId,sessionId,mode='rep
         const drain=async()=>{
             while(pending.current){
                 const next=pending.current;pending.current=null;const epoch=imageEpoch.current;
+                let candidate;
                 try{
                     const bytes=next.kind==='live'?await bridge.readBrowserLiveImage(next.task,next.session,next.seq):await bridge.readBrowserRecordingImage(next.task,next.session,next.frame);
                     if(epoch!==imageEpoch.current)continue;
-                    const object=URL.createObjectURL(new Blob([bytes instanceof ArrayBuffer?bytes:new Uint8Array(bytes)],{type:'image/jpeg'}));
-                    if(url.current)URL.revokeObjectURL(url.current);url.current=object;setImageReady(false);setSrc(object);setShown(next);setError('');
-                }catch(reason){if(epoch===imageEpoch.current&&!pending.current){setError(String(reason));if(!next.keep){if(url.current)URL.revokeObjectURL(url.current);url.current=null;setSrc(null);setShown(null);}}}
+                    candidate=URL.createObjectURL(new Blob([bytes instanceof ArrayBuffer?bytes:new Uint8Array(bytes)],{type:next.metadata?.mime||'image/jpeg'}));
+                    // Decode offscreen, keeping the previous decoded image mounted.
+                    // Only an owned, current request may replace it after decoding.
+                    const decoded=new Image();decoded.src=candidate;await decoded.decode();
+                    if(epoch!==imageEpoch.current){URL.revokeObjectURL(candidate);continue;}
+                    if(url.current)URL.revokeObjectURL(url.current);url.current=candidate;candidate=null;
+                    setSrc(url.current);setShown(next);setImageReady(true);setError('');
+                }catch(reason){if(candidate)URL.revokeObjectURL(candidate);if(epoch===imageEpoch.current&&!pending.current){setError(String(reason));if(!next.keep){if(url.current)URL.revokeObjectURL(url.current);url.current=null;setSrc(null);setShown(null);}}}
             }
         };
         imageRequest.current=drain().finally(()=>{imageRequest.current=null;if(pending.current)loadImage(pending.current);});
@@ -76,8 +83,10 @@ export default function BrowserViewer({isOpen,onClose,taskId,sessionId,mode='rep
     },[isOpen,taskId,sessionId,live]);
     useEffect(()=>{
         if(!isOpen||modernLive)return;
-        imageEpoch.current++;pending.current=null;if(url.current)URL.revokeObjectURL(url.current);url.current=null;setSrc(null);setShown(null);setError('');setImageReady(false);
-        if(frame&&['available','unverified'].includes(frame.status))loadImage({kind:'recorded',task:taskId,session:sessionId,frame:frame.id,metadata:frame.metadata,box:older?action.bounding_box:null,keep:false});
+        imageEpoch.current++;pending.current=null;setError('');setImageReady(false);
+        if(!action)return;
+        if(frame&&['available','unverified'].includes(frame.status))loadImage({kind:'recorded',task:taskId,session:sessionId,frame:frame.id,actionSeq:selected,metadata:frame.metadata,box:older?action.bounding_box:null,keep:false});
+        else{if(url.current)URL.revokeObjectURL(url.current);url.current=null;setSrc(null);setShown(null);}
         return()=>{imageEpoch.current++;};
     },[isOpen,taskId,sessionId,selected,relation,record,modernLive,older,loadImage]);
     const go=useCallback((value,manual=true)=>{if(manual)setPlaying(false);setSelected(Math.max(1,Math.min(total||1,value)));},[total]);
@@ -112,24 +121,29 @@ export default function BrowserViewer({isOpen,onClose,taskId,sessionId,mode='rep
         catch(reason){setNotice(String(reason));}finally{setDeleting(false);}
     };
     const togglePlayback=()=>{if(playing){setPlaying(false);return;}if(selected===total)go(1,false);setPlaying(true);};
+    const commitRate=()=>{const next=replaySpeed(rateDraft);if(next!==null)setRate(next);setRateDraft(String(next??rate));};
     if(!isOpen)return null;
     const info=snapshot?.session||record?.session,status=info?.status,badge=browserBadge(status,snapshot?.capture,shown?.metadata?.ended_ms,clock,error),duration=browserDuration(info,clock);
     const box=shown?.box,active=status&&!terminal(status),first=Math.max(0,Math.floor(stripScroll/PILL)-6),last=Math.min(total,first+Math.ceil(stripWidth/PILL)+14),bySeq=new Map(catalogue.map(row=>[row.seq,row]));
+    const loadingPrevious=!live&&src&&(!action||shown?.actionSeq!==selected||shown?.frame!==frame?.id);
+    const actionLabel=value=>value?value.replaceAll('_',' ').replace(/^./,letter=>letter.toUpperCase()):'Loading…';
+    const jumpButton=delta=><button key={delta} id={delta===-1?'replay-prev-button':delta===1?'replay-next-button':undefined} className="replay-nav-btn" aria-label={`${delta>0?'Forward':'Back'} ${Math.abs(delta)} ${Math.abs(delta)===1?'action':'actions'}`} disabled={!total||(delta<0?selected===1:selected===total)} onClick={()=>go(selected+delta)}>{delta>0?'+':'−'}{Math.abs(delta)}</button>;
     return <Modal isOpen={isOpen} onClose={close} className={`${mode}-modal-window`}>
         <div ref={viewer} className={`${mode}-modal-container column browser-viewer`}>
-            <div className="modal-header align-center justify-space-between"><strong>{live?'Live Browser View':'Browser Session Replay'}</strong><button id={`${mode}-modal-close-button`} className="modal-close-button" onClick={close} aria-label="Close browser viewer">×</button></div>
-            <div className="browser-viewer-status" role="status"><span className={`browser-viewer-badge ${older?'closed':badge.tone}`}><span className="browser-status-dot"/>{older?'Older recording':badge.label}</span>{duration&&<span className="browser-session-duration"> · Duration {duration}</span>}{info?.terminal_reason&&<span> · {info.terminal_reason}</span>}</div>
-            <div className="browser-viewer-toolbar"><span className="browser-viewer-address mono" title={shown?.metadata?.url||action?.arguments?.url||''}>{shown?.metadata?.url||action?.arguments?.url||''}</span><label>Size <select aria-label="Browser image size" value={zoom} onChange={event=>setZoom(event.target.value)}><option value="fit">Fit</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label><button className="replay-nav-btn" onClick={toggleFull}>{full?'Exit full screen':'Full screen'}</button></div>
-            {!live&&action&&<div className="browser-viewer-action"><strong>{action.op.replaceAll('_',' ')}</strong> · {action.status.replaceAll('_',' ')} · {browserActor(action.caller)} <time>{browserTime(action.created_at??action.timestamp)}</time>{frames.length>1&&<label> Image <select aria-label="Action image timing" value={relation} onChange={event=>{setPlaying(false);setRelation(event.target.value);}}>{frames.map(row=><option key={row.id} value={row.relation}>{row.relation} · {row.status}</option>)}</select></label>}</div>}
-            {!live&&action&&<details className="browser-viewer-details"><summary>Action details{action.outcome?.error?.code?` · ${action.outcome.error.code}`:''}</summary>{action.presentation_truncated&&<span>Long details are shortened here.</span>}<pre>{JSON.stringify({caller:action.caller,created_at:action.created_at,arguments:action.arguments,outcome:action.outcome},null,2)}</pre></details>}
+            <div className="modal-header align-center justify-space-between"><strong>{live?'Live Browser View':'Browser Session Replay'}</strong><div className="browser-viewer-window-controls"><ModalIconButton label={full?'Exit full screen':'Full screen'} onClick={toggleFull}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={full?'M3 8h5V3m8 0v5h5M3 16h5v5m8 0v-5h5':'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5'}/></svg></ModalIconButton><ModalCloseButton id={`${mode}-modal-close-button`} onClick={close} label="Close browser viewer"/></div></div>
+            <div className="browser-viewer-status" role="status"><span className={`browser-viewer-badge ${older?'closed':badge.tone}`}><span className="browser-status-dot"/>{older?'Older recording':badge.label}</span>{duration&&<span className="browser-session-duration">Duration {duration}</span>}{info?.terminal_reason&&<span className="browser-terminal-reason" title={info.terminal_reason}>{info.terminal_reason}</span>}</div>
+            <div className="browser-viewer-toolbar"><span className="browser-viewer-address mono" title={shown?.metadata?.url||action?.arguments?.url||''}>{shown?.metadata?.url||action?.arguments?.url||''}</span><label>Size <select aria-label="Browser image size" value={zoom} onChange={event=>setZoom(event.target.value)}><option value="fit">Fit</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div>
+            {!live&&<div className="browser-viewer-action"><div className="browser-action-description"><span>Action:</span><strong>{actionLabel(action?.op)}</strong><span aria-hidden="true">·</span><span className="browser-action-outcome">{actionLabel(action?.status)}</span></div><time>{action?browserTime(action.created_at??action.timestamp):'Loading time…'}</time><label>Image <select aria-label="Action image timing" disabled={frames.length<2} value={frame?.relation||''} onChange={event=>{setPlaying(false);setRelation(event.target.value);}}>{frames.length?frames.map(row=><option key={row.id} value={row.relation}>{actionLabel(row.relation)} · {row.status}</option>):<option value="">Not retained</option>}</select></label></div>}
+            {!live&&<details className="browser-viewer-details"><summary>Action details</summary><pre>{action?.presentation_truncated?'Long details are shortened here.\n':''}{action?JSON.stringify({actor:browserActor(action.caller),caller:action.caller,created_at:action.created_at,arguments:action.arguments,outcome:action.outcome},null,2):'Loading action…'}</pre></details>}
             <div ref={stage} className={`${mode}-viewport-wrapper browser-viewer-viewport ${zoom==='fit'?'fit':'zoomed'}`}>
-                {src?<div className={`${mode}-image-box browser-viewer-image`}><img ref={img} id={live?'live-viewport-img':'replay-screenshot-img'} src={src} className={`${mode}-screenshot-img`} alt="Recorded browser pixels" onLoad={event=>{updateScale();if(event.currentTarget.complete&&event.currentTarget.naturalWidth)setImageReady(true);}} onError={()=>{setError('The image could not be displayed.');setSrc(null);setShown(null);}}/>{box&&<div className="replay-bounding-box" style={{left:box.x*scale.scaleX,top:box.y*scale.scaleY,width:box.width*scale.scaleX,height:box.height*scale.scaleY}}/>}</div>:<div className="browser-viewer-empty">{error||(!modernLive?(action?'No image retained for this action.':'Loading action…'):'Waiting for the first browser image…')}</div>}
+                {src?<div className={`${mode}-image-box browser-viewer-image`}><img ref={img} id={live?'live-viewport-img':'replay-screenshot-img'} src={src} data-action-seq={shown?.actionSeq} className={`${mode}-screenshot-img`} alt="Recorded browser pixels" onLoad={event=>{updateScale();if(event.currentTarget.complete&&event.currentTarget.naturalWidth)setImageReady(true);}} onError={()=>{setError('The image could not be displayed.');setSrc(null);setShown(null);}}/>{box&&<div className="replay-bounding-box" style={{left:box.x*scale.scaleX,top:box.y*scale.scaleY,width:box.width*scale.scaleX,height:box.height*scale.scaleY}}/>}</div>:<div className="browser-viewer-empty">{error||(!modernLive?(action?'No image retained for this action.':'Loading action…'):'Waiting for the first browser image…')}</div>}
+                {loadingPrevious&&<div className="browser-image-progress" role="status">Loading action {selected} · Previous image shown</div>}
             </div>
             {error&&src&&<div className="browser-viewer-notice">Last available image shown. {error}</div>}
             {!live&&<section className="replay-controls" aria-label="Replay navigation">
-                <div className="replay-jumps">{JUMPS.map((delta,i)=><React.Fragment key={delta}>{i===6&&<strong className="replay-position" aria-live="polite">{total?`Action ${selected} of ${total}`:'No actions'}</strong>}<button id={delta===-1?'replay-prev-button':delta===1?'replay-next-button':undefined} className="replay-nav-btn" aria-label={`${delta>0?'Forward':'Back'} ${Math.abs(delta)} ${Math.abs(delta)===1?'action':'actions'}`} disabled={!total||(delta<0?selected===1:selected===total)} onClick={()=>go(selected+delta)}>{delta>0?'+':'−'}{Math.abs(delta)}</button></React.Fragment>)}</div>
-                <div ref={strip} className="replay-actions-strip" aria-label="Recorded actions" onScroll={event=>setStripScroll(event.currentTarget.scrollLeft)}><div style={{width:total*PILL,height:36,position:'relative'}}>{Array.from({length:Math.max(0,last-first)},(_,i)=>{const seq=first+i+1,row=bySeq.get(seq);return <button key={seq} style={{left:(seq-1)*PILL}} className={`replay-step-pill ${seq===selected?'active':''}`} aria-current={seq===selected?'step':undefined} aria-label={`Action ${seq}${row?`: ${row.op}`:''}`} title={row?`${row.op}: ${row.status}`:`Action ${seq}`} onClick={()=>go(seq)}>{seq} {row?.op?.replaceAll('_',' ')||'Action'}</button>;})}</div></div>
-                <div className="replay-playback"><button className="replay-nav-btn" disabled={!total} onClick={togglePlayback}>{playing?'Pause':'Play replay'}</button><label>Speed <select aria-label="Replay speed" value={rate} onChange={event=>setRate(event.target.value)}>{['0.5','1','2','4'].map(value=><option key={value} value={value}>{value} steps/s</option>)}</select></label></div>
+                <div className="replay-jumps"><div className="replay-jump-group">{JUMPS.filter(delta=>delta<0).map(jumpButton)}</div><strong className="replay-position" aria-live="polite">{total?`Action ${selected} of ${total}`:'No actions'}</strong><div className="replay-jump-group">{JUMPS.filter(delta=>delta>0).map(jumpButton)}</div></div>
+                <div ref={strip} className="replay-actions-strip" aria-label="Recorded actions" onScroll={event=>setStripScroll(event.currentTarget.scrollLeft)}><div style={{width:total*PILL,height:44,position:'relative'}}>{Array.from({length:Math.max(0,last-first)},(_,i)=>{const seq=first+i+1,row=bySeq.get(seq);return <button key={seq} style={{left:(seq-1)*PILL}} className={`replay-step-pill ${seq===selected?'active':''}`} aria-current={seq===selected?'step':undefined} aria-label={`Action ${seq}${row?`: ${row.op}`:''}`} title={row?`${row.op}: ${row.status}`:`Action ${seq}`} onClick={()=>go(seq)}>{seq} {row?.op?.replaceAll('_',' ')||'Action'}</button>;})}</div></div>
+                <div className="replay-playback"><button className="replay-nav-btn" disabled={!total} onClick={togglePlayback}>{playing?'Pause':'Play replay'}</button><label>Speed <input type="number" inputMode="decimal" min="0.1" step="0.1" aria-label="Replay speed" value={rateDraft} onChange={event=>{setRateDraft(event.target.value);const next=replaySpeed(event.target.value);if(next!==null)setRate(next);}} onBlur={commitRate} onKeyDown={event=>{if(event.key==='Enter'){commitRate();event.currentTarget.blur();}}}/><span>steps/s</span></label></div>
             </section>}
             <div className="browser-viewer-footer"><span>{record?.coverage||'Live preview · Read only'}{snapshot?.coverage?.length>0||record?.coverage_gaps?.length>0?' · Recording gaps are present.':''}</span>{!older&&!live&&!active&&<><button className="replay-nav-btn" onClick={removeImages}>{deleting?'Confirm delete images':'Delete images'}</button>{deleting&&<button className="replay-nav-btn" onClick={()=>setDeleting(false)}>Keep images</button>}</>}</div>
             {(snapshot?.coverage?.length>0||record?.coverage_gaps?.length>0)&&<details className="browser-viewer-details"><summary>Recording coverage</summary><pre>{JSON.stringify(snapshot?.coverage||record.coverage_gaps,null,2)}</pre></details>}{notice&&<div className="browser-viewer-notice" role="status">{notice}</div>}

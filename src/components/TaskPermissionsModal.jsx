@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ModalCloseButton from './ModalCloseButton';
 import * as bridge from "../bridge";
 
 function TaskPermissionsModal({ taskId, taskTitle, onToast, onClose }) {
@@ -86,9 +87,7 @@ function TaskPermissionsModal({ taskId, taskTitle, onToast, onClose }) {
         <div className="column gap-20" style={{ minWidth: "500px" }}>
             <div className="align-center justify-space-between">
                 <label style={{ fontSize: "1.2rem", fontWeight: 600 }}>Permissions for: {taskTitle}</label>
-                <button className="settings-button" title="Close" onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem" }}>
-                    <label>✕</label>
-                </button>
+                <ModalCloseButton label="Close permissions" onClick={onClose}/>
             </div>
 
             <div className="settings-section column gap-10">

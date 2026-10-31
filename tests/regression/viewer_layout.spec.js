@@ -70,13 +70,14 @@ test('live and replay viewers use the available window and resize actual images 
             await page.keyboard.press('ArrowRight');await expect(modal).toContainText('Action 51 of 189');
             await modal.getByRole('button',{name:'Forward 75 actions',exact:true}).click();await expect(modal).toContainText('Action 126 of 189');
             await expect.poll(async()=>{const active=await modal.locator('.replay-step-pill.active').boundingBox(),strip=await modal.locator('.replay-actions-strip').boundingBox();return Math.abs(active.x+active.width/2-strip.x-strip.width/2);}).toBeLessThan(4);
-            await expect(modal.getByRole('combobox',{name:'Replay speed'})).toHaveValue('2');
+            await page.screenshot({path:testInfo.outputPath('replay-centered-126.png')});
+            await expect(modal.getByRole('spinbutton',{name:'Replay speed'})).toHaveValue('2');
             await modal.getByRole('button',{name:'Play replay',exact:true}).click();await expect.poll(()=>modal.locator('.replay-position').textContent()).not.toBe('Action 126 of 189');
             await modal.getByRole('button',{name:'Pause',exact:true}).click();
             await modal.getByRole('button',{name:'Forward 100 actions',exact:true}).click();await expect(modal).toContainText('Action 189 of 189');
             await expect(modal.getByRole('button',{name:'Forward 1 action',exact:true})).toBeDisabled();
             await expect(modal.getByRole('button',{name:'Export recording'})).toHaveCount(0);
-            await modal.getByRole('combobox',{name:'Replay speed'}).selectOption('4');
+            await modal.getByRole('spinbutton',{name:'Replay speed'}).fill('4');
             await modal.getByRole('button',{name:'Play replay',exact:true}).click();
             await expect(modal.getByRole('button',{name:'Pause',exact:true})).toBeVisible();
             await expect.poll(()=>modal.locator('.replay-position').textContent()).not.toBe('Action 1 of 189');

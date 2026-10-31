@@ -2,6 +2,8 @@
 
 Approved in conversation after Phase 3C (`059f451`). Implemented and locally validated on 2026-10-31. This patch keeps the shared owner, existing permissions, SQLite authority and sampled evidence. No native document previews, compression, conversation portability, personal-browser access or adaptive load-based preview throttling.
 
+Subsequent user screenshot feedback is addressed by the [replay UI refinement](REPLAY_UI_REFINEMENT.md): numeric speed entry, decoded image swaps, stable metadata layout, shared dialog controls and dark scrollbars. The delivery results below remain the original checkpoint's record.
+
 ## Tangible changes and decisions
 
 - Task-file links reveal validated existing files in Explorer through a file-information panel; ordinary HTTP(S) links open the default browser. No chat-webview navigation or automatic file execution. Relative links belong to the message's task workspace, not the app URL.
