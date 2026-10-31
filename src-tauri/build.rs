@@ -12,5 +12,6 @@ fn main() {
         // binary. Keep that manifest and avoid a second linker-generated one.
         println!("cargo:rustc-link-arg-bin=zeus-agent=/MANIFEST:NO");
         println!("cargo:rustc-link-arg-bin=zeus-evaluation=/MANIFEST:NO");
+        println!("cargo:rustc-link-arg-bin=zeus-diagnostics=/MANIFEST:NO");
     }
 }

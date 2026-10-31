@@ -118,11 +118,19 @@ pub fn ensure_session(conn: &Connection, task: &str, run: &str) -> Result<String
 }
 
 pub fn session(conn: &Connection, task: &str, id: &str) -> Result<Value, String> {
+    let action_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM managed_browser_actions WHERE session_id=?1",
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let run_status:Option<String>=conn.query_row("SELECT r.status FROM runs r JOIN managed_browser_sessions s ON s.run_id=r.id WHERE s.id=?1 AND s.task_id=?2",params![id,task],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
     conn.query_row("SELECT run_id,generation,status,runtime_json,terminal_reason,created_at,updated_at,version FROM managed_browser_sessions WHERE id=?1 AND task_id=?2",params![id,task],|r|{
         let runtime:Option<String>=r.get(3)?;
         Ok(json!({"schema_version":1,"session_id":id,"task_id":task,"run_id":r.get::<_,String>(0)?,"generation":r.get::<_,i64>(1)?,
           "status":r.get::<_,String>(2)?,"runtime":runtime.and_then(|s|serde_json::from_str::<Value>(&s).ok()),"terminal_reason":r.get::<_,Option<String>>(4)?,
-          "created_at":r.get::<_,String>(5)?,"updated_at":r.get::<_,String>(6)?,"version":r.get::<_,i64>(7)?,"recording_coverage":"managed_actions","viewer_available":true}))
+          "created_at":r.get::<_,String>(5)?,"updated_at":r.get::<_,String>(6)?,"version":r.get::<_,i64>(7)?,"action_count":action_count,"run_status":run_status,"recording_coverage":"managed_actions","viewer_available":true}))
     }).map_err(|_|"BROWSER_OWNERSHIP: session does not belong to this task".into())
 }
 

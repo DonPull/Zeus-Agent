@@ -376,9 +376,9 @@ impl Collector {
             }
             let bytes = bounded_read(&self.mailbox, frame["key"].as_str().unwrap(), IMAGE_LIMIT)?;
             validate_image(&bytes, frame)?;
-            if bounded_read(&self.mailbox, "capture.json", 8192)? != descriptor {
-                return Err("BROWSER_CAPTURE_REPLACED: retry latest publication".into());
-            }
+            // These owned bytes match the descriptor's hash and are immutable.
+            // A newer descriptor does not invalidate this verified frame. Waiting
+            // for a quiet mailbox here starves live viewers at higher frame rates.
             Some(bytes)
         } else {
             None
@@ -502,8 +502,9 @@ impl Collector {
     ) -> tokio::task::JoinHandle<()> {
         let owner = self.clone();
         tokio::spawn(async move {
-            let mut timer = tokio::time::interval(Duration::from_millis(500));
+            let mut timer = tokio::time::interval(Duration::from_millis(125));
             timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut last_until = None;
             loop {
                 tokio::select! {_=stop.cancelled()=>break,_=timer.tick()=>{}}
                 let capture = owner.clone();
@@ -518,9 +519,13 @@ impl Collector {
                 let until = owner
                     .viewer_until
                     .load(std::sync::atomic::Ordering::Relaxed);
-                let temporary = owner.mailbox.join("viewer.tmp");
-                if std::fs::write(&temporary, json!({"until_ms":until}).to_string()).is_ok() {
-                    let _ = std::fs::rename(temporary, owner.mailbox.join("viewer.json"));
+                if last_until != Some(until) {
+                    let temporary = owner.mailbox.join("viewer.tmp");
+                    if std::fs::write(&temporary, json!({"until_ms":until}).to_string()).is_ok()
+                        && std::fs::rename(temporary, owner.mailbox.join("viewer.json")).is_ok()
+                    {
+                        last_until = Some(until);
+                    }
                 }
             }
         })

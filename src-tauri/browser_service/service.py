@@ -19,7 +19,7 @@ SDK_VERSION = "1.62.0"
 MAX_FRAME = 1024 * 1024
 MAX_TEXT = 256 * 1024
 MAX_IMAGE = 2 * 1024 * 1024
-OPERATIONS = {"observe", "inspect", "navigate", "click", "fill", "press", "select_option", "wait", "tabs", "new_tab", "select_tab", "close_tab", "dialog"}
+OPERATIONS = {"observe", "inspect", "navigate", "click", "fill", "press", "type_text", "select_option", "wait", "tabs", "new_tab", "select_tab", "close_tab", "dialog"}
 
 
 class BrowserError(Exception):
@@ -212,15 +212,15 @@ class Service:
             return root.locator(bounded_string(target["css"], "CSS selector", 2000))
         fail("BROWSER_ARGUMENT", "Use one supported role/text/test_id/css locator")
 
-    async def screenshot(self, page, key, destination_dir=None, timeout=3000):
+    async def screenshot(self, page, key, destination_dir=None, timeout=3000, quality=60):
         # All browser captures share one flight, including explicit observations.
         async with self.capture_lock:
-            return await self.capture_image(page, key, destination_dir or self.artifact_dir, timeout)
+            return await self.capture_image(page, key, destination_dir or self.artifact_dir, timeout, quality)
 
-    async def capture_image(self, page, key, destination_dir, timeout):
+    async def capture_image(self, page, key, destination_dir, timeout, quality=60):
         started = int(time.time() * 1000)
         masks = [frame.locator('input[type="password"], input[autocomplete*="password"], input[name*="token" i], input[name*="secret" i]') for frame in page.frames[:100] if not frame.is_detached()]
-        data = await page.screenshot(type="jpeg", quality=60, timeout=timeout, mask=masks, scale="css")
+        data = await page.screenshot(type="jpeg", quality=quality, timeout=timeout, mask=masks, scale="css")
         if len(data) > MAX_IMAGE:
             fail("BROWSER_IMAGE_LIMIT", "Screenshot exceeds artifact limit")
         destination = destination_dir / key
@@ -233,7 +233,7 @@ class Service:
         return {"key": key, "mime": "image/jpeg", "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                 "tab_id": tab, "tab_revision": self.revisions.get(tab), "url": safe_url,
                 "started_ms": started, "ended_ms": int(time.time() * 1000), "width": 1280, "height": 720,
-                "masking": "known-sensitive-inputs"}
+                "quality": quality, "masking": "known-sensitive-inputs"}
 
     def publish_capture(self, state, error=None):
         self.capture_revision += 1
@@ -253,6 +253,16 @@ class Service:
         if self.mailbox:
             self.mailbox.mkdir(parents=True, exist_ok=True)
         while not self.closing:
+            cycle_start = time.monotonic()
+            delay = interval
+            if self.mailbox:
+                try:
+                    with (self.mailbox / "viewer.json").open("rb") as stream:
+                        heartbeat = json.loads(stream.read(129))
+                    if heartbeat.get("until_ms", 0) > time.time() * 1000:
+                        delay = 0.125  # Fixed viewed target: 8 FPS, no load adaptation.
+                except (OSError, ValueError, TypeError):
+                    pass
             try:
                 if self.capture_lock.locked():
                     self.capture_metrics["skipped"] += 1
@@ -260,7 +270,7 @@ class Service:
                     self.capture_metrics["attempts"] += 1
                     tab, page = self.page({})
                     revision = self.revisions[tab]
-                    artifact = await self.screenshot(page, f"slot-{(self.preview_seq + 1) % 2}.jpg", self.mailbox)
+                    artifact = await self.screenshot(page, f"slot-{(self.preview_seq + 1) % 2}.jpg", self.mailbox, quality=80)
                     if tab != self.selected or page.is_closed() or revision != self.revisions[tab]:
                         fail("BROWSER_CAPTURE_CHANGED", "Target changed during capture")
                     self.preview_seq += 1
@@ -278,16 +288,7 @@ class Service:
                         # Preserve the last atomic descriptor; collector freshness
                         # detects publication failure instead of inventing a frame.
                         pass
-            delay = interval
-            if self.mailbox:
-                try:
-                    with (self.mailbox / "viewer.json").open("rb") as stream:
-                        heartbeat = json.loads(stream.read(129))
-                    if heartbeat.get("until_ms", 0) > time.time() * 1000:
-                        delay = min(delay, 0.5)
-                except (OSError, ValueError, TypeError):
-                    pass
-            await asyncio.sleep(delay)
+            await asyncio.sleep(max(0, delay - (time.monotonic() - cycle_start)))
 
     async def action(self, request):
         if request.get("protocol") != PROTOCOL or request.get("session_id") != self.config["session_id"] or request.get("generation") != self.config["generation"]:
@@ -311,10 +312,12 @@ class Service:
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 100 <= timeout <= 60000:
             fail("BROWSER_ARGUMENT", "Timeout must be 100–60000 milliseconds")
         self.seen.add(action_id)
+        action_started=time.monotonic()
         captures = {}
         reservations = request.get("captures", {})
         if reservations.get("before"):
             captures["before"] = await self.boundary_capture(reservations["before"], params)
+        execution_started=time.monotonic()
         try:
             result = await self.execute(op, params, timeout, reservations.get("explicit"))
             response = {"id": action_id, "ok": True, "result": result}
@@ -325,11 +328,14 @@ class Service:
             if isinstance(params.get("value"), str) and params["value"]:
                 message = message.replace(params["value"], "[redacted]")
             response = {"id": action_id, "ok": False, "error": {"code": "BROWSER_ACTION_FAILED", "message": message}}
+        after_started=time.monotonic()
         if reservations.get("after"):
             captures["after"] = await self.boundary_capture(reservations["after"], params)
         if captures:
             response["captures"] = captures
         response["tabs"] = self.tab_list()
+        ended=time.monotonic()
+        response['timing_ms']={'before_capture':round((execution_started-action_started)*1000,2),'execution':round((after_started-execution_started)*1000,2),'after_capture':round((ended-after_started)*1000,2),'total':round((ended-action_started)*1000,2)}
         self.results[action_id] = response
         if len(self.results) > 64:
             self.results.pop(next(iter(self.results)))
@@ -355,7 +361,61 @@ class Service:
             if acquired:
                 self.capture_lock.release()
 
+    def validate_check(self, spec):
+        if not isinstance(spec, dict) or set(spec)-{'target','state','condition','settle_ms'} or not isinstance(spec.get('target'),dict):
+            fail('BROWSER_ARGUMENT','A readiness/result check needs a supported target')
+        target=spec['target']
+        if set(target) not in ({'css'},{'text'},{'role','name'},{'test_id'}) or any(not isinstance(value,str) or not value or len(value.encode())>2000 for value in target.values()):
+            fail('BROWSER_ARGUMENT','Invalid readiness/result locator')
+        if spec.get('state','visible') not in {'visible','hidden','attached','detached'}:
+            fail('BROWSER_ARGUMENT','Invalid check state')
+        settle=spec.get('settle_ms',0)
+        if not isinstance(settle,int) or isinstance(settle,bool) or not 0<=settle<=2000:
+            fail('BROWSER_ARGUMENT','settle_ms must be 0–2000')
+        condition=spec.get('condition')
+        if condition is not None:
+            if not isinstance(condition,dict) or set(condition)-{'kind','value','name','match'} or condition.get('kind') not in {'text','value','attribute','enabled','disabled'}:
+                fail('BROWSER_ARGUMENT','Invalid check condition')
+            if condition.get('match','contains') not in {'contains','equals'}:
+                fail('BROWSER_ARGUMENT','Invalid text matching mode')
+            if condition['kind'] in {'text','value','attribute'} and (not isinstance(condition.get('value'),str) or len(condition['value'].encode())>2000):
+                fail('BROWSER_ARGUMENT','Check value must be at most 2000 bytes')
+            name=condition.get('name','')
+            if condition['kind']=='attribute' and (not isinstance(name,str) or not __import__('re').fullmatch(r'(?:data-|aria-)[a-zA-Z0-9_-]{1,80}',name)):
+                fail('BROWSER_ARGUMENT','Attribute checks support data-* and aria-* attributes')
+
+    async def check_state(self, page, params, spec, deadline):
+        from playwright.async_api import expect
+        locator=self.locator(page,{**params,'target':spec['target']})
+        async def check():
+            remaining=max(1,int((deadline-time.monotonic())*1000))
+            condition=spec.get('condition')
+            if not condition:
+                await locator.wait_for(state=spec.get('state','visible'),timeout=remaining)
+            elif condition['kind']=='text':
+                if condition.get('match','contains')=='equals':await expect(locator).to_have_text(condition['value'],timeout=remaining)
+                else:await expect(locator).to_contain_text(condition['value'],timeout=remaining)
+            elif condition['kind']=='value':await expect(locator).to_have_value(condition['value'],timeout=remaining)
+            elif condition['kind']=='attribute':await expect(locator).to_have_attribute(condition['name'],condition['value'],timeout=remaining)
+            elif condition['kind']=='enabled':await expect(locator).to_be_enabled(timeout=remaining)
+            else:await expect(locator).to_be_disabled(timeout=remaining)
+        await check()
+        settle=spec.get('settle_ms',0)/1000
+        if settle:
+            if time.monotonic()+settle>deadline:fail('BROWSER_WAIT_TIMEOUT','Settling exceeded this action deadline')
+            await asyncio.sleep(settle)
+            await check()
+
     async def execute(self, op, params, timeout, screenshot_id=None):
+        deadline=time.monotonic()+timeout/1000
+        mutable=op in {'navigate','click','fill','press','type_text','select_option'}
+        for name in ('ready','expect'):
+            if name in params:
+                if not mutable:fail('BROWSER_ARGUMENT','Readiness/result checks belong to an interaction')
+                self.validate_check(params[name])
+        if 'condition' in params or 'settle_ms' in params:
+            if op!='wait':fail('BROWSER_ARGUMENT','condition/settle_ms belongs to wait or a check')
+            self.validate_check({key:params[key] for key in ('target','state','condition','settle_ms') if key in params})
         if op == "tabs":
             return {"tabs": self.tab_list()}
         if op == "new_tab":
@@ -366,6 +426,10 @@ class Service:
             self.selected = tab_id
             return {"tab_id": tab_id, "tabs": self.tab_list()}
         tab_id, page = self.page(params)
+        if params.get('ready'):
+            try:await self.check_state(page,params,params['ready'],deadline)
+            except Exception as error:fail('BROWSER_NOT_READY',f'Readiness check did not pass; interaction was not sent. {str(error)[:700]}')
+        timeout=max(1,int((deadline-time.monotonic())*1000))
         if params.get("tab_id") and op not in {"observe", "inspect", "wait", "dialog"}:
             self.selected = tab_id
         if op == "select_tab":
@@ -376,6 +440,7 @@ class Service:
                 self.selected = next((key for key, p in self.pages.items() if not p.is_closed()), None)
         elif op == "navigate":
             response = await page.goto(web_url(params.get("url")), wait_until="domcontentloaded", timeout=timeout)
+            await self.verify_result(page,params,deadline)
             return {"tab_id": tab_id, "revision": self.revisions[tab_id], "url": page.url[:8192], "http_status": response.status if response else None}
         elif op == "observe":
             text = await page.locator("body").inner_text(timeout=timeout)
@@ -429,11 +494,11 @@ class Service:
                 elements.append(data)
             return {"tab_id": tab_id, "revision": self.revisions[tab_id], "elements": elements,
                     "matched": total, "truncated": len(elements) < total, "untrusted_page_content": True}
-        elif op in {"click", "fill", "press", "select_option", "wait"}:
+        elif op in {"click", "fill", "press", "type_text", "select_option", "wait"}:
             locator = self.locator(page, params)
             if op == "click":
                 await locator.click(timeout=timeout)
-            elif op == "fill":
+            elif op in {"fill","type_text"}:
                 field_type = (await locator.get_attribute("type", timeout=timeout) or "").lower()
                 name = (await locator.get_attribute("name", timeout=timeout) or "").lower()
                 if field_type == "password" or any(word in name for word in ("password", "token", "secret")):
@@ -441,16 +506,27 @@ class Service:
                 value = params.get("value")
                 if not isinstance(value, str) or len(value.encode("utf-8")) > 65536:
                     fail("BROWSER_ARGUMENT", "Invalid fill value")
-                await locator.fill(value, timeout=timeout)
+                if op=='fill':await locator.fill(value,timeout=timeout)
+                else:
+                    if len(value)>8192:fail('BROWSER_ARGUMENT','type_text supports at most 8192 characters')
+                    await locator.wait_for(state='visible',timeout=timeout)
+                    # Keyboard widgets may target body while an input has focus.
+                    active=await page.locator('input:focus,textarea:focus').count()
+                    if active:
+                        focused=page.locator('input:focus,textarea:focus').first
+                        identity=((await focused.get_attribute('type') or '')+' '+(await focused.get_attribute('name') or '')).lower()
+                        if any(word in identity for word in ('password','token','secret')):fail('BROWSER_SENSITIVE_INPUT','Sensitive focused input requires supervised handoff')
+                    try:await locator.press_sequentially(value,timeout=max(1,int((deadline-time.monotonic())*1000)))
+                    except Exception:fail('BROWSER_INPUT_UNCERTAIN','Input may be partial. Inspect its current value before entering it again.')
             elif op == "press":
                 await locator.press(bounded_string(params.get("key"), "key", 100), timeout=timeout)
             elif op == "select_option":
                 await locator.select_option(bounded_string(params.get("value"), "option", 2000), timeout=timeout)
             else:
-                state = params.get("state", "visible")
-                if state not in {"visible", "hidden", "attached", "detached"}:
-                    fail("BROWSER_ARGUMENT", "Invalid wait state")
-                await locator.wait_for(state=state, timeout=timeout)
+                spec={key:params[key] for key in ('target','state','condition','settle_ms') if key in params}
+                self.validate_check(spec)
+                await self.check_state(page,params,spec,deadline)
+            await self.verify_result(page,params,deadline)
         elif op == "dialog":
             behavior = params.get("behavior")
             if behavior not in {"accept", "dismiss"}:
@@ -461,6 +537,11 @@ class Service:
             self.dialog_policy[tab_id] = {"behavior": behavior, "prompt_text": prompt_text}
             return {"tab_id": tab_id, "dialog_policy": "prepared_for_next_dialog", "behavior": behavior}
         return {"tab_id": tab_id, "revision": self.revisions[tab_id], "tabs": self.tab_list(), "dialogs": self.dialog_events.get(tab_id, [])}
+
+    async def verify_result(self,page,params,deadline):
+        if params.get('expect'):
+            try:await self.check_state(page,params,params['expect'],deadline)
+            except Exception as error:fail('BROWSER_OUTCOME_UNCONFIRMED',f'Interaction was sent but the expected result was not confirmed. Do not automatically repeat it; inspect actual state. {str(error)[:700]}')
 
     async def close(self):
         self.closing = True

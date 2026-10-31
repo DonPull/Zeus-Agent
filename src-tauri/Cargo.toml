@@ -14,6 +14,10 @@ name = "zeus-evaluation"
 path = "src/evaluation_main.rs"
 required-features = ["evaluation-runner"]
 
+[[bin]]
+name = "zeus-diagnostics"
+path = "src/diagnostics_main.rs"
+
 [lib]
 name = "zeus_agent_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -23,6 +27,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-opener = "=2.5.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -39,6 +44,7 @@ walkdir = "2.4"
 base64 = "0.22"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 sha2 = "0.10"
+percent-encoding = "=2.3.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

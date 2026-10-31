@@ -36,10 +36,13 @@ export const readBrowserLiveImage = (taskId, sessionId, seq) => invoke("read_bro
 export const onManagedBrowserCapture = callback => listen("managed-browser-capture", event => callback(event.payload));
 export const listBrowserRecordings = (taskId, offset=0) => invoke("list_browser_recordings",{taskId,offset});
 export const getBrowserRecordingPage = (taskId,sessionId,after=0,limit=50) => invoke("get_browser_recording_page",{taskId,sessionId,after,limit});
+export const getBrowserRecordingIndex = (taskId,sessionId,after=0) => invoke("get_browser_recording_index",{taskId,sessionId,after});
 export const readBrowserRecordingImage = (taskId,sessionId,frameId) => invoke("read_browser_recording_image",{taskId,sessionId,frameId});
 export const deleteBrowserRecordingImages = (taskId,sessionId) => invoke("delete_browser_recording_images",{taskId,sessionId});
 export const exportBrowserRecording = (taskId,sessionId) => invoke("export_browser_recording",{taskId,sessionId});
 export const getBrowserVisualDeliveries = taskId => invoke("get_browser_visual_deliveries",{taskId});
+export const resolveMessageLink = (taskId,messageId,href) => invoke("resolve_message_link",{taskId,messageId,href});
+export const openMessageLink = (taskId,messageId,href) => invoke("open_message_link",{taskId,messageId,href});
 export const getVaultAccounts = (domain)    => invoke("get_vault_accounts", { domain });
 export const getVaultAccount = (id)         => invoke("get_vault_account",  { id });
 export const saveVaultAccount = (entry)     => invoke("save_vault_account", { entry });

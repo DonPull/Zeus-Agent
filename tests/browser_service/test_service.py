@@ -145,6 +145,15 @@ class PageHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'<body tabindex="0" onkeydown="document.querySelector(\'#feedback\').textContent=event.key"><input id="hidden" style="visibility:hidden"><div id="feedback" role="status" data-state="unknown" style="background:rgb(40,90,130)">Awaiting input</div><script>for(let i=0;i<30;i++){let e=document.createElement("span");e.className="item";e.textContent="Visible item "+i;document.body.append(e)}</script></body>')
         elif self.path == '/static':
             self.wfile.write(b'<body><h1>Static capture fixture</h1><button>Observe</button></body>')
+        elif self.path == '/readiness':
+            self.wfile.write(b'''<body><input id="name" data-ready="false"><button id="save" data-ready="false">Save</button><button id="uncertain" onclick="fetch('/append',{method:'POST'})">Submit</button><p id="status">Loading</p><script>
+            setInterval(()=>fetch('/ping'),100);
+            setTimeout(()=>{document.querySelector('#name').value='';document.querySelector('#name').dataset.ready='true';document.querySelector('#save').dataset.ready='true';document.querySelector('#status').textContent='Ready';document.querySelector('#save').onclick=()=>{fetch('/append',{method:'POST'});setTimeout(()=>document.querySelector('#status').textContent='Saved',450)}},600);
+            </script></body>''')
+        elif self.path == '/typing':
+            self.wfile.write(b'''<body tabindex="0"><p id="feedback"></p><input id="password" name="secret" type="password"><script>document.body.onkeydown=e=>{if(e.key.length===1)document.querySelector('#feedback').textContent+=e.key}</script></body>''')
+        elif self.path == '/ping':
+            self.wfile.write(b'ok')
         elif self.path == '/slow':
             time.sleep(1.5)
             self.wfile.write(PAGE)
@@ -290,6 +299,51 @@ class BrowserServiceTests(unittest.TestCase):
         self.assertTrue(many['truncated'])
         self.assertLessEqual(len(json.dumps(many).encode()),32768)
         self.assertEqual(self.broker.call('evaluate',{'code':'1+1'})['error']['code'],'BROWSER_UNSUPPORTED')
+
+    def test_readiness_hydration_late_confirmation_and_uncertain_effect_are_not_blindly_retried(self):
+        before=PageHandler.updates
+        self.assertTrue(self.broker.call('navigate',{'url':self.url+'readiness'})['ok'])
+        filled=self.broker.call('fill',{'target':{'css':'#name'},'value':'Retained input','timeout_ms':3000,
+            'ready':{'target':{'css':'#name'},'condition':{'kind':'attribute','name':'data-ready','value':'true'}},
+            'expect':{'target':{'css':'#name'},'condition':{'kind':'value','value':'Retained input'},'settle_ms':100}})
+        self.assertTrue(filled['ok'],filled)
+        saved=self.broker.call('click',{'target':{'css':'#save'},'timeout_ms':2500,
+            'expect':{'target':{'css':'#status'},'condition':{'kind':'text','value':'Saved','match':'equals'}}})
+        self.assertTrue(saved['ok'],saved)
+        self.assertEqual(PageHandler.updates,before+1)
+        action_id=uuid.uuid4().hex
+        params={'target':{'css':'#uncertain'},'timeout_ms':300,'expect':{'target':{'css':'#status'},'condition':{'kind':'text','value':'Never happens'}}}
+        first=self.broker.call('click',params,id=action_id)
+        self.assertEqual(first['error']['code'],'BROWSER_OUTCOME_UNCONFIRMED')
+        self.assertEqual(self.broker.call('click',params,id=action_id),first)
+        self.assertEqual(PageHandler.updates,before+2)
+        invalid=self.broker.call('click',{'target':{'css':'#uncertain'},'expect':{'target':{'css':'#status'},'condition':{'kind':'execute','value':'1+1'}}})
+        self.assertEqual(invalid['error']['code'],'BROWSER_ARGUMENT')
+        self.assertEqual(PageHandler.updates,before+2)
+
+    def test_coherent_keyboard_text_and_sensitive_focus(self):
+        self.assertTrue(self.broker.call('navigate',{'url':self.url+'typing'})['ok'])
+        result=self.broker.call('type_text',{'target':{'css':'body'},'value':'calm input',
+            'expect':{'target':{'css':'#feedback'},'condition':{'kind':'text','value':'calm input','match':'equals'}}})
+        self.assertTrue(result['ok'],result)
+        self.assertTrue(self.broker.call('click',{'target':{'css':'#password'}})['ok'])
+        blocked=self.broker.call('type_text',{'target':{'css':'body'},'value':'do not enter'})
+        self.assertEqual(blocked['error']['code'],'BROWSER_SENSITIVE_INPUT')
+
+    def test_viewed_capture_uses_fixed_eight_fps_quality_eighty_and_bounded_slots(self):
+        self.broker.mailbox.mkdir(parents=True,exist_ok=True)
+        (self.broker.mailbox/'viewer.json').write_text(json.dumps({'until_ms':int(time.time()*1000)+10000}))
+        first=self.capture_frame()
+        self.assertEqual(first['frame']['quality'],80)
+        # Let the new heartbeat take effect at the next independently scheduled cycle.
+        second=self.capture_frame(after=first['revision'])
+        start=time.monotonic();time.sleep(2)
+        final=self.capture_frame(after=second['revision'])
+        elapsed=time.monotonic()-start;frames=final['frame']['seq']-second['frame']['seq']
+        print('\nVIEWED_CAPTURE_MEASUREMENT '+json.dumps({'frames':frames,'seconds':round(elapsed,2),'fps':round(frames/elapsed,2),'quality':80}),flush=True)
+        self.assertGreaterEqual(frames,12)
+        self.assertLessEqual(frames,20)
+        self.assertEqual(len(list(self.broker.mailbox.glob('slot-*.jpg'))),2)
 
     def test_capture_and_action_latency_are_measured_with_capture_on_and_off(self):
         report={'note':'Short local measurements, not a throughput or capability benchmark. Navigation and observation exclude model time.','cases':{}}

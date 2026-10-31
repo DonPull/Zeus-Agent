@@ -13,6 +13,7 @@ pub mod browser_store;
 pub mod browser_capture;
 pub mod browser_recordings;
 pub mod browser_visuals;
+pub mod message_links;
 pub mod managed_browser;
 pub mod process_tree;
 pub mod gatekeeper;
@@ -59,6 +60,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .manage(db::AppState {
             db: std::sync::Arc::new(std::sync::Mutex::new(connection)),
             active_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -80,6 +82,9 @@ pub fn run() {
             chat::delete_task,
             chat::save_task_attachment,
             attachments::get_attachment_preview,
+            message_links::resolve_message_link,
+            message_links::open_message_link,
+            browser_recordings::get_browser_recording_index,
             settings::get_settings,
             settings::save_settings,
             settings::set_api_key,

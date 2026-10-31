@@ -27,11 +27,16 @@ pub const PROMPT: &str = r#"
 [MANAGED BROWSER — replaces older Playwright/CDP instructions]
 Use {"type":"browser_action","op":"navigate","params":{"url":"https://example.com"}}.
 Then observe with {"type":"browser_action","op":"observe","params":{"screenshot":true}}.
-Operations: observe, inspect, navigate, click, fill, press, select_option, wait, tabs, new_tab, select_tab, close_tab.
+Operations: observe, inspect, navigate, click, fill, press, type_text, select_option, wait, tabs, new_tab, select_tab, close_tab.
 inspect uses params.target and returns up to 20 elements' visible text, safe attributes, visibility and computed colors. Unknown states are unknown; do not assume that missing feedback means absence or success.
 dialog prepares params.behavior accept/dismiss and optional prompt_text for the NEXT dialog. Unexpected dialogs are dismissed and reported; inspect actual state before repeating any action.
 Locators: params.target is {"role":"button","name":"Save"}, {"text":"exact text"}, {"test_id":"id"}, or {"css":"selector"}.
 fill/select_option use params.value; press uses params.key; wait uses params.state (visible/hidden/attached/detached).
+type_text uses params.value to enter an entire string with real keyboard events in one action, including visible keyboard-driven widgets. Prefer fill for standard inputs; do not issue one broker action per character.
+wait can use condition:{"kind":"text","value":"Saved","match":"contains"}, {"kind":"value","value":"expected"}, {"kind":"attribute","name":"data-ready","value":"true"}, or {"kind":"enabled"}/{"kind":"disabled"}.
+Interactions may include ready and expect objects, each with target plus state/condition and optional settle_ms (0–2000). They share the action timeout, including result verification. Example: click params.target={"text":"Save"}, ready={"target":{"text":"Save"},"condition":{"kind":"enabled"}}, expect={"target":{"role":"status"},"condition":{"kind":"text","value":"Saved"}}.
+Visibility/enabled state does not guarantee hydration. Use relevant readiness signals and short explicit settling when needed. Wait for the intended outcome rather than inspecting once immediately. BROWSER_OUTCOME_UNCONFIRMED/BROWSER_INPUT_UNCERTAIN means an effect may already exist: inspect before any repeat; no automatic mutation retry. Keep genuine site countdown waits.
+Prefer compact text/inspect evidence when it answers the question; request pixels when rendering/visual state is relevant or uncertain. Never sacrifice verification merely to reduce observations.
 Use returned tab_id, frame_id and revision when targeting a specific observed page/frame. Stale targets need fresh observation.
 Browser operations share one run-owned session; do not launch/close Playwright or connect over CDP in scripts.
 For multi-step Python, `from zeus_browser import call`; call('observe'), call('click', target={'role':'button','name':'Save'}).
@@ -106,6 +111,7 @@ impl BrowserCommand {
             "click",
             "fill",
             "press",
+            "type_text",
             "select_option",
             "wait",
             "tabs",
@@ -141,6 +147,10 @@ impl BrowserCommand {
             "screenshot",
             "behavior",
             "prompt_text",
+            "ready",
+            "expect",
+            "condition",
+            "settle_ms",
         ];
         if self
             .params
@@ -577,7 +587,12 @@ pub async fn execute(
     .await;
     let (status, response) = match &result {
         Ok(response) => (
-            if response["ok"] == true {
+            if matches!(
+                response["error"]["code"].as_str(),
+                Some("BROWSER_OUTCOME_UNCONFIRMED" | "BROWSER_INPUT_UNCERTAIN")
+            ) {
+                "uncertain"
+            } else if response["ok"] == true {
                 "succeeded"
             } else {
                 "failed"
@@ -795,6 +810,7 @@ async fn execute_pending(
             "click",
             "fill",
             "press",
+            "type_text",
             "select_option",
             "new_tab",
             "select_tab",

@@ -161,7 +161,7 @@ The React frontend communicates with the Rust core exclusively through the bridg
 
 ## 9. Observability, Session Replay & Interactive Run Control
 
-- **Browser Session Replay**: Read-only paged actual-action/outcome history and available timed before/after images, explicit coverage gaps and export/delete controls. It does not re-execute stored code/pages or claim pixel-perfect video. Live viewing independently samples the current target tab.
+- **Browser Session Replay**: Read-only actual-action/outcome history with available timed before/after images, explicit coverage gaps, centered navigation, adjustable playback and image deletion. Diagnostic export is internal; normal UI has no export button. It does not re-execute stored code/pages or claim pixel-perfect video. Live viewing independently samples the current target tab at a fixed viewed target of 8 FPS/JPEG quality 80.
 - **Action Plan Stepper**: Real-time visual progress bar (`ActionPlanPanel.jsx`) displaying plan stages (`pending`, `in_progress`, `completed`, `interrupted`) parsed from agent directives.
 - **Interactive Budget Pause & Extension**: When a task approaches or exceeds its credit limit, the backend pauses execution and emits a budget notice. The user can review consumed units and grant an extension directly in the UI via `resolveBudgetDecision`.
 

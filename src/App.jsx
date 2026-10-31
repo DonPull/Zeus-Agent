@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import "./styles/App.css";
 import "./styles/common.css";
 import "./styles/Sidebar.css";
@@ -9,6 +7,7 @@ import "./styles/SettingsModal.css";
 import * as bridge from "./bridge";
 import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
+import MessageMarkdown from './components/MessageMarkdown';
 import SettingsModal from "./components/SettingsModal";
 import UiErrorBoundary from "./components/UiErrorBoundary";
 import TaskSettingsModal from "./components/TaskSettingsModal";
@@ -943,7 +942,7 @@ function playNotificationChime(type = "complete") {
                                         )}
                                         {streamText ? (
                                             <div className="chat-bubble-content markdown-body streaming">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamText}</ReactMarkdown>
+                                                <MessageMarkdown taskId={activeTaskId}>{streamText}</MessageMarkdown>
                                             </div>
                                         ) : !showReasoningPill ? (
                                             <div id="thinking-indicator" className="align-center gap-10 no-user-select">

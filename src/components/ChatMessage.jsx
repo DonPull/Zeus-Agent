@@ -1,8 +1,7 @@
 import MessageAttachments from "./MessageAttachments";
 import ManagedBrowserSessionCard from "./ManagedBrowserSessionCard";
 import { useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MessageMarkdown from './MessageMarkdown';
 import { formatCredits, formatTime } from "../utils";
 
 function parseEventContent(message) {
@@ -398,7 +397,7 @@ function ReasoningPill({ reasoning, streaming }) {
                 <span className="reasoning-pill-count">{reasoning.length} chars</span>
                 <span className="reasoning-pill-caret">{open ? "▾" : "▸"}</span>
             </button>
-            {open && <div className="reasoning-pill-body markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{reasoning}</ReactMarkdown></div>}
+            {open && <div className="reasoning-pill-body markdown-body"><MessageMarkdown>{reasoning}</MessageMarkdown></div>}
         </div>
     );
 }
@@ -512,7 +511,7 @@ function ChatMessage({
             <div className="chat-message user">
                 <div className="chat-bubble">
                     <div className="chat-bubble-content markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                        <MessageMarkdown taskId={message.task_id} messageId={message.id}>{message.content}</MessageMarkdown>
                     </div>
                     <MessageAttachments files={message.attachments} onReuse={onReuseAttachment}/>
                 </div>
@@ -548,7 +547,7 @@ function ChatMessage({
                 )}
                 {message.content ? (
                     <div className={`chat-bubble-content markdown-body ${streaming ? "streaming" : ""}`}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                        <MessageMarkdown taskId={message.task_id} messageId={streaming?null:message.id}>{message.content}</MessageMarkdown>
                     </div>
                 ) : null}
                 {!streaming && (

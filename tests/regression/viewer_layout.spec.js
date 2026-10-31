@@ -22,7 +22,7 @@ test('live and replay viewers use the available window and resize actual images 
     const session=`sess_${crypto.randomUUID()}`,directory=path.join(workspace,'.zeus/browser_history',task.id,session);
     fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'screen.png'),image);
     fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify({session_id:session,task_id:task.id,started_at:Date.now(),completed_at:null,duration_ms:null,final_url:'https://example.test/',total_steps:1,
-        steps:Array.from({length:61},(_,i)=>({step:i+1,action:'observe',target:null,value:null,url:'https://example.test/',timestamp:Date.now(),bounding_box:{x:40,y:40,width:200,height:40},screenshot_path:'screen.png'}))}));
+        steps:Array.from({length:189},(_,i)=>({step:i+1,action:'observe',target:null,value:null,url:'https://example.test/',timestamp:Date.now()+i*1000,bounding_box:{x:40,y:40,width:200,height:40},screenshot_path:'screen.png'}))}));
     for(const kind of ['live','replay']){
         await page.evaluate(async({kind,taskId,sessionId})=>{
             const React=(await import('/node_modules/.vite/deps/react.js')).default;
@@ -33,8 +33,9 @@ test('live and replay viewers use the available window and resize actual images 
             function Harness(){
                 const [isOpen,setOpen]=React.useState(false);
                 React.useEffect(()=>{window.__OPEN_LAYOUT_VIEWER__=()=>setOpen(true);return()=>{delete window.__OPEN_LAYOUT_VIEWER__;};},[]);
-                return React.createElement(Viewer,{isOpen,taskId,sessionId,onClose:()=>{root.unmount();host.remove();}});
+                return React.createElement(Viewer,{isOpen,taskId,sessionId,onClose:()=>setOpen(false)});
             }
+            window.__DISPOSE_LAYOUT_VIEWER__=()=>{root.unmount();host.remove();delete window.__DISPOSE_LAYOUT_VIEWER__;};
             root.render(React.createElement(Harness));
         },{kind,taskId:task.id,sessionId:session});
         await page.waitForFunction(()=>typeof window.__OPEN_LAYOUT_VIEWER__==='function');
@@ -64,13 +65,33 @@ test('live and replay viewers use the available window and resize actual images 
             await page.screenshot({path:testInfo.outputPath(`${kind}-${size.width}.png`)});
         }
         if(kind==='replay'){
-            await modal.getByRole('button',{name:'Later actions',exact:true}).click();await expect(modal).toContainText('Action 51 of 61');
-            await page.keyboard.press('ArrowLeft');await expect(modal).toContainText('Action 50 of 61');
-            await page.keyboard.press('ArrowRight');await expect(modal).toContainText('Action 51 of 61');
-            await modal.getByRole('button',{name:'Earlier actions',exact:true}).click();await expect(modal).toContainText('Action 50 of 61');
+            await modal.getByRole('button',{name:'Forward 50 actions',exact:true}).click();await expect(modal).toContainText('Action 51 of 189');
+            await page.keyboard.press('ArrowLeft');await expect(modal).toContainText('Action 50 of 189');
+            await page.keyboard.press('ArrowRight');await expect(modal).toContainText('Action 51 of 189');
+            await modal.getByRole('button',{name:'Forward 75 actions',exact:true}).click();await expect(modal).toContainText('Action 126 of 189');
+            await expect.poll(async()=>{const active=await modal.locator('.replay-step-pill.active').boundingBox(),strip=await modal.locator('.replay-actions-strip').boundingBox();return Math.abs(active.x+active.width/2-strip.x-strip.width/2);}).toBeLessThan(4);
+            await expect(modal.getByRole('combobox',{name:'Replay speed'})).toHaveValue('2');
+            await modal.getByRole('button',{name:'Play replay',exact:true}).click();await expect.poll(()=>modal.locator('.replay-position').textContent()).not.toBe('Action 126 of 189');
+            await modal.getByRole('button',{name:'Pause',exact:true}).click();
+            await modal.getByRole('button',{name:'Forward 100 actions',exact:true}).click();await expect(modal).toContainText('Action 189 of 189');
+            await expect(modal.getByRole('button',{name:'Forward 1 action',exact:true})).toBeDisabled();
+            await expect(modal.getByRole('button',{name:'Export recording'})).toHaveCount(0);
+            await modal.getByRole('combobox',{name:'Replay speed'}).selectOption('4');
+            await modal.getByRole('button',{name:'Play replay',exact:true}).click();
+            await expect(modal.getByRole('button',{name:'Pause',exact:true})).toBeVisible();
+            await expect.poll(()=>modal.locator('.replay-position').textContent()).not.toBe('Action 1 of 189');
         }
         await modal.locator(`#${kind}-modal-close-button`).click();
         await expect(modal).toHaveCount(0);
+        if(kind==='replay'){
+            await page.evaluate(()=>window.__OPEN_LAYOUT_VIEWER__());
+            await expect(modal.getByRole('button',{name:'Play replay',exact:true})).toBeVisible();
+            await expect(modal).toContainText('Action 1 of 189');
+            await page.waitForTimeout(750);
+            await expect(modal).toContainText('Action 1 of 189');
+            await modal.locator('#replay-modal-close-button').click();await expect(modal).toHaveCount(0);
+        }
+        await page.evaluate(()=>window.__DISPOSE_LAYOUT_VIEWER__());
     }
     expect(getMockRequests()).toEqual([]);
 });

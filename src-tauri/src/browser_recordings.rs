@@ -199,7 +199,7 @@ pub fn recording_page(
         let actions=steps.iter().enumerate().skip(after as usize).take(limit).map(|(i,step)|json!({"id":format!("old:{i}"),"seq":i+1,"op":step["action"],"status":"recorded_unverified","arguments":{"target":step["target"],"url":step["url"]},"timestamp":step["timestamp"],"bounding_box":step["bounding_box"],"frames":[{"id":format!("old:{i}"),"relation":"approximate","status":if step["screenshot_path"].as_str().unwrap_or("").is_empty(){"unavailable"}else{"unverified"}}]})).collect::<Vec<_>>();
         let end = after as usize + actions.len();
         return bounded_page(
-            json!({"kind":"older","coverage":"Older recording — limited evidence","session":{"session_id":session,"task_id":task,"status":"historical","version":0},"actions":actions,"next_after":if end<steps.len(){Some(end)}else{None},"total_actions":steps.len()}),
+            json!({"kind":"older","coverage":"Older recording — limited evidence","session":{"session_id":session,"task_id":task,"status":"historical","version":0,"created_at":data["started_at"],"updated_at":data["completed_at"],"duration_ms":data["duration_ms"]},"actions":actions,"next_after":if end<steps.len(){Some(end)}else{None},"total_actions":steps.len()}),
             after,
         );
     }
@@ -219,7 +219,7 @@ pub fn recording_page(
             )
             .map_err(|e| e.to_string())?;
         if let Some(response) = response.and_then(|raw| serde_json::from_str::<Value>(&raw).ok()) {
-            action["outcome"] = json!({"ok":response["ok"],"error":response["error"]});
+            action["outcome"] = json!({"ok":response["ok"],"error":response["error"],"timing_ms":response["timing_ms"]});
         }
     }
     let total: i64 = conn
@@ -246,6 +246,30 @@ pub fn recording_page(
     )
 }
 
+#[tauri::command]
+pub async fn get_browser_recording_index(
+    state: State<'_, AppState>,
+    task_id: String,
+    session_id: String,
+    after: Option<i64>,
+) -> Result<Value, String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move||{
+        let conn=db.lock().map_err(|e|e.to_string())?;task_exists(&conn,&task_id)?;
+        let after=after.unwrap_or(0);if !(0..=5000).contains(&after){return Err("BROWSER_PAGE_LIMIT: invalid cursor".into());}
+        let rows:Vec<Value>=if session_id.starts_with("sess_") {
+            let (_,data)=legacy_manifest(&task_id,&session_id)?;
+            data["steps"].as_array().unwrap().iter().enumerate().skip(after as usize).take(500).map(|(i,s)|json!({"seq":i+1,"op":s["action"].as_str().unwrap_or("").chars().take(64).collect::<String>(),"status":"recorded_unverified"})).collect()
+        }else{
+            store::session(&conn,&task_id,&session_id)?;
+            let mut stmt=conn.prepare("SELECT seq,op,status FROM managed_browser_actions WHERE session_id=?1 AND seq>?2 ORDER BY seq LIMIT 500").map_err(|e|e.to_string())?;
+            let rows=stmt.query_map(params![session_id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"op":r.get::<_,String>(1)?,"status":r.get::<_,String>(2)?}))).map_err(|e|e.to_string())?;
+            rows.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?
+        };
+        let next=if rows.len()==500{rows.last().and_then(|r|r["seq"].as_i64())}else{None};
+        Ok(json!({"actions":rows,"next_after":next}))
+    }).await.map_err(|e|format!("BROWSER_RECORDING_WORKER: {e}"))?
+}
 #[tauri::command]
 pub async fn get_browser_recording_page(
     state: State<'_, AppState>,
@@ -661,6 +685,21 @@ fn export_browser_recording_inner(
     serde_json::to_writer(&mut file, &manifest).map_err(|e| e.to_string())?;
     file.sync_all().map_err(|e| e.to_string())?;
     Ok(json!({"path":folder,"images":manifest["frames"].as_array().map(Vec::len)}))
+}
+
+/// Maintainer CLI: read the existing journal without migrating or mutating it.
+pub fn export_diagnostic_recording(task: String, session: String) -> Result<Value, String> {
+    let root = crate::utils::workspace_root()?;
+    capture::validate_directory(&root)?;
+    let file = root.join("zeus.db");
+    if crate::file_paths::is_reparse(&file) {
+        return Err("BROWSER_DIAGNOSTICS_PATH: database is missing or linked".into());
+    }
+    let conn = Connection::open_with_flags(file, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_secs(3))
+        .map_err(|e| e.to_string())?;
+    export_browser_recording_inner(&std::sync::Mutex::new(conn), task, session)
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {startMockServer,stopMockServer,launchTauri,stopTauri,queueMockResponse,getMockRequests} from '../e2e/testUtils.js';
 const reply=value=>({choices:[{delta:{content:'```zeus-directive\n'+JSON.stringify(value)+'\n```'}}],usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10}});
 let server,url;
@@ -33,6 +34,8 @@ test('real before/after evidence pages, failed action, export and explicit image
     const exported=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.exportBrowserRecording(task,session),identities);
     expect(path.resolve(exported.path).startsWith(path.resolve(app.workspace))).toBe(true);
     const manifest=JSON.parse(fs.readFileSync(path.join(exported.path,'recording.json'),'utf8'));
+    const diagnostic=JSON.parse(execFileSync(process.execPath,['scripts/diagnostics/export_browser.js','--task',task.id,'--session',session,'--data-dir',app.workspace],{cwd:path.resolve('.'),windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+    expect(JSON.parse(fs.readFileSync(path.join(diagnostic.path,'recording.json'),'utf8')).action_high_water).toBe(4);
     expect(manifest.action_pages.flatMap(page=>page.actions).map(a=>a.status)).toEqual(['succeeded','succeeded','succeeded','failed']);
     const journal=fs.readFileSync(path.join(exported.path,manifest.action_journal),'utf8').trim().split('\n').map(JSON.parse);expect(journal).toHaveLength(4);expect(journal.map(row=>row.seq)).toEqual([1,2,3,4]);expect(JSON.parse(journal[3].response_json).error.code).toBe('BROWSER_ACTION_FAILED');
     for(const frame of manifest.frames.filter(frame=>frame.status==='available')){expect(frame.file).toBe(`${frame.id}.jpg`);const data=fs.readFileSync(path.join(exported.path,frame.file));expect(crypto.createHash('sha256').update(data).digest('hex')).toBe(frame.metadata.sha256);}

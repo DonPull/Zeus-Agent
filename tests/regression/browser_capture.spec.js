@@ -41,7 +41,7 @@ test('production collector and live viewer recover changing pixels across close 
         await window.__ZEUS_BRIDGE__.updateTaskSettings(task.id,{master_model:'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',vision_model:'None',budget_credits:1000000,model_bindings:{}});return task;
     });
     queueMockResponse(reply({type:'browser_action',op:'navigate',params:{url}}));
-    queueMockResponse(reply({type:'browser_action',op:'wait',params:{target:{css:'#absent'},timeout_ms:15000}}));
+    queueMockResponse(reply({type:'browser_action',op:'wait',params:{target:{css:'#absent'},timeout_ms:25000}}));
     queueMockResponse(reply({type:'final_answer',final_answer:{summary:'The deliberate wait failed; independent capture was tested.'}}));
     await app.page.evaluate(id=>{window.__CAPTURE_SEND__=window.__ZEUS_BRIDGE__.sendUserMessage(id,'Run the controlled capture check.',crypto.randomUUID());window.__CAPTURE_SEND__.catch(()=>{});},task.id);
     let session;
@@ -77,6 +77,15 @@ test('production collector and live viewer recover changing pixels across close 
         await expect.poll(()=>app.page.locator('#live-viewport-img').evaluate(img=>img.naturalWidth)).toBe(1280);
     };
     await app.page.setViewportSize({width:1320,height:840});await openViewer();
+    await expect(app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
+    await expect(app.page.locator('.browser-viewer-badge')).toHaveText('Live');
+    expect((await capture()).capture.frame.quality).toBe(80);
+    await app.page.evaluate(()=>{window.__VIEWED_IMAGES__=0;window.__VIEWED_IMAGE_OBSERVER__=new MutationObserver(()=>window.__VIEWED_IMAGES__++);window.__VIEWED_IMAGE_OBSERVER__.observe(document.querySelector('#live-viewport-img'),{attributes:true,attributeFilter:['src']});});
+    const rateBefore=await capture();
+    await app.page.waitForTimeout(2000);
+    const imageCount=await app.page.evaluate(()=>{window.__VIEWED_IMAGE_OBSERVER__.disconnect();return window.__VIEWED_IMAGES__;});
+    const rateAfter=await capture();console.log(JSON.stringify({native_preview_measurement:{source_frames:rateAfter.capture.frame.seq-rateBefore.capture.frame.seq,collector_publications:rateAfter.capture.revision-rateBefore.capture.revision,displayed_images:imageCount,source_metrics:rateAfter.capture.metrics}}));
+    expect(imageCount,'Rendered preview should advance faster than the former 2 FPS target').toBeGreaterThanOrEqual(8);
     const source=await app.page.locator('#live-viewport-img').getAttribute('src');
     await expect.poll(()=>app.page.locator('#live-viewport-img').getAttribute('src')).not.toBe(source);
     await app.page.screenshot({path:testInfo.outputPath('managed-live-view.png')});
@@ -84,7 +93,7 @@ test('production collector and live viewer recover changing pixels across close 
     await openViewer();expect(getMockRequests()).toHaveLength(requestCount);await app.page.locator('#live-modal-close-button').click();
     const foreign=await app.page.evaluate(()=>window.__ZEUS_BRIDGE__.createTask('Foreign capture reader'));
     await expect(app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserCapture(task,session),{task:foreign.id,session:session.session_id})).rejects.toThrow('BROWSER_OWNERSHIP');
-    await expect.poll(async()=>{const run=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),task.id);return run?.status;}).toBe('completed');
+    await expect.poll(async()=>{const run=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),task.id);return run?.status;},{timeout:35000}).toBe('completed');
     const ended=await capture();expect(ended.session.status).toBe('completed');expect(ended.session.runtime.cleanup.owned_processes_remaining).toBe(0);
     expect(await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),task.id)).toHaveLength(1);
     await expect(app.page.evaluate(({task,session,seq})=>window.__ZEUS_BRIDGE__.readBrowserLiveImage(task,session,seq),{...identity,seq:ended.capture.frame.seq})).rejects.toThrow('BROWSER_FRAME_EXPIRED');

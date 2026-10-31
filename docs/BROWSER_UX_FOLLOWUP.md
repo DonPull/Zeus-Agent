@@ -1,0 +1,39 @@
+# Browser UX, links and execution follow-up
+
+Approved in conversation after Phase 3C (`059f451`). Implemented and locally validated on 2026-10-31. This patch keeps the shared owner, existing permissions, SQLite authority and sampled evidence. No native document previews, compression, conversation portability, personal-browser access or adaptive load-based preview throttling.
+
+## Tangible changes and decisions
+
+- Task-file links reveal validated existing files in Explorer through a file-information panel; ordinary HTTP(S) links open the default browser. No chat-webview navigation or automatic file execution. Relative links belong to the message's task workspace, not the app URL.
+- Browser cards show lifecycle wording/color/activity. Watch is available during execution; Replay after termination when there is actual history.
+- Live preview targets 8 FPS at JPEG quality 80 while viewed, with fixed settings, independent recording cadence and existing bounded buffering. No CPU/load-based quality/FPS controller. A stale displayed image shows a yellow Outdated badge with age; closed/error/no-tab remain distinct.
+- Replay uses local readable action times, session duration, actor labels instead of UUIDs, one lower navigation/playback section, the requested ±1/5/25/50/75/100 jumps, a centered continuous action strip and adjustable playback (default 2 steps/s). Load bounded metadata/images rather than decode an entire recording.
+- Remove recording export from normal UI. Preserve its tested internal implementation and expose a developer-only export command reusing it. Existing exports are preserved.
+- Add coherent text input and meaningful outcome waits. Respect actionability, allow explicit bounded settling, verify results and report uncertain outcomes without automatically repeating mutations. Remove blanket fixed-sleep advice; keep explicit waits available for real site delays. Do not silently change model bindings or claim unknown image capability is supported.
+
+## Implementation and acceptance
+
+1. Safe link resolution/OS opening with read-only ownership/path validation and native UI tests; existing/missing/foreign/escaping/encoded links must not unload chat. Never open OS browser/Explorer windows in routine tests: record the exact production opener intent only in the feature-gated evaluation binary.
+2. Viewer/card/replay controls, cursor-independent navigation and playback lifecycle/image-order guards; fixed 8-FPS pipeline end to end. Verify actual changing pixels, capture quality, close/reload, stale/terminal badges, long recordings and readable narrow/wide screenshots.
+3. Generic browser inputs/waits and diagnostics command; local fixtures for delayed hydration, reset inputs, animations, delayed confirmation, background traffic and uncertain submissions. Correct outcomes/no duplicate effect are required, not just faster execution.
+4. Full offline regression, optimized relevant checks, frontend build, ordinary production compile and visual inspection. Record failures and measured limits. Any live diagnostic must retain its declared model/budget/outcome; software controls are not capability scores.
+
+## Why the reported browser task was slow
+
+Read-only inspection of the user's successful five-game run found 647 seconds total, 94 provider requests (50 worker, 34 vision, eight master, two verifier), 178 browser actions including 124 individual presses, and about 76.9 seconds summed inside browser action records, including a failed click taking about 30.3 seconds. This points to orchestration, round trips, repeated perception and one timeout as substantial overhead; it does not establish a precise model-versus-queue attribution because prior records do not separate every stage. The patch adds service timing breakdowns, coherent typing and verification-aware waits instead of a game-specific strategy or solver. Future same-task repeated trials must measure completion, wall time, requests and cost before claiming a speed gain.
+
+The source recording already contained 352 available JPEGs totaling about 9.4 MB. Export copied existing evidence; it was not required to inspect the original database/images. Its validated implementation remains useful to prepare a portable diagnostic packet, so a separate maintainer command replaces the user-facing button. No source history is removed.
+
+## Validation record
+
+All validation groups passed: **265 offline checks plus ten optimized desktop checks**, frontend production build, ordinary `zeus-agent`/`zeus-diagnostics` compile checks and `git diff --check`. Breakdown: 43 Node checks, 37 mission/grader checks, 82 Rust checks, 14 real Python/browser-service checks and 89 native desktop checks. No paid/live-model requests were made. Generated screenshots/test data remain ignored. These controls do not establish an agent capability or task-speed improvement.
+
+The first full native pass exposed four failures rather than accepting a partial result: a frame rejected when a newer descriptor arrived during validation, the global `body * {display:flex}` rule shrinking the virtual timeline spacer, a delayed-save fixture using `window.status` instead of its status element, and a duplicate Windows manifest in the new diagnostics executable. These were corrected. The live frame fix retains full byte/hash/type/dimension/decode validation of the owned copy; it does not bypass validation or require the mailbox to become idle. A later extended-path unit case also caught canonical Windows drive paths being rejected as device paths; only local-drive prefixes are normalized, with UNC/device/reparse/foreign paths still rejected.
+
+Early focused measurements retained 15 source frames and 14 displayed images over two seconds in the native viewer; the real service probe measured 7.44 FPS at quality 80. The later full/optimized desktop runs each displayed nine frames over two seconds. The target is fixed at 8 FPS, with observed rates varying across these short runs; it is not a guarantee of sustained 8 FPS on every page/system. No adaptive throttle was introduced.
+
+The aggregate run retained the new Windows canonical-path unit failure, completed all 89 native checks successfully, and skipped its optimized UI group because of that earlier failure. After correction, all 82 backend tests passed again. The final `--unit --missions --backend --release` run passed, including ten optimized native cases and strengthened close/reopen playback and file-panel layout checks. No failure was reclassified as a pass.
+
+Native coverage includes existing attachment/helper/follow-up behavior, dropdown rendering, approvals, single Stop notices, usage and root ownership. New checks exercise actual link resolution without chat navigation, opener intent without OS popups, encoded/linked/foreign paths, delayed hydration, late save confirmation, uncertain mutation with exactly two expected effects, coherent keyboard input, changing live pixels/quality/close/reload, 189-action navigation and centering, adjustable playback, close/reopen timer cleanup and internal recording export. Export preserves actual hashes/action outcomes; no source data is deleted by export. The missing-target live-capture fixture intentionally waits 25 seconds; the assertion deadline was aligned with that deliberate wait rather than relabeling it completed early.
+
+Screenshots were inspected at normal and narrower desktop sizes, including the real Live view, a replay display fixture and the saved-file panel. This found a generic modal-style collision; scoped panel dimensions, colors and button styling now fit the existing theme. Remaining comprehensive UI/accessibility work is still tracked separately. Local artifacts: `.zeus/evaluations/browser-ux-review/native`, `optimized`, and `initial-failures`. Remote CI and live-model speed/reliability comparisons were not run.
