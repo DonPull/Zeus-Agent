@@ -71,7 +71,7 @@ test.describe('Offline desktop runtime regression', () => {
     expect(getMockRequests().at(-1).url).toContain('/responses');
   });
 
-  test('debug export identifies the active legacy route even with no browser sessions',async()=>{
+  test('debug export identifies the sole managed route even with no browser sessions',async()=>{
     await newTask();
     await page.evaluate(()=>{
       window.__ORIGINAL_CLIPBOARD_WRITE__=navigator.clipboard.writeText;
@@ -83,7 +83,7 @@ test.describe('Offline desktop runtime regression', () => {
       await expect.poll(()=>page.evaluate(()=>window.__COPIED_DEBUG__??'')).toContain('runtime_at_export');
       const report=await page.evaluate(()=>window.__COPIED_DEBUG__);
       const browser=JSON.parse(report.split('--- MANAGED BROWSER JOURNAL (coverage stated in snapshot) ---')[1].split('--- BACKEND EVENTS')[0]);
-      expect(browser.runtime_at_export).toMatchObject({enabled:false,route:'legacy'});
+      expect(browser.runtime_at_export).toMatchObject({enabled:true,route:'managed-v1'});
       expect(browser.sessions).toEqual([]);
     } finally {
       await page.evaluate(()=>{navigator.clipboard.writeText=window.__ORIGINAL_CLIPBOARD_WRITE__;delete window.__ORIGINAL_CLIPBOARD_WRITE__;delete window.__COPIED_DEBUG__;});

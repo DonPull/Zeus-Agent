@@ -81,7 +81,7 @@ The Python environment has internet access and can interact with the file system
 ```
 
 9. **Delegate a Web Task to a Worker**
-Worker agents are fully equipped with browser automation capabilities (via Playwright) and can drive authenticated sessions, log in, click, type, and scrape.
+Worker agents use the same task-owned browser as the coordinator. Delegate a clear objective and success criteria. Supervised login/handoff is not yet enabled; do not promise access to the user's daily browser.
 ```zeus-directive
 {"type":"delegate_task","delegate":{"name":"Worker Name","objective":"What the worker needs to accomplish","success_criteria":"How to verify the worker succeeded"}}
 ```

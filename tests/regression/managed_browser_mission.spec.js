@@ -47,6 +47,10 @@ for(const useBrowser of [true,false])test(`B01 independently ${useBrowser?'accep
         expect(result.row.authorization_status).toBe('not_evaluated');expect(result.row.passed).toBe(false);
         expect(result.row.configuration.browser_service).toBe('managed-v1');
         const browser=result.row.python_check_details.find(check=>check.id==='browser_interaction');expect(browser.status).toBe(useBrowser?'passed':'not_evaluated');
-        if(useBrowser)expect(result.row.artifacts.some(artifact=>artifact.path.endsWith('browser-journal.json'))).toBe(true);
+        if(useBrowser){
+            expect(result.row.artifacts.some(artifact=>artifact.path.endsWith('browser-journal.json'))).toBe(true);
+            expect(result.row.artifacts.some(artifact=>artifact.path.endsWith('recording.json'))).toBe(true);
+            expect(result.row.artifacts.some(artifact=>artifact.path.endsWith('actions.jsonl'))).toBe(true);
+        }
     }finally{await observer?.finish();await stopTauri();await portal.close();await stopMockServer();}
 });

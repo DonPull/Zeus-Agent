@@ -24,6 +24,8 @@ pub struct AppSettings {
     pub default_budget_credits: i64,
     pub browser_mode: String,
     pub browser_executable_path: Option<String>,
+    #[serde(default)]
+    pub browser_python_path: Option<String>,
     #[serde(default = "default_local_base_url")]
     pub local_base_url: Option<String>,
     pub local_api_key: Option<String>,
@@ -72,6 +74,7 @@ impl Default for AppSettings {
             default_budget_credits: 40000,
             browser_mode: "sandboxed".into(),
             browser_executable_path: None,
+            browser_python_path: None,
             local_base_url: Some("http://localhost:11434/v1".into()),
             local_api_key: None,
             xiaomi_base_url: default_xiaomi_base_url(),
@@ -133,6 +136,7 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
             .unwrap_or(defaults.default_budget_credits),
         browser_mode: get_setting(connection, "browser_mode")?.unwrap_or_else(|| defaults.browser_mode),
         browser_executable_path: get_setting(connection, "browser_executable_path")?,
+        browser_python_path: get_setting(connection,"browser_python_path")?,
         local_base_url: get_setting(connection, "local_base_url")?.or_else(|| defaults.local_base_url),
         local_api_key: get_setting(connection, "local_api_key")?,
         xiaomi_base_url: get_setting(connection, "xiaomi_base_url")?.or_else(|| defaults.xiaomi_base_url),
@@ -191,6 +195,12 @@ fn write_settings_inner(connection: &Connection, settings: &AppSettings) -> Resu
         &settings.default_budget_credits.to_string(),
     )?;
     set_setting(connection, "browser_mode", &settings.browser_mode)?;
+    if let Some(path)=settings.browser_python_path.as_ref().filter(|s|!s.trim().is_empty()) {
+        if !std::path::Path::new(path).is_absolute() || crate::file_paths::normal(std::path::Path::new(path)).starts_with("//") {
+            return Err("BROWSER_RUNTIME_PATH: choose an absolute local Python executable path".into());
+        }
+        set_setting(connection,"browser_python_path",path)?;
+    }else{connection.execute("DELETE FROM settings WHERE key='browser_python_path'",[]).map_err(|e|e.to_string())?;}
     if let Some(path) = &settings.browser_executable_path {
         set_setting(connection, "browser_executable_path", path)?;
     } else {

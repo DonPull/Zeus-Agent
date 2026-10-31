@@ -71,7 +71,7 @@ impl Drop for IpcOwner{fn drop(&mut self){
 
 pub async fn run_python_action_scoped(
     app_handle:Option<tauri::AppHandle>,task_id:Option<String>,workspace:&Path,code:&str,
-    timeout_secs:u64,browser_port:Option<u16>,browser_context:Option<BrowserScriptContext>,
+    timeout_secs:u64,_browser_port:Option<u16>,browser_context:Option<BrowserScriptContext>,
 )->Result<ActionOutcome,String>{
     let interpreter = detect_python().ok_or_else(|| {
         "No Python interpreter found (tried `python`, `python3`, `py`). Install Python 3.11 and make sure it is on your PATH.".to_string()
@@ -84,15 +84,6 @@ pub async fn run_python_action_scoped(
     let ipc_token=format!("{}{}",crate::db::new_id(),crate::db::new_id());
     let ipc_stop=browser_context.as_ref().map(|context|context.cancel.child_token()).unwrap_or_default();
     let mut ipc_owner=IpcOwner{stop:ipc_stop.clone(),listener:None,app:app_handle.clone(),context:browser_context.clone()};
-    let session_id = format!("sess_{}", crate::db::new_id());
-    let history_dir = if let Some(ref tid) = tid_opt {
-        crate::utils::workspace_root()
-            .ok()
-            .map(|r| r.join(".zeus").join("browser_history").join(tid).join(&session_id))
-    } else {
-        None
-    };
-
     // Setup IPC server if we have context
     let mut ipc_port = 0;
     if let (Some(ref app), Some(ref tid)) = (&app_handle, &task_id) {
@@ -139,9 +130,7 @@ _zeus_temp_dir = os.path.abspath(tempfile.gettempdir())
 _zeus_env_temp = os.path.abspath(os.environ.get('TEMP', '')) if os.environ.get('TEMP') else None
 _zeus_env_tmp = os.path.abspath(os.environ.get('TMP', '')) if os.environ.get('TMP') else None
 
-_zeus_history_dir = os.environ.get('ZEUS_BROWSER_HISTORY_DIR', '')
 _zeus_task_id = os.environ.get('ZEUS_TASK_ID', '')
-_zeus_session_id = os.environ.get('ZEUS_BROWSER_SESSION_ID', '')
 
 _zeus_allowed_prefixes = [
     os.path.normcase(_zeus_workspace),
@@ -153,8 +142,6 @@ if _zeus_env_temp:
     _zeus_allowed_prefixes.append(os.path.normcase(_zeus_env_temp))
 if _zeus_env_tmp:
     _zeus_allowed_prefixes.append(os.path.normcase(_zeus_env_tmp))
-if _zeus_history_dir:
-    _zeus_allowed_prefixes.append(os.path.normcase(os.path.abspath(_zeus_history_dir)))
 
 _zeus_ipc_port = int(os.environ.get('ZEUS_IPC_PORT', '0'))
 _zeus_ipc_socket = None
@@ -226,9 +213,7 @@ def _zeus_audit_hook(event, args):
             return
         cmd_lower = cmd_str_clean.lower()
         if 'playwright' in cmd_lower and ('driver' in cmd_lower or 'node' in cmd_lower):
-            if os.environ.get('ZEUS_MANAGED_SCRIPT') == '1':
-                raise PermissionError('Use zeus_browser.call instead of launching an unmanaged Playwright driver')
-            return
+            raise PermissionError('Use zeus_browser.call instead of launching an unmanaged Playwright driver')
         req = {"type": "command", "command": cmd_str_clean}
         if not _ask_gatekeeper(req):
             raise PermissionError(f'Zeus Gatekeeper DENIED process execution: {cmd_str_clean}')
@@ -261,331 +246,6 @@ def _zeus_audit_hook(event, args):
 sys.addaudithook(_zeus_audit_hook)
 
 # --- Browser Session Tracking & Capture State ---
-_zeus_session_started = False
-_zeus_step_counter = 0
-_zeus_steps = []
-_zeus_start_time = None
-_zeus_last_url = ""
-_zeus_current_page = None
-
-def _zeus_ensure_session_started(page=None):
-    global _zeus_session_started, _zeus_start_time, _zeus_last_url, _zeus_current_page
-    if page:
-        _zeus_current_page = page
-    if not _zeus_session_started:
-        _zeus_session_started = True
-        _zeus_start_time = int(time.time() * 1000)
-        if _zeus_history_dir:
-            try:
-                os.makedirs(_zeus_history_dir, exist_ok=True)
-            except Exception:
-                pass
-        curr_url = ""
-        try:
-            if page:
-                curr_url = page.url or ""
-        except Exception:
-            pass
-        _zeus_last_url = curr_url
-        if _zeus_session_id:
-            _zeus_ipc_send({
-                "type": "browser_session_started",
-                "session_id": _zeus_session_id,
-                "timestamp": _zeus_start_time,
-                "initial_url": curr_url
-            })
-
-def _zeus_extract_bounding_box(page, selector):
-    if not page or not selector:
-        return None
-    try:
-        loc = page.locator(selector).first
-        box = loc.bounding_box(timeout=1000)
-        if box:
-            return {
-                "x": float(box.get("x", 0)),
-                "y": float(box.get("y", 0)),
-                "width": float(box.get("width", 0)),
-                "height": float(box.get("height", 0))
-            }
-    except Exception:
-        pass
-    return None
-
-def _zeus_record_step(page, action_name, selector=None, value=None, pre_box=None):
-    global _zeus_step_counter, _zeus_last_url, _zeus_current_page
-    if not _zeus_history_dir or not _zeus_session_id:
-        return
-    if page:
-        _zeus_current_page = page
-    elif _zeus_current_page:
-        page = _zeus_current_page
-    _zeus_ensure_session_started(page)
-    _zeus_step_counter += 1
-    ts = int(time.time() * 1000)
-    curr_url = ""
-    try:
-        if page:
-            curr_url = page.url or ""
-        if not curr_url and action_name == "goto" and selector:
-            curr_url = selector
-        if not curr_url:
-            curr_url = _zeus_last_url
-        if curr_url:
-            _zeus_last_url = curr_url
-    except Exception:
-        curr_url = _zeus_last_url
-    
-    shot_filename = f"{_zeus_step_counter}_{action_name}.png"
-    shot_path = os.path.join(_zeus_history_dir, shot_filename)
-    try:
-        if page:
-            page.screenshot(path=shot_path)
-    except Exception:
-        shot_path = ""
-
-    step_info = {
-        "step": _zeus_step_counter,
-        "action": action_name,
-        "target": selector,
-        "value": value,
-        "url": curr_url,
-        "timestamp": ts,
-        "bounding_box": pre_box,
-        "screenshot_path": shot_filename
-    }
-    _zeus_steps.append(step_info)
-    _zeus_write_manifest()
-
-    shot_b64 = ""
-    if shot_path and os.path.exists(shot_path):
-        try:
-            with open(shot_path, "rb") as sf:
-                shot_b64 = "data:image/png;base64," + base64.b64encode(sf.read()).decode("ascii")
-        except Exception:
-            pass
-
-    _zeus_ipc_send({
-        "type": "browser_live_frame",
-        "session_id": _zeus_session_id,
-        "step": _zeus_step_counter,
-        "action": action_name,
-        "target": selector,
-        "value": value,
-        "url": curr_url,
-        "timestamp": ts,
-        "screenshot_path": shot_b64 if shot_b64 else shot_path,
-        "screenshot_base64": shot_b64,
-        "bounding_box": pre_box
-    })
-
-def _zeus_write_manifest():
-    if not _zeus_history_dir or not _zeus_session_id:
-        return
-    try:
-        now = int(time.time() * 1000)
-        start_ts = _zeus_start_time or now
-        manifest = {
-            "session_id": _zeus_session_id,
-            "task_id": _zeus_task_id,
-            "started_at": start_ts,
-            "completed_at": now,
-            "duration_ms": max(0, now - start_ts),
-            "final_url": _zeus_last_url,
-            "total_steps": len(_zeus_steps),
-            "steps": _zeus_steps
-        }
-        manifest_path = os.path.join(_zeus_history_dir, "manifest.json")
-        with open(manifest_path, "w", encoding="utf-8") as mf:
-            json.dump(manifest, mf, indent=2)
-    except Exception:
-        pass
-
-def _zeus_finalize_session():
-    global _zeus_session_started
-    if not _zeus_session_started or len(_zeus_steps) == 0:
-        return
-    _zeus_session_started = False
-    _zeus_write_manifest()
-    now = int(time.time() * 1000)
-    start_ts = _zeus_start_time or now
-    if _zeus_session_id:
-        _zeus_ipc_send({
-            "type": "browser_session_completed",
-            "session_id": _zeus_session_id,
-            "total_steps": len(_zeus_steps),
-            "duration_ms": max(0, now - start_ts),
-            "final_url": _zeus_last_url,
-            "timestamp": now
-        })
-
-atexit.register(_zeus_finalize_session)
-
-try:
-    if os.environ.get('ZEUS_MANAGED_SCRIPT') == '1':
-        raise ImportError('Managed browser uses the owner client, not Playwright monkey patches')
-    import playwright.sync_api
-    import random
-    
-    _zeus_original_click = playwright.sync_api.Page.click
-    _zeus_original_fill = playwright.sync_api.Page.fill
-    _zeus_original_press = getattr(playwright.sync_api.Page, "press", None)
-    _zeus_original_goto = playwright.sync_api.Page.goto
-    _zeus_original_close = playwright.sync_api.Page.close
-    _zeus_original_connect = playwright.sync_api.BrowserType.connect_over_cdp
-
-    def _zeus_patched_click(self, selector, **kwargs):
-        box = _zeus_extract_bounding_box(self, selector)
-        _zeus_record_step(self, "click", selector=selector, pre_box=box)
-        return _zeus_original_click(self, selector, **kwargs)
-        
-    def _zeus_patched_fill(self, selector, value, **kwargs):
-        box = _zeus_extract_bounding_box(self, selector)
-        res = _zeus_original_fill(self, selector, value, **kwargs)
-        _zeus_record_step(self, "fill", selector=selector, value=str(value), pre_box=box)
-        return res
-
-    def _zeus_patched_press(self, selector, key, **kwargs):
-        box = _zeus_extract_bounding_box(self, selector)
-        res = None
-        if _zeus_original_press:
-            res = _zeus_original_press(self, selector, key, **kwargs)
-        _zeus_record_step(self, "press", selector=selector, value=str(key), pre_box=box)
-        return res
-
-    def _zeus_stealth_init(page):
-        stealth_js = """
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-        if (!window.chrome) {
-            window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
-        }
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5]
-        });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        """
-        try:
-            page.add_init_script(stealth_js)
-        except Exception:
-            pass
-
-    def _zeus_patched_connect(self, endpoint_url, **kwargs):
-        if isinstance(endpoint_url, str) and endpoint_url.startswith('ws://127.0.0.1:') and '/devtools/' not in endpoint_url:
-            endpoint_url = 'http://' + endpoint_url[5:]
-        browser = _zeus_original_connect(self, endpoint_url, **kwargs)
-        for context in browser.contexts:
-            for page in context.pages:
-                _zeus_stealth_init(page)
-            context.on("page", lambda p: _zeus_stealth_init(p))
-        return browser
-
-    def _zeus_patched_goto(self, url, **kwargs):
-        req = {"type": "browser", "action": "goto", "url": url}
-        if not _ask_gatekeeper(req):
-            raise PermissionError(f'Zeus Gatekeeper DENIED browser navigation to {url}')
-        _zeus_stealth_init(self)
-        _zeus_ensure_session_started(self)
-        res = _zeus_original_goto(self, url, **kwargs)
-        _zeus_record_step(self, "goto", selector=url)
-        return res
-        
-    def _zeus_patched_close(self, **kwargs):
-        req = {"type": "browser", "action": "close"}
-        if not _ask_gatekeeper(req):
-            raise PermissionError('Zeus Gatekeeper DENIED closing the browser tab')
-        _zeus_finalize_session()
-        return _zeus_original_close(self, **kwargs)
-
-    playwright.sync_api.Page.click = _zeus_patched_click
-    playwright.sync_api.Page.fill = _zeus_patched_fill
-    if _zeus_original_press:
-        playwright.sync_api.Page.press = _zeus_patched_press
-    playwright.sync_api.Page.goto = _zeus_patched_goto
-    playwright.sync_api.Page.close = _zeus_patched_close
-    playwright.sync_api.BrowserType.connect_over_cdp = _zeus_patched_connect
-
-    # Patch Locator if available
-    try:
-        _zeus_orig_loc_click = playwright.sync_api.Locator.click
-        def _zeus_patched_loc_click(self, **kwargs):
-            sel = getattr(self, "_selector", str(self))
-            box = None
-            try:
-                raw_box = self.bounding_box(timeout=1000)
-                if raw_box:
-                    box = {
-                        "x": float(raw_box.get("x", 0)),
-                        "y": float(raw_box.get("y", 0)),
-                        "width": float(raw_box.get("width", 0)),
-                        "height": float(raw_box.get("height", 0))
-                    }
-            except Exception:
-                pass
-            _zeus_record_step(self.page, "click", selector=sel, pre_box=box)
-            return _zeus_orig_loc_click(self, **kwargs)
-        playwright.sync_api.Locator.click = _zeus_patched_loc_click
-
-        _zeus_orig_loc_fill = playwright.sync_api.Locator.fill
-        def _zeus_patched_loc_fill(self, value, **kwargs):
-            sel = getattr(self, "_selector", str(self))
-            box = None
-            try:
-                raw_box = self.bounding_box(timeout=1000)
-                if raw_box:
-                    box = {
-                        "x": float(raw_box.get("x", 0)),
-                        "y": float(raw_box.get("y", 0)),
-                        "width": float(raw_box.get("width", 0)),
-                        "height": float(raw_box.get("height", 0))
-                    }
-            except Exception:
-                pass
-            res = _zeus_orig_loc_fill(self, value, **kwargs)
-            _zeus_record_step(self.page, "fill", selector=sel, value=str(value), pre_box=box)
-            return res
-        playwright.sync_api.Locator.fill = _zeus_patched_loc_fill
-    except Exception:
-        pass
-
-    try:
-        _zeus_orig_kb_press = getattr(playwright.sync_api.Keyboard, "press", None)
-        if _zeus_orig_kb_press:
-            def _zeus_patched_kb_press(self, key, **kwargs):
-                res = _zeus_orig_kb_press(self, key, **kwargs)
-                k_lower = str(key).lower()
-                if k_lower in ("enter", "return", "tab", "escape"):
-                    _zeus_record_step(_zeus_current_page, "press", value=str(key))
-                return res
-            playwright.sync_api.Keyboard.press = _zeus_patched_kb_press
-    except Exception:
-        pass
-
-    def human_type(page, selector, text):
-        box = _zeus_extract_bounding_box(page, selector)
-        _zeus_record_step(page, "human_type", selector=selector, value=str(text), pre_box=box)
-        page.focus(selector)
-        for char in text:
-            page.keyboard.type(char)
-            time.sleep(random.uniform(0.04, 0.12))
-
-    def human_click(page, selector):
-        box = _zeus_extract_bounding_box(page, selector)
-        _zeus_record_step(page, "human_click", selector=selector, pre_box=box)
-        if box:
-            x = box['x'] + box['width'] * random.uniform(0.3, 0.7)
-            y = box['y'] + box['height'] * random.uniform(0.3, 0.7)
-            page.mouse.move(x, y, steps=random.randint(5, 12))
-            time.sleep(random.uniform(0.05, 0.15))
-            page.mouse.down()
-            time.sleep(random.uniform(0.04, 0.09))
-            page.mouse.up()
-        else:
-            page.click(selector)
-
-except Exception:
-    pass
 "#;
 
     let client=if browser_context.is_some(){
@@ -607,18 +267,8 @@ except Exception:
     command.env("ZEUS_IPC_TOKEN",&ipc_token).env("ZEUS_MANAGED_SCRIPT",if browser_context.is_some(){"1"}else{"0"});
     if browser_context.is_some(){command.env_remove("ZEUS_BROWSER_WS_ENDPOINT").env_remove("ZEUS_BROWSER_HTTP_ENDPOINT").env_remove("ZEUS_BROWSER_HISTORY_DIR");}
         
-    if let Some(ref tid) = tid_opt {
-        command.env("ZEUS_TASK_ID", tid);
-        command.env("ZEUS_BROWSER_SESSION_ID", &session_id);
-        if let Some(ref hdir) = history_dir.as_ref().filter(|_|browser_context.is_none()) {
-            command.env("ZEUS_BROWSER_HISTORY_DIR", hdir);
-        }
-    }
-
-    if let Some(port) = browser_port {
-        command.env("ZEUS_BROWSER_WS_ENDPOINT", format!("http://127.0.0.1:{}", port));
-        command.env("ZEUS_BROWSER_HTTP_ENDPOINT", format!("http://127.0.0.1:{}", port));
-    }
+    if let Some(ref tid) = tid_opt { command.env("ZEUS_TASK_ID",tid); }
+    command.env_remove("ZEUS_BROWSER_WS_ENDPOINT").env_remove("ZEUS_BROWSER_HTTP_ENDPOINT").env_remove("ZEUS_BROWSER_HISTORY_DIR").env_remove("ZEUS_BROWSER_SESSION_ID");
 
     command
         .stdin(Stdio::null())
@@ -730,7 +380,7 @@ except Exception:
     })
 }
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use crate::db::AppState;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
@@ -791,81 +441,9 @@ async fn handle_ipc_connection(
             }
         }
 
-        if req_type == "browser_session_started" {
-            let session_id = req["session_id"].as_str().unwrap_or("").to_string();
-            let initial_url = req["initial_url"].as_str().unwrap_or("").to_string();
-            let timestamp = req["timestamp"].as_u64().unwrap_or(0);
-
-            let content = serde_json::json!({
-                "session_id": session_id,
-                "initial_url": initial_url,
-                "timestamp": timestamp,
-                "status": "active"
-            }).to_string();
-
-            let mut msg = crate::chat::new_message(
-                &task_id,
-                "event",
-                "browser_session_started",
-                content,
-                None,
-                None,
-                true,
-            );
-            let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut msg);
-
-            let res = serde_json::json!({ "status": "ok" });
-            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
-            let _ = writer.flush().await;
-            line.clear();
-            continue;
+        if matches!(req_type,"browser_session_started"|"browser_live_frame"|"browser_session_completed") {
+            let _=writer.write_all(b"{\"ok\":false,\"error\":{\"code\":\"BROWSER_UNTRUSTED_EVENT\",\"message\":\"Actor events are not browser evidence\"}}\n").await;line.clear();continue;
         }
-
-        if req_type == "browser_live_frame" {
-            let _ = app_handle.emit("browser_live_frame", &req);
-
-            let res = serde_json::json!({ "status": "ok" });
-            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
-            let _ = writer.flush().await;
-            line.clear();
-            continue;
-        }
-
-        if req_type == "browser_session_completed" {
-            let session_id = req["session_id"].as_str().unwrap_or("").to_string();
-            let total_steps = req["total_steps"].as_u64().unwrap_or(0);
-            let duration_ms = req["duration_ms"].as_u64().unwrap_or(0);
-            let final_url = req["final_url"].as_str().unwrap_or("").to_string();
-            let timestamp = req["timestamp"].as_u64().unwrap_or(0);
-
-            let content = serde_json::json!({
-                "session_id": session_id,
-                "total_steps": total_steps,
-                "duration_ms": duration_ms,
-                "final_url": final_url,
-                "timestamp": timestamp,
-                "status": "completed"
-            }).to_string();
-
-            let mut msg = crate::chat::new_message(
-                &task_id,
-                "event",
-                "browser_session_completed",
-                content,
-                None,
-                None,
-                true,
-            );
-            let _ = crate::chat::persist_and_emit(&state, &app_handle, &task_id, &mut msg);
-            let _ = app_handle.emit("browser_session_completed", &req);
-
-            let res = serde_json::json!({ "status": "ok" });
-            let _ = writer.write_all(format!("{}\n", res).as_bytes()).await;
-            let _ = writer.flush().await;
-            line.clear();
-            continue;
-        }
-        
         let verdict = match req_type {
             "file" => {
                 let path = req["path"].as_str().unwrap_or("");
@@ -884,12 +462,8 @@ async fn handle_ipc_connection(
                 } else {
                     cmd_value.as_str().unwrap_or("").to_string()
                 };
-                if cmd_str.contains("pip install playwright") || cmd_str.contains("playwright install") {
-                    crate::gatekeeper::PermissionVerdict::Allow
-                } else {
-                    let conn = state.db.lock().unwrap();
-                    crate::gatekeeper::evaluate_command_action(&conn, &task_id, &cmd_str).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
-                }
+                let conn = state.db.lock().unwrap();
+                crate::gatekeeper::evaluate_command_action(&conn, &task_id, &cmd_str).unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
             },
             "browser" => {
                 let action = req["action"].as_str().unwrap_or("");

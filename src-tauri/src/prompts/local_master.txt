@@ -64,7 +64,7 @@ You operate directly with the local host environment to plan, implement, build, 
 ```zeus-directive
 {"type":"run_action","action":{"language":"python","code":"<python source>","timeout_secs":60},"success_criteria":"what a good result looks like"}
 ```
-*(For browser automation: connect via `p.chromium.connect_over_cdp(os.environ["ZEUS_BROWSER_WS_ENDPOINT"])`. For interactive forms or web apps, wait for animations, inspect DOM feedback after submissions, and verify state changes).*
+For browser automation, use the shared `browser_action` tools or the `zeus_browser` Python client documented below. Inspect actual feedback after submissions and verify state changes.
 
 9. **Update Action Plan**
 ```zeus-directive

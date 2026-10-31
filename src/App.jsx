@@ -14,6 +14,7 @@ import UiErrorBoundary from "./components/UiErrorBoundary";
 import TaskSettingsModal from "./components/TaskSettingsModal";
 import BrowserSessionReplayModal from "./components/BrowserSessionReplayModal";
 import BrowserLiveViewModal from "./components/BrowserLiveViewModal";
+import BrowserHistoryModal from "./components/BrowserHistoryModal";
 import ChatLogModal from "./components/ChatLogModal";
 import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
@@ -52,6 +53,7 @@ function App() {
     const [liveViewModalState, setLiveViewModalState] = useState({ isOpen: false, sessionId: null, taskId: null });
     const [isTaskPermsOpen, setIsTaskPermsOpen] = useState(false);
     const [isChatLogOpen, setIsChatLogOpen] = useState(false);
+    const [isBrowserHistoryOpen,setIsBrowserHistoryOpen]=useState(false);
     const [isActionPlanOpen, setIsActionPlanOpen] = useState(false);
     const [inputExpanded, setInputExpanded] = useState(false);
     const [inputValue, setInputValue] = useState("");
@@ -878,6 +880,7 @@ function playNotificationChime(type = "complete") {
                                         ></div>
                                     </div>
                                 </div>
+                                <button className="settings-button" onClick={()=>setIsBrowserHistoryOpen(true)}>Browser history</button>
                                 <button id="chat-log-button" title="View the full chat log and copy it" onClick={() => setIsChatLogOpen(true)}>
                                     <label>Chat log</label>
                                 </button>
@@ -902,6 +905,7 @@ function playNotificationChime(type = "complete") {
                             </div>
                         </div>
 
+                        <BrowserHistoryModal isOpen={isBrowserHistoryOpen} onClose={()=>setIsBrowserHistoryOpen(false)} taskId={activeTaskId} onOpenReplay={(session,task)=>{setIsBrowserHistoryOpen(false);handleOpenReplay(session,task);}}/>
                         <BrowserSessionReplayModal
                             isOpen={replayModalState.isOpen}
                             onClose={() => setReplayModalState({ isOpen: false, sessionId: null, taskId: null })}

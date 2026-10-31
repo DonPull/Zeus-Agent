@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import statistics
 import socketserver
 import subprocess
 import sys
@@ -72,12 +73,15 @@ class Broker:
         self.folder = Path(folder)
         self.closed = False
         self.token, self.session = secrets.token_hex(32), uuid.uuid4().hex
+        self.mailbox = self.folder / "mailbox"
         self.process = subprocess.Popen([sys.executable, "-I", str(SERVICE)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=SERVICE_ENV, **HIDDEN)
         self.job = WindowsJob(self.process)
         self.lock = threading.Lock()
         self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.write({"op": "start", "protocol": 1, "session_id": self.session, "generation": 1, "token": self.token,
-                    "profile_dir": str(self.folder / "profile"), "artifact_dir": str(self.folder / "artifacts"), "capture_interval_ms": 250 if capture else 0})
+                    "task_id": uuid.uuid4().hex, "run_id": uuid.uuid4().hex,
+                    "profile_dir": str(self.folder / "profile"), "artifact_dir": str(self.folder / "artifacts"),
+                    "mailbox_dir": str(self.mailbox), "capture_interval_ms": 1000 if capture else 0})
         ready = self.read()
         if not ready.get("ok"):
             self.close()
@@ -137,6 +141,13 @@ class PageHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'<body><button onclick="fetch(\'/append\',{method:\'POST\'})">In frame</button></body>')
         elif self.path == '/dialog':
             self.wfile.write(b'<body><button onclick="if(confirm(\'Confirm update\'))fetch(\'/append\',{method:\'POST\'})">Confirm change</button></body>')
+        elif self.path == '/widget':
+            self.wfile.write(b'<body tabindex="0" onkeydown="document.querySelector(\'#feedback\').textContent=event.key"><input id="hidden" style="visibility:hidden"><div id="feedback" role="status" data-state="unknown" style="background:rgb(40,90,130)">Awaiting input</div><script>for(let i=0;i<30;i++){let e=document.createElement("span");e.className="item";e.textContent="Visible item "+i;document.body.append(e)}</script></body>')
+        elif self.path == '/static':
+            self.wfile.write(b'<body><h1>Static capture fixture</h1><button>Observe</button></body>')
+        elif self.path == '/slow':
+            time.sleep(1.5)
+            self.wfile.write(PAGE)
         else:
             self.wfile.write(PAGE)
     def do_POST(self):
@@ -212,21 +223,112 @@ class BrowserServiceTests(unittest.TestCase):
         self.assertFalse(failure["ok"])
 
     def test_capture_changes_while_actor_is_idle_and_shutdown_is_clean(self):
-        artifact = Path(self.folder.name) / "artifacts/latest.jpg"
-        deadline = time.monotonic() + 4
-        while not artifact.exists() and time.monotonic() < deadline:
-            time.sleep(0.05)
-        first = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        first = self.capture_frame()
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             time.sleep(0.15)
-            if hashlib.sha256(artifact.read_bytes()).hexdigest() != first:
+            if self.capture_frame()["frame"]["sha256"] != first["frame"]["sha256"]:
                 break
         else:
             self.fail("Independent browser pixels did not change")
         self.broker.close()
         self.assertEqual(self.broker.process.returncode, 0)
         self.assertEqual(self.broker.stderr, "")
+
+    def capture_frame(self, after=0, state="live"):
+        deadline=time.monotonic()+6
+        while time.monotonic()<deadline:
+            try:
+                descriptor=(self.broker.mailbox / 'capture.json').read_bytes()
+                value=json.loads(descriptor)
+                if value['state']!=state or value['revision']<=after:
+                    time.sleep(.05)
+                    continue
+                if state=='live':
+                    frame=value['frame']
+                    data=(self.broker.mailbox / frame['key']).read_bytes()
+                    if (self.broker.mailbox / 'capture.json').read_bytes()!=descriptor:
+                        continue
+                    self.assertEqual(hashlib.sha256(data).hexdigest(),frame['sha256'])
+                    self.assertEqual(len(data),frame['bytes'])
+                    self.assertLessEqual(len(data),2*1024*1024)
+                    self.assertEqual((frame['width'],frame['height']),(1280,720))
+                    self.assertEqual(value['session_id'],self.broker.session)
+                self.assertLessEqual(len(descriptor),8192)
+                return value
+            except (OSError,ValueError):
+                time.sleep(.05)
+        self.fail(f'No matching {state} capture publication after {after}')
+
+    def test_capture_advances_during_a_long_action_and_reports_no_tab(self):
+        first=self.capture_frame()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            waiting=pool.submit(self.broker.call,'wait',{'target':{'css':'#never'},'timeout_ms':4500})
+            second=self.capture_frame(after=first['revision'])
+            self.assertFalse(waiting.done(), 'Preview waited for the action queue')
+            self.assertNotEqual(first['frame']['sha256'],second['frame']['sha256'])
+            self.assertFalse(waiting.result()['ok'])
+        tabs=self.broker.call('tabs')['result']['tabs']
+        for tab in tabs:
+            self.assertTrue(self.broker.call('close_tab',{'tab_id':tab['tab_id']})['ok'])
+        no_tab=self.capture_frame(after=second['revision'],state='no_tab')
+        self.assertEqual(no_tab['error'],'BROWSER_CAPTURE_FAILED')
+        self.assertEqual(len(list(self.broker.mailbox.glob('slot-*.jpg'))),2)
+
+    def test_generic_inspection_and_visible_keyboard_widget_preserve_unknown_state(self):
+        self.assertTrue(self.broker.call('navigate',{'url':self.url+'widget'})['ok'])
+        hidden=self.broker.call('inspect',{'target':{'css':'#hidden'}})['result']['elements'][0]
+        self.assertFalse(hidden['visible'])
+        self.assertFalse(self.broker.call('fill',{'target':{'css':'#hidden'},'value':'wrong target','timeout_ms':200})['ok'])
+        self.assertTrue(self.broker.call('press',{'target':{'css':'body'},'key':'A'})['ok'])
+        inspected=self.broker.call('inspect',{'target':{'css':'#feedback'}})['result']
+        self.assertEqual(inspected['elements'][0]['text'],'A')
+        self.assertEqual(inspected['elements'][0]['attributes']['data-state'],'unknown')
+        self.assertEqual(inspected['elements'][0]['colors']['background'],'rgb(40, 90, 130)')
+        many=self.broker.call('inspect',{'target':{'css':'.item'}})['result']
+        self.assertEqual(len(many['elements']),20)
+        self.assertTrue(many['truncated'])
+        self.assertLessEqual(len(json.dumps(many).encode()),32768)
+        self.assertEqual(self.broker.call('evaluate',{'code':'1+1'})['error']['code'],'BROWSER_UNSUPPORTED')
+
+    def test_capture_and_action_latency_are_measured_with_capture_on_and_off(self):
+        report={'note':'Short local measurements, not a throughput or capability benchmark. Navigation and observation exclude model time.','cases':{}}
+        for enabled in (False,True):
+            broker=self.broker if enabled else Broker(Path(self.folder.name)/'without-capture',capture=False)
+            try:
+                for name,suffix in [('static','static'),('animated',''),('slow_navigation','slow'),('dynamic_widget','widget')]:
+                    start=time.perf_counter()
+                    self.assertTrue(broker.call('navigate',{'url':self.url+suffix})['ok'])
+                    navigation_ms=round((time.perf_counter()-start)*1000,2)
+                    samples=[];frames={};deadline=time.monotonic()+2.4
+                    while time.monotonic()<deadline:
+                        start=time.perf_counter()
+                        self.assertTrue(broker.call('observe')['ok'])
+                        samples.append((time.perf_counter()-start)*1000)
+                        if enabled:
+                            try:
+                                publication=json.loads((broker.mailbox/'capture.json').read_bytes())
+                                frame=publication.get('frame')
+                                if publication['state']=='live' and frame:
+                                    frames[frame['seq']]=frame['ended_ms']-frame['started_ms']
+                            except (OSError,ValueError):pass
+                        time.sleep(.125)
+                    row={'navigation_ms':navigation_ms,'observe_count':len(samples),'observe_median_ms':round(statistics.median(samples),2),'observe_max_ms':round(max(samples),2)}
+                    if enabled:
+                        self.assertGreaterEqual(len(frames),2,'Measurement did not overlap independent captures')
+                        row.update(capture_samples=len(frames),capture_median_ms=statistics.median(frames.values()),capture_max_ms=max(frames.values()))
+                    report['cases'].setdefault(name,{})['capture_on' if enabled else 'capture_off']=row
+            finally:
+                if not enabled:broker.close()
+        frame=self.capture_frame()
+        report['capture_latency_ms']=frame['frame']['ended_ms']-frame['frame']['started_ms']
+        report['metrics']=frame['metrics']
+        report['retained_mailbox_bytes']=sum(file.stat().st_size for file in self.broker.mailbox.iterdir() if file.is_file())
+        print('\nCAPTURE_MEASUREMENT '+json.dumps(report),flush=True)
+        if os.environ.get('ZEUS_CAPTURE_METRICS_PATH'):
+            destination=Path(os.environ['ZEUS_CAPTURE_METRICS_PATH'])
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            destination.write_text(json.dumps(report,indent=2),encoding='utf8')
 
     def test_frames_tabs_semantics_and_stale_targets(self):
         old=self.broker.call('observe')['result']
@@ -245,6 +347,17 @@ class BrowserServiceTests(unittest.TestCase):
         self.assertEqual(len(self.broker.call('tabs')['result']['tabs']),2)
         self.assertTrue(self.broker.call('close_tab',{'tab_id':tab})['ok'])
         self.assertEqual(len(self.broker.call('tabs')['result']['tabs']),1)
+
+    def test_read_only_tab_inspection_does_not_steal_the_automation_target(self):
+        first=self.broker.call('tabs')['result']['tabs'][0]['tab_id']
+        second=self.broker.call('new_tab')['result']['tab_id']
+        self.assertTrue(self.broker.call('navigate',{'url':self.url+'widget','tab_id':second})['ok'])
+        self.assertTrue(self.broker.call('observe',{'tab_id':first})['ok'])
+        tabs=self.broker.call('tabs')['result']['tabs']
+        self.assertEqual(next(tab['tab_id'] for tab in tabs if tab['selected']),second)
+        changed=self.broker.call('fill',{'tab_id':first,'target':{'css':'#note'},'value':'Explicit action target'})
+        self.assertTrue(changed['ok'])
+        self.assertEqual(next(tab['tab_id'] for tab in changed['tabs'] if tab['selected']),first)
 
     def test_dialog_policy_reports_actual_acceptance_not_just_preparation(self):
         self.assertTrue(self.broker.call('navigate',{'url':self.url+'dialog'})['ok'])

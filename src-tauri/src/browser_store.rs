@@ -31,10 +31,11 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
-    Ok(())
+    crate::browser_capture::init_schema(conn)
 }
 
 pub fn recover(conn: &Connection) -> Result<(), String> {
+    conn.execute("UPDATE managed_browser_frames SET status='unavailable',error='Application restarted before capture acknowledgement' WHERE status='reserved'",[]).map_err(|e|e.to_string())?;
     let now = crate::db::now_iso();
     conn.execute("UPDATE managed_browser_actions SET status=CASE WHEN status='dispatched' THEN 'uncertain' ELSE 'cancelled' END,updated_at=?1 WHERE status IN ('pending','awaiting_approval','dispatched')",[&now]).map_err(|e|e.to_string())?;
     conn.execute("UPDATE managed_browser_sessions SET status='interrupted',terminal_reason='Application restarted; external effects require reconciliation',updated_at=?1,version=version+1 WHERE status IN ('starting','active','finalizing')",[now]).map_err(|e|e.to_string())?;
@@ -121,7 +122,7 @@ pub fn session(conn: &Connection, task: &str, id: &str) -> Result<Value, String>
         let runtime:Option<String>=r.get(3)?;
         Ok(json!({"schema_version":1,"session_id":id,"task_id":task,"run_id":r.get::<_,String>(0)?,"generation":r.get::<_,i64>(1)?,
           "status":r.get::<_,String>(2)?,"runtime":runtime.and_then(|s|serde_json::from_str::<Value>(&s).ok()),"terminal_reason":r.get::<_,Option<String>>(4)?,
-          "created_at":r.get::<_,String>(5)?,"updated_at":r.get::<_,String>(6)?,"version":r.get::<_,i64>(7)?,"recording_coverage":"managed_actions","viewer_available":false}))
+          "created_at":r.get::<_,String>(5)?,"updated_at":r.get::<_,String>(6)?,"version":r.get::<_,i64>(7)?,"recording_coverage":"managed_actions","viewer_available":true}))
     }).map_err(|_|"BROWSER_OWNERSHIP: session does not belong to this task".into())
 }
 
@@ -198,6 +199,7 @@ pub fn finish(
     reason: Option<&str>,
 ) -> Result<(), String> {
     let now = crate::db::now_iso();
+    conn.execute("UPDATE managed_browser_frames SET status='unavailable',error='Run ended before capture acknowledgement' WHERE session_id=?1 AND status='reserved'",[session]).map_err(|e|e.to_string())?;
     conn.execute("UPDATE managed_browser_actions SET status=CASE WHEN status='dispatched' THEN 'uncertain' ELSE 'cancelled' END,updated_at=?2 WHERE session_id=?1 AND status IN ('pending','awaiting_approval','dispatched')",params![session,now]).map_err(|e|e.to_string())?;
     let previous: String = conn
         .query_row(

@@ -10,6 +10,9 @@ pub mod db;
 pub mod chat;
 pub mod browser_manager;
 pub mod browser_store;
+pub mod browser_capture;
+pub mod browser_recordings;
+pub mod browser_visuals;
 pub mod managed_browser;
 pub mod process_tree;
 pub mod gatekeeper;
@@ -106,6 +109,15 @@ pub fn run() {
             managed_browser::get_managed_browser_status,
             managed_browser::get_managed_browser_actions,
             managed_browser::get_managed_browser_observation,
+            browser_capture::get_browser_capture,
+            browser_capture::heartbeat_browser_viewer,
+            browser_capture::read_browser_live_image,
+            browser_recordings::list_browser_recordings,
+            browser_recordings::get_browser_recording_page,
+            browser_recordings::read_browser_recording_image,
+            browser_recordings::delete_browser_recording_images,
+            browser_recordings::export_browser_recording,
+            browser_visuals::get_browser_visual_deliveries,
             cookie_vault::get_vault_accounts,
             cookie_vault::get_vault_account,
             cookie_vault::save_vault_account,

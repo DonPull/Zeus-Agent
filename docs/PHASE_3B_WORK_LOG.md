@@ -1,5 +1,7 @@
 # Phase 3B implementation and evidence
 
+Historical build record. [Accepted Phase 3C delivery](PHASE_3C_WORK_LOG.md) now supersedes the opt-in/viewer rollout status below; its results do not rewrite these earlier live failures.
+
 Approved packet: [browser ownership design](PHASE_3B_BROWSER_OWNERSHIP_DESIGN.md). Baseline `d375c83`, including stabilization checkpoint `42bd730`. Implemented and locally validated on **2026-10-30**; the user requested a checkpoint commit including the follow-up fixes before Phase 3C planning. The managed route is **development opt-in pending the coordinated 3C viewer rollout**. This is not a stable-v1 or benchmark-baseline claim.
 
 ## Tangible differences and decisions

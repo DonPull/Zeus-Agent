@@ -29,7 +29,7 @@ export function environmentOverrides(env = process.env) {
 
 export function resolveBenchmarkConfig({ defaults = {}, suite = {}, profile = {}, cli = {}, task = {} } = {}) {
   const config = { ...DEFAULTS, ...defaults, ...suite, ...profile, ...cli, ...task };
-  config.browser_service??='legacy';
+  config.browser_service??='managed-v1';
   if(!['legacy','managed-v1'].includes(config.browser_service))throw new Error('Invalid browser service');
   if (!['solo', 'team'].includes(config.architecture)) throw new Error(`Invalid architecture: ${config.architecture}`);
   if (!['smoke', 'standard', 'full'].includes(config.profile)) throw new Error(`Invalid profile: ${config.profile}`);

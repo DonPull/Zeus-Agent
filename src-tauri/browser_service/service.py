@@ -19,7 +19,7 @@ SDK_VERSION = "1.62.0"
 MAX_FRAME = 1024 * 1024
 MAX_TEXT = 256 * 1024
 MAX_IMAGE = 2 * 1024 * 1024
-OPERATIONS = {"observe", "navigate", "click", "fill", "press", "select_option", "wait", "tabs", "new_tab", "select_tab", "close_tab", "dialog"}
+OPERATIONS = {"observe", "inspect", "navigate", "click", "fill", "press", "select_option", "wait", "tabs", "new_tab", "select_tab", "close_tab", "dialog"}
 
 
 class BrowserError(Exception):
@@ -80,9 +80,15 @@ class Service:
         self.capture_task = None
         self.closing = False
         self.preview_seq = 0
+        self.capture_revision = 0
+        self.capture_lock = asyncio.Lock()
+        self.latest_capture = None
+        self.capture_metrics = {"attempts": 0, "skipped": 0, "failures": 0}
+        self.mailbox = Path(config["mailbox_dir"]) if config.get("mailbox_dir") else None
         self.dialog_policy, self.dialog_events = {}, {}
         self.network_events, self.network_seq = [], 0
         self.artifact_dir = Path(config["artifact_dir"])
+        self.frame_dir = Path(config["frame_dir"]) if config.get("frame_dir") else None
 
     def register(self, page):
         for key, existing in self.pages.items():
@@ -141,7 +147,7 @@ class Service:
             self.register(page)
         if not self.pages:
             self.register(await self.context.new_page())
-        interval = self.config.get("capture_interval_ms", 0)
+        interval = self.config.get("capture_interval_ms", 1000 if self.mailbox else 0)
         if interval:
             if not isinstance(interval, int) or not 250 <= interval <= 5000:
                 fail("BROWSER_ARGUMENT", "Invalid capture interval")
@@ -174,7 +180,7 @@ class Service:
             pass
 
     def tab_list(self):
-        return [{"tab_id": key, "url": page.url, "revision": self.revisions[key], "selected": key == self.selected}
+        return [{"tab_id": key, "url": page.url[:2048], "revision": self.revisions[key], "selected": key == self.selected}
                 for key, page in self.pages.items() if not page.is_closed()]
 
     def page(self, params):
@@ -206,30 +212,82 @@ class Service:
             return root.locator(bounded_string(target["css"], "CSS selector", 2000))
         fail("BROWSER_ARGUMENT", "Use one supported role/text/test_id/css locator")
 
-    async def screenshot(self, page, key):
-        masks = [page.locator('input[type="password"], input[autocomplete*="password"], input[name*="token" i], input[name*="secret" i]')]
-        data = await page.screenshot(type="jpeg", quality=60, timeout=3000, mask=masks)
+    async def screenshot(self, page, key, destination_dir=None, timeout=3000):
+        # All browser captures share one flight, including explicit observations.
+        async with self.capture_lock:
+            return await self.capture_image(page, key, destination_dir or self.artifact_dir, timeout)
+
+    async def capture_image(self, page, key, destination_dir, timeout):
+        started = int(time.time() * 1000)
+        masks = [frame.locator('input[type="password"], input[autocomplete*="password"], input[name*="token" i], input[name*="secret" i]') for frame in page.frames[:100] if not frame.is_detached()]
+        data = await page.screenshot(type="jpeg", quality=60, timeout=timeout, mask=masks, scale="css")
         if len(data) > MAX_IMAGE:
             fail("BROWSER_IMAGE_LIMIT", "Screenshot exceeds artifact limit")
-        destination = self.artifact_dir / key
+        destination = destination_dir / key
         temporary = destination.with_suffix(".tmp")
         temporary.write_bytes(data)
         os.replace(temporary, destination)
-        return {"key": key, "mime": "image/jpeg", "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        tab = next((key for key, existing in self.pages.items() if existing is page), None)
+        parsed = urlsplit(page.url)
+        safe_url = parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1], query="", fragment="").geturl()[:2048]
+        return {"key": key, "mime": "image/jpeg", "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                "tab_id": tab, "tab_revision": self.revisions.get(tab), "url": safe_url,
+                "started_ms": started, "ended_ms": int(time.time() * 1000), "width": 1280, "height": 720,
+                "masking": "known-sensitive-inputs"}
+
+    def publish_capture(self, state, error=None):
+        self.capture_revision += 1
+        value = {"protocol": PROTOCOL, "task_id": self.config.get("task_id"), "run_id": self.config.get("run_id"),
+                 "session_id": self.config["session_id"], "generation": self.config["generation"],
+                 "revision": self.capture_revision, "state": state, "error": error,
+                 "published_ms": int(time.time() * 1000), "frame": self.latest_capture,
+                 "metrics": self.capture_metrics}
+        data = json.dumps(value, separators=(",", ":")).encode("utf-8")
+        if len(data) > 8192:
+            fail("BROWSER_CAPTURE_LIMIT", "Capture descriptor exceeded its bound")
+        temporary = self.mailbox / "capture.tmp"
+        temporary.write_bytes(data)
+        os.replace(temporary, self.mailbox / "capture.json")
 
     async def capture(self, interval):
+        if self.mailbox:
+            self.mailbox.mkdir(parents=True, exist_ok=True)
         while not self.closing:
             try:
-                _, page = self.page({})
-                artifact = await self.screenshot(page, "latest.jpg")
-                self.preview_seq += 1
-                value = {"seq": self.preview_seq, "timestamp_ms": int(time.time() * 1000), "artifact": artifact}
-                temporary = self.artifact_dir / "latest.json.tmp"
-                temporary.write_text(json.dumps(value), encoding="utf-8")
-                os.replace(temporary, self.artifact_dir / "latest.json")
+                if self.capture_lock.locked():
+                    self.capture_metrics["skipped"] += 1
+                elif self.mailbox:
+                    self.capture_metrics["attempts"] += 1
+                    tab, page = self.page({})
+                    revision = self.revisions[tab]
+                    artifact = await self.screenshot(page, f"slot-{(self.preview_seq + 1) % 2}.jpg", self.mailbox)
+                    if tab != self.selected or page.is_closed() or revision != self.revisions[tab]:
+                        fail("BROWSER_CAPTURE_CHANGED", "Target changed during capture")
+                    self.preview_seq += 1
+                    parsed = urlsplit(page.url)
+                    safe_url = parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1], query="", fragment="").geturl()[:2048]
+                    self.latest_capture = {**artifact, "seq": self.preview_seq, "tab_id": tab, "tab_revision": revision,
+                                           "url": safe_url}
+                    self.publish_capture("live")
             except Exception:
-                pass  # Capture is optional evidence, never a successful browser action.
-            await asyncio.sleep(interval)
+                self.capture_metrics["failures"] += 1
+                if self.mailbox and not self.closing:
+                    try:
+                        self.publish_capture("no_tab" if not self.tab_list() else "capture_error", "BROWSER_CAPTURE_FAILED")
+                    except OSError:
+                        # Preserve the last atomic descriptor; collector freshness
+                        # detects publication failure instead of inventing a frame.
+                        pass
+            delay = interval
+            if self.mailbox:
+                try:
+                    with (self.mailbox / "viewer.json").open("rb") as stream:
+                        heartbeat = json.loads(stream.read(129))
+                    if heartbeat.get("until_ms", 0) > time.time() * 1000:
+                        delay = min(delay, 0.5)
+                except (OSError, ValueError, TypeError):
+                    pass
+            await asyncio.sleep(delay)
 
     async def action(self, request):
         if request.get("protocol") != PROTOCOL or request.get("session_id") != self.config["session_id"] or request.get("generation") != self.config["generation"]:
@@ -253,8 +311,12 @@ class Service:
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 100 <= timeout <= 60000:
             fail("BROWSER_ARGUMENT", "Timeout must be 100–60000 milliseconds")
         self.seen.add(action_id)
+        captures = {}
+        reservations = request.get("captures", {})
+        if reservations.get("before"):
+            captures["before"] = await self.boundary_capture(reservations["before"], params)
         try:
-            result = await self.execute(op, params, timeout)
+            result = await self.execute(op, params, timeout, reservations.get("explicit"))
             response = {"id": action_id, "ok": True, "result": result}
         except BrowserError as error:
             response = {"id": action_id, "ok": False, "error": {"code": error.code, "message": error.message}}
@@ -263,12 +325,37 @@ class Service:
             if isinstance(params.get("value"), str) and params["value"]:
                 message = message.replace(params["value"], "[redacted]")
             response = {"id": action_id, "ok": False, "error": {"code": "BROWSER_ACTION_FAILED", "message": message}}
+        if reservations.get("after"):
+            captures["after"] = await self.boundary_capture(reservations["after"], params)
+        if captures:
+            response["captures"] = captures
+        response["tabs"] = self.tab_list()
         self.results[action_id] = response
         if len(self.results) > 64:
             self.results.pop(next(iter(self.results)))
         return response
 
-    async def execute(self, op, params, timeout):
+    async def boundary_capture(self, frame_id, params):
+        acquired = False
+        try:
+            if str(uuid.UUID(frame_id)) != frame_id or self.frame_dir is None:
+                fail("BROWSER_CAPTURE_IDENTITY", "Invalid capture reservation")
+            # Do not queue a boundary behind a three-second periodic screenshot.
+            await asyncio.wait_for(self.capture_lock.acquire(), timeout=0.1)
+            acquired = True
+            tab, page = self.page({"tab_id": params.get("tab_id")})
+            revision = self.revisions[tab]
+            image = await self.capture_image(page, frame_id + ".jpg", self.frame_dir, 900)
+            if page.is_closed() or revision != self.revisions[tab]:
+                fail("BROWSER_CAPTURE_CHANGED", "Page changed during capture")
+            return {**image, "tab_id": tab, "tab_revision": revision}
+        except Exception:
+            return {"error": "BROWSER_CAPTURE_UNAVAILABLE"}
+        finally:
+            if acquired:
+                self.capture_lock.release()
+
+    async def execute(self, op, params, timeout, screenshot_id=None):
         if op == "tabs":
             return {"tabs": self.tab_list()}
         if op == "new_tab":
@@ -279,6 +366,8 @@ class Service:
             self.selected = tab_id
             return {"tab_id": tab_id, "tabs": self.tab_list()}
         tab_id, page = self.page(params)
+        if params.get("tab_id") and op not in {"observe", "inspect", "wait", "dialog"}:
+            self.selected = tab_id
         if op == "select_tab":
             self.selected = tab_id
         elif op == "close_tab":
@@ -287,7 +376,7 @@ class Service:
                 self.selected = next((key for key, p in self.pages.items() if not p.is_closed()), None)
         elif op == "navigate":
             response = await page.goto(web_url(params.get("url")), wait_until="domcontentloaded", timeout=timeout)
-            return {"tab_id": tab_id, "revision": self.revisions[tab_id], "url": page.url, "http_status": response.status if response else None}
+            return {"tab_id": tab_id, "revision": self.revisions[tab_id], "url": page.url[:8192], "http_status": response.status if response else None}
         elif op == "observe":
             text = await page.locator("body").inner_text(timeout=timeout)
             encoded = text.encode("utf-8")
@@ -303,16 +392,43 @@ class Service:
                 key = next((key for key, existing in self.frames.items() if existing is frame), None) or uuid.uuid4().hex
                 self.frames[key] = frame
                 frames.append({"frame_id": key, "url": frame.url[:2048], "name": frame.name[:200]})
-            result = {"tab_id": tab_id, "revision": self.revisions[tab_id], "url": page.url, "title": await page.title(),
+            result = {"tab_id": tab_id, "revision": self.revisions[tab_id], "url": page.url[:8192], "title": (await page.title())[:2048],
                       "text": text, "semantic": semantic, "truncated": len(encoded) > MAX_TEXT // 2 or len(semantic_bytes) > MAX_TEXT // 2,
                       "frames": frames, "frames_truncated": len(page.frames)>100, "dialogs": self.dialog_events.get(tab_id, []),
                       "network_events": list(self.network_events), "untrusted_page_content": True}
             if params.get("screenshot", False):
                 try:
-                    result["artifact"] = await self.screenshot(page, f"{uuid.uuid4().hex}.jpg")
+                    if not screenshot_id or str(uuid.UUID(screenshot_id)) != screenshot_id:
+                        fail("BROWSER_ARCHIVE_QUOTA", "No screenshot reservation is available")
+                    result["artifact"] = await self.screenshot(page, f"{uuid.UUID(screenshot_id).hex}.jpg")
                 except Exception:
-                    result["artifact_error"] = "BROWSER_CAPTURE_FAILED"
+                    result["artifact_error"] = "BROWSER_CAPTURE_FAILED" if screenshot_id else "BROWSER_ARCHIVE_QUOTA"
             return result
+        elif op == "inspect":
+            locator = self.locator(page, params)
+            total = await locator.count()
+            # This is fixed trusted inspection code, never caller JavaScript.
+            values = await locator.all() if total <= 20 else [locator.nth(i) for i in range(20)]
+            elements = []
+            for element in values:
+                data = await element.evaluate("""element => {
+                    const style=getComputedStyle(element), rect=element.getBoundingClientRect();
+                    const attributes={};
+                    for(const name of ['role','aria-label','aria-selected','aria-checked','aria-expanded','aria-disabled','data-state','data-status','class','type']){
+                        const value=element.getAttribute(name);if(value!==null)attributes[name]=value.slice(0,500);
+                    }
+                    return {text:(element.innerText||'').slice(0,500),attributes,
+                        visible:rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden',
+                        enabled:!element.disabled&&element.getAttribute('aria-disabled')!=='true',
+                        box:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+                        colors:{foreground:style.color,background:style.backgroundColor,border:style.borderColor},
+                        coordinate_space:'frame_viewport'};
+                }""", timeout=timeout)
+                if len(json.dumps(elements + [data]).encode('utf-8')) > 32768:
+                    break
+                elements.append(data)
+            return {"tab_id": tab_id, "revision": self.revisions[tab_id], "elements": elements,
+                    "matched": total, "truncated": len(elements) < total, "untrusted_page_content": True}
         elif op in {"click", "fill", "press", "select_option", "wait"}:
             locator = self.locator(page, params)
             if op == "click":

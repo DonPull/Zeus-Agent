@@ -403,7 +403,7 @@ function ReasoningPill({ reasoning, streaming }) {
     );
 }
 
-function BrowserSessionStartedCard({ message, onOpenLiveView }) {
+function BrowserSessionStartedCard({ message, onOpenReplay }) {
     const data = useMemo(() => parseEventContent(message), [message]);
     if (!data) return null;
     const sessionId = data.session_id || "";
@@ -414,15 +414,14 @@ function BrowserSessionStartedCard({ message, onOpenLiveView }) {
             <div className="chat-bubble browser-session-card column gap-10">
                 <div className="browser-session-header align-center justify-space-between no-user-select">
                     <div className="align-center gap-10">
-                        <span className="live-pulse-dot" />
-                        <span className="browser-session-title">Browser Session Active</span>
+                        <span className="browser-session-title">Older browser recording</span>
                     </div>
                     {sessionId && <span className="browser-session-id mono">{displayId}</span>}
                 </div>
                 <div className="browser-session-body align-center justify-space-between gap-15">
                     <div className="browser-session-info column gap-4">
                         <span className="browser-session-subtext">
-                            Autonomous browser execution in progress...
+                            Limited evidence; this record does not establish current activity.
                         </span>
                         {data.initial_url && (
                             <span className="browser-session-url mono truncate-url" title={data.initial_url}>
@@ -433,11 +432,11 @@ function BrowserSessionStartedCard({ message, onOpenLiveView }) {
                     <button
                         id="browser-session-live-view-btn"
                         className="browser-session-action-btn live-btn align-center gap-6 no-user-select"
-                        title="Open passive live view of browser"
-                        onClick={() => onOpenLiveView && onOpenLiveView(sessionId, message.task_id)}
+                        title="Open older recording"
+                        onClick={() => onOpenReplay && onOpenReplay(sessionId, message.task_id)}
                     >
                         <span>👁️</span>
-                        <span>Live View</span>
+                        <span>Recording</span>
                     </button>
                 </div>
             </div>
@@ -458,8 +457,7 @@ function BrowserSessionCompletedCard({ message, onOpenReplay }) {
             <div className="chat-bubble browser-session-card completed column gap-10">
                 <div className="browser-session-header align-center justify-space-between no-user-select">
                     <div className="align-center gap-10">
-                        <span className="browser-badge-completed">✓</span>
-                        <span className="browser-session-title">Browser Session Completed</span>
+                        <span className="browser-session-title">Older recording ended</span>
                     </div>
                     {sessionId && <span className="browser-session-id mono">{displayId}</span>}
                 </div>
@@ -482,7 +480,7 @@ function BrowserSessionCompletedCard({ message, onOpenReplay }) {
                     )}
                 </div>
                 <div className="browser-session-footer align-center justify-space-between gap-10">
-                    <span className="browser-session-subtext">Step-by-step visual replay available</span>
+                    <span className="browser-session-subtext">Limited recording; action outcomes and images may be incomplete.</span>
                     <button
                         id="browser-session-replay-btn"
                         className="browser-session-action-btn replay-btn align-center gap-6 no-user-select"
@@ -523,13 +521,13 @@ function ChatMessage({
     }
 
     if (message.role === "event") {
-        if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message}/>;
+        if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message} onOpenLiveView={onOpenLiveView} onOpenReplay={onOpenReplay}/>;
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
         if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;
         if (message.kind === "choice") return <InteractiveChoiceCard message={message} onDecision={onChoiceDecision} />;
         if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
-        if (message.kind === "browser_session_started") return <BrowserSessionStartedCard message={message} onOpenLiveView={onOpenLiveView} />;
+        if (message.kind === "browser_session_started") return <BrowserSessionStartedCard message={message} onOpenReplay={onOpenReplay} />;
         if (message.kind === "browser_session_completed") return <BrowserSessionCompletedCard message={message} onOpenReplay={onOpenReplay} />;
         return (
             <div className="chat-message event">

@@ -1,0 +1,66 @@
+import {test,expect} from '@playwright/test';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {startMockServer,stopMockServer,launchTauri,stopTauri,queueMockResponse,getMockRequests} from '../e2e/testUtils.js';
+const reply=value=>({choices:[{delta:{content:'```zeus-directive\n'+JSON.stringify(value)+'\n```'}}],usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10}});
+let server,url;
+test.beforeAll(async()=>{server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html'});res.end('<body><label>Note<input id="note"></label><button onclick="document.body.style.background=\'lightblue\'">Save</button></body>');});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${server.address().port}/`;});
+test.afterAll(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
+test.afterEach(async()=>{await stopTauri();await stopMockServer();});
+
+test('real before/after evidence pages, failed action, export and explicit image deletion remain truthful',async()=>{
+    await startMockServer();const app=await launchTauri(false,{managedBrowser:true});await expect(app.page.locator('#app-container')).toBeVisible();
+    const task=await app.page.evaluate(async()=>{const settings=await window.__ZEUS_BRIDGE__.getSettings();await window.__ZEUS_BRIDGE__.saveSettings({...settings,watcher_model:'phase1-mock',model_bindings:{}});const task=await window.__ZEUS_BRIDGE__.createTask('Recording acceptance');await window.__ZEUS_BRIDGE__.updateTaskSettings(task.id,{master_model:'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',vision_model:'None',budget_credits:1000000,model_bindings:{}});return task;});
+    for(const command of [{op:'navigate',params:{url}},{op:'fill',params:{target:{css:'#note'},value:'Actual retained note'}},{op:'click',params:{target:{text:'Save'}}},{op:'click',params:{target:{css:'#missing'},timeout_ms:200}}])queueMockResponse(reply({type:'browser_action',...command}));
+    queueMockResponse(reply({type:'final_answer',final_answer:{summary:'The note was entered and Save clicked. The deliberate missing-target action failed.'}}));
+    await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Execute the controlled recording acceptance.',crypto.randomUUID()),task.id);
+    const sessions=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),task.id);expect(sessions).toHaveLength(1);const session=sessions[0].session_id;
+    const first=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserRecordingPage(task,session,0,2),{task:task.id,session});expect(first.actions.map(a=>a.seq)).toEqual([1,2]);expect(first.next_after).toBe(2);
+    const second=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserRecordingPage(task,session,2,2),{task:task.id,session});expect(second.actions.map(a=>a.seq)).toEqual([3,4]);expect(second.actions[1].status).toBe('failed');expect(second.next_after).toBeNull();
+    const available=[...first.actions,...second.actions].flatMap(a=>a.frames).filter(frame=>frame.status==='available');expect(available.length).toBeGreaterThan(3);
+    const fill=first.actions[1].frames;expect(fill.map(frame=>frame.relation).sort()).toEqual(['after','before']);
+    const identities={task:task.id,session};
+    await app.page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__?.());await app.page.locator('.sidebar-task').filter({has:app.page.locator('.sidebar-task-title[title="Recording acceptance"]')}).click();
+    await app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'Replay',exact:true}).click();
+    await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
+    await app.page.locator('#replay-next-button').click();await expect(app.page.locator('.browser-viewer-action')).toContainText('fill');
+    await app.page.getByRole('combobox',{name:'Action image timing'}).selectOption('before');await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
+    await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('2');await expect.poll(()=>app.page.locator('#replay-screenshot-img').evaluate(img=>img.clientWidth)).toBe(2560);
+    await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('fit');
+    await app.page.locator('#replay-modal-close-button').click();
+    const exported=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.exportBrowserRecording(task,session),identities);
+    expect(path.resolve(exported.path).startsWith(path.resolve(app.workspace))).toBe(true);
+    const manifest=JSON.parse(fs.readFileSync(path.join(exported.path,'recording.json'),'utf8'));
+    expect(manifest.action_pages.flatMap(page=>page.actions).map(a=>a.status)).toEqual(['succeeded','succeeded','succeeded','failed']);
+    const journal=fs.readFileSync(path.join(exported.path,manifest.action_journal),'utf8').trim().split('\n').map(JSON.parse);expect(journal).toHaveLength(4);expect(journal.map(row=>row.seq)).toEqual([1,2,3,4]);expect(JSON.parse(journal[3].response_json).error.code).toBe('BROWSER_ACTION_FAILED');
+    for(const frame of manifest.frames.filter(frame=>frame.status==='available')){expect(frame.file).toBe(`${frame.id}.jpg`);const data=fs.readFileSync(path.join(exported.path,frame.file));expect(crypto.createHash('sha256').update(data).digest('hex')).toBe(frame.metadata.sha256);}
+    const sentinel=path.join(app.workspace,'keep-user-data.txt');fs.writeFileSync(sentinel,'Preserve user outputs');
+    const deleted=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.deleteBrowserRecordingImages(task,session),identities);expect(deleted.failed).toBe(0);expect(deleted.deleted).toBeGreaterThan(3);expect(fs.readFileSync(sentinel,'utf8')).toBe('Preserve user outputs');
+    await expect(app.page.evaluate(({task,session,frame})=>window.__ZEUS_BRIDGE__.readBrowserRecordingImage(task,session,frame),{...identities,frame:available[0].id})).rejects.toThrow('BROWSER_IMAGE_UNAVAILABLE');
+    const after=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserRecordingPage(task,session),identities);expect(after.actions).toHaveLength(4);expect(after.actions[3].status).toBe('failed');expect(after.coverage_gaps.some(gap=>gap.reason==='images_deleted_by_user')).toBe(true);
+});
+
+test('older readers reject foreign, escaping, linked, oversized and malformed records without executing a browser',async()=>{
+    await startMockServer();const app=await launchTauri();await expect(app.page.locator('#app-container')).toBeVisible();
+    const task=await app.page.evaluate(()=>window.__ZEUS_BRIDGE__.createTask('Historical reader controls'));
+    const session=`sess_${crypto.randomUUID()}`,directory=path.join(app.workspace,'.zeus/browser_history',task.id,session);
+    fs.mkdirSync(directory,{recursive:true});const image=fs.readFileSync('tests/benchmarks/missions/v1/V01/inputs/7f91c2a0.png');fs.writeFileSync(path.join(directory,'screen.png'),image);
+    const manifest={task_id:task.id,session_id:session,started_at:Date.now(),completed_at:null,total_steps:1,steps:[{step:1,action:'observe',target:null,value:null,url:'https://example.test/',timestamp:Date.now(),bounding_box:null,screenshot_path:'screen.png'}]};
+    const save=()=>fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify(manifest));save();
+    const identity={task:task.id,session};
+    const read=()=>app.page.evaluate(async({task,session})=>{const bytes=await window.__ZEUS_BRIDGE__.readBrowserRecordingImage(task,session,'old:0');return bytes.byteLength??bytes.length;},identity);
+    const page=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserRecordingPage(task,session),identity);expect(page.kind).toBe('older');expect(page.actions[0].status).toBe('recorded_unverified');expect(await read()).toBe(image.length);
+    manifest.steps[0].screenshot_path=path.resolve('tests/benchmarks/missions/v1/V01/inputs/7f91c2a0.png');save();await expect(read()).rejects.toThrow('BROWSER_IMAGE_PATH');
+    const old=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserSession(task,session),identity);expect(old.steps[0].screenshot_path).toBe('');
+    manifest.steps[0].screenshot_path='../screen.png';save();await expect(read()).rejects.toThrow('BROWSER_IMAGE_PATH');
+    manifest.steps[0].screenshot_path='screen.png';manifest.task_id=crypto.randomUUID();save();await expect(read()).rejects.toThrow('BROWSER_RECORDING_INVALID');
+    manifest.task_id=task.id;manifest.steps[0].action={invalid:'render object'};save();await expect(read()).rejects.toThrow('BROWSER_RECORDING_INVALID');
+    manifest.steps[0].action='observe';save();
+    const linked=`sess_${crypto.randomUUID()}`;fs.symlinkSync(directory,path.join(path.dirname(directory),linked),'junction');
+    await expect(app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getBrowserRecordingPage(task,session),{task:task.id,session:linked})).rejects.toThrow('BROWSER_IMAGE_PATH');
+    fs.writeFileSync(path.join(directory,'manifest.json'),Buffer.alloc(4*1024*1024+1,32));await expect(read()).rejects.toThrow('BROWSER_IMAGE_LIMIT');
+    await expect(app.page.evaluate(({task})=>window.__ZEUS_BRIDGE__.getBrowserSession(task,'../outside'),identity)).rejects.toThrow('BROWSER_OWNERSHIP');
+    expect(await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),task.id)).toEqual([]);expect(getMockRequests()).toEqual([]);await expect(app.page.locator('#app-container')).toBeVisible();
+});

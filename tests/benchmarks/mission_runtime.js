@@ -85,7 +85,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
   const configuration=resolveBenchmarkConfig({suite:{architecture:'solo',master_model:models.master??'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',
     vision_model:models.vision??'None',vision_image_input:models.visionImageInput??'unknown',master_image_input:models.masterImageInput??'unknown',
     master_protocol:models.masterProtocol??'auto',vision_protocol:models.visionProtocol??'auto',vision_effort:models.visionEffort??'default',
-    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,browser_service:models.browserService??'legacy',budget_credits:1000000,
+    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,browser_service:models.browserService??'managed-v1',budget_credits:1000000,
     permission_policy:'normal-approvals-fixture-v1',execution_profile:executionProfile,evaluation_limits:evaluationLimits,
     prompt_timeout_ms:timeoutMs,turn_timeout_ms:timeoutMs}});
   const artifactsDir=path.join(output,'artifacts',trial);
@@ -147,6 +147,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       const browserSessions=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),tid);
       if(browserSessions.length){
         const browserActions=[];let truncated=false,images=0;
+        const recordings=[];
         for(const session of browserSessions){
           let after=0;
           while(browserActions.length<1000){
@@ -154,6 +155,27 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
             browserActions.push(...batch);if(batch.length<100)break;after=batch.at(-1).seq;
           }
           if(browserActions.length>=1000)truncated=true;
+          // Export through the production terminal reader before stopping the
+          // desktop. Never follow artifact paths supplied by the model.
+          try{
+            const exported=await page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.exportBrowserRecording(task,session),{task:tid,session:session.session_id});
+            const relative=path.relative(appWorkspace,exported.path);
+            const manifestFile=safeFile(appWorkspace,path.join(relative,'recording.json'),4*1024*1024);
+            const bytes=fs.readFileSync(manifestFile),recording=JSON.parse(bytes);
+            if(recording.snapshot?.session?.session_id!==session.session_id||recording.snapshot?.session?.task_id!==tid)throw new Error('Recording export identity mismatch');
+            const destination=path.join(artifactsDir,`recording-${session.session_id}`);fs.mkdirSync(destination,{recursive:true});
+            const retain=(name,limit,expectedHash)=>{
+              if(path.basename(name)!==name)throw new Error('Invalid recording export filename');
+              const data=fs.readFileSync(safeFile(appWorkspace,path.join(relative,name),limit));
+              const sha256=hashBytes(data);if(expectedHash&&sha256!==expectedHash)throw new Error('Recording export hash mismatch');
+              const target=path.join(destination,name);fs.writeFileSync(target,data,{flag:'wx'});
+              context.artifacts.push({path:path.relative(output,target),sha256});
+            };
+            retain('recording.json',4*1024*1024);retain('actions.jsonl',32*1024*1024);
+            if(recording.frames.length>200)throw new Error('Diagnostic recording image export bound exceeded');
+            for(const frame of recording.frames.filter(frame=>frame.status==='available'))retain(frame.file,2*1024*1024,frame.metadata.sha256);
+            recordings.push({session_id:session.session_id,path:path.relative(output,destination),status:'retained'});
+          }catch(error){recordings.push({session_id:session.session_id,status:'unavailable',error:String(error.message)});}
         }
         for(const action of browserActions){
           const artifact=action.response?JSON.parse(action.response).result?.artifact:null;
@@ -168,7 +190,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
           }catch(error){action.artifact_export_error=String(error.message);}
         }
         const destination=path.join(artifactsDir,'browser-journal.json');
-        atomicWrite(destination,JSON.stringify({sessions:browserSessions,actions:browserActions,coverage:{truncated,max_actions:1000,max_images:10,images}},null,2));
+        atomicWrite(destination,JSON.stringify({sessions:browserSessions,actions:browserActions,recordings,coverage:{truncated,max_actions:1000,max_images:10,images,max_recording_images:200}},null,2));
         context.artifacts.push({path:path.relative(output,destination),sha256:hashBytes(fs.readFileSync(destination))});
       }
       atomicWrite(path.join(artifactsDir,'messages.json'),JSON.stringify(messages,null,2));

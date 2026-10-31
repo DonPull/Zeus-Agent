@@ -1,10 +1,7 @@
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
-use std::sync::Mutex;
-use std::collections::HashMap;
+//! Shared browser owner and bounded historical adapters. No CDP launcher.
+use crate::db::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::db::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoundingBox {
@@ -38,293 +35,15 @@ pub struct BrowserSessionData {
     pub steps: Vec<BrowserStep>,
 }
 
-pub struct BrowserState {
-    pub process: Option<Child>,
-    pub port: u16,
-    pub user_data_dir: PathBuf,
-}
-
 pub struct BrowserManager {
-    pub active_browsers: Mutex<HashMap<String, BrowserState>>,
     pub managed: crate::managed_browser::Manager,
 }
-
-fn find_free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .and_then(|l| l.local_addr())
-        .map(|addr| addr.port())
-        .unwrap_or(9222)
-}
-
-fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
-    if !dst.exists() {
-        std::fs::create_dir_all(dst)?;
-    }
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let dst_path = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_all(&entry.path(), &dst_path)?;
-        } else {
-            let name = entry.file_name().to_string_lossy().to_lowercase();
-            if !name.contains("lock") && !name.contains(".tmp") {
-                let _ = std::fs::copy(entry.path(), dst_path);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn get_parent_profile_dir() -> Option<PathBuf> {
-    // 1. Check current directory / project root .zeus/parent_browser_profile
-    if let Ok(cur) = std::env::current_dir() {
-        let p = cur.join(".zeus").join("parent_browser_profile");
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    // 2. Check APPDATA workspace root
-    if let Ok(root) = crate::utils::workspace_root() {
-        let p1 = root.join(".zeus").join("parent_browser_profile");
-        if p1.exists() {
-            return Some(p1);
-        }
-        let p2 = root.join("parent_browser_profile");
-        if p2.exists() {
-            return Some(p2);
-        }
-    }
-    None
-}
-
-pub fn get_installed_extensions() -> Vec<PathBuf> {
-    let mut exts = Vec::new();
-    let mut search_dirs = Vec::new();
-
-    if let Ok(cur) = std::env::current_dir() {
-        search_dirs.push(cur.join(".zeus").join("extensions"));
-    }
-    if let Ok(root) = crate::utils::workspace_root() {
-        search_dirs.push(root.join(".zeus").join("extensions"));
-        search_dirs.push(root.join("extensions"));
-    }
-
-    // 1. Direct extensions directories
-    for ext_dir in search_dirs {
-        if ext_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(ext_dir) {
-                for entry in entries.filter_map(Result::ok) {
-                    if entry.path().is_dir() {
-                        if entry.path().join("manifest.json").exists() {
-                            if !exts.contains(&entry.path()) {
-                                exts.push(entry.path());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 2. Extensions installed via Store inside parent_browser_profile
-    if let Some(parent_profile) = get_parent_profile_dir() {
-        let parent_ext_dir = parent_profile.join("Default").join("Extensions");
-        if parent_ext_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(parent_ext_dir) {
-                for entry in entries.filter_map(Result::ok) {
-                    if entry.path().is_dir() {
-                        if let Ok(sub_entries) = std::fs::read_dir(entry.path()) {
-                            for sub_entry in sub_entries.filter_map(Result::ok) {
-                                if sub_entry.path().is_dir() && sub_entry.path().join("manifest.json").exists() {
-                                    if !exts.contains(&sub_entry.path()) {
-                                        exts.push(sub_entry.path());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    exts
-}
-
 impl BrowserManager {
     pub fn new() -> Self {
         Self {
-            active_browsers: Mutex::new(HashMap::new()),
             managed: crate::managed_browser::Manager::default(),
         }
     }
-    
-    pub fn ensure_browser(&self, task_id: &str, mode: &str, custom_exe: &Option<String>) -> Result<u16, String> {
-        let mut browsers = self.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
-        
-        if let Some(state) = browsers.get_mut(task_id) {
-            // Check if process is still running
-            if let Some(mut child) = state.process.take() {
-                if let Ok(None) = child.try_wait() {
-                    state.process = Some(child);
-                    return Ok(state.port);
-                }
-            }
-        }
-        
-        // Need to spawn
-        let exe = if let Some(path) = custom_exe {
-            if !path.trim().is_empty() {
-                Some(PathBuf::from(path.trim()))
-            } else {
-                get_browser_executable()
-            }
-        } else {
-            get_browser_executable()
-        }.ok_or("No browser executable found.")?;
-        
-        let port = find_free_port();
-        
-        // For sandboxed, use workspace/.zeus/browser_profiles/<task_id>
-        let workspace = crate::utils::task_workspace(task_id)?;
-        let mut actual_user_data_dir = None;
-        let mut state_user_data_dir = PathBuf::new();
-        
-        if mode == "main" {
-            // Main browser takeover uses default profile (omit --user-data-dir).
-        } else {
-            let dir = workspace.join(".zeus").join("browser_profiles").join(task_id);
-            let is_new = !dir.exists();
-            std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create user data dir: {}", e))?;
-            
-            // If newly created, seed from parent_browser_profile if present
-            if is_new {
-                if let Some(parent_profile) = get_parent_profile_dir() {
-                    let _ = copy_dir_all(&parent_profile, &dir);
-                    crate::logger::log(task_id, "browser", &format!("Seeded task browser profile from {}", parent_profile.display()));
-                }
-            }
-
-            state_user_data_dir = dir.clone();
-            actual_user_data_dir = Some(state_user_data_dir.clone());
-        };
-        
-        let is_headless = !std::env::var("ZEUS_HEADFUL_BROWSER").is_ok() && mode != "main";
-        let child = spawn_browser(&exe, port, actual_user_data_dir.as_deref(), is_headless)?;
-        let pid = child.id();
-        
-        browsers.insert(task_id.to_string(), BrowserState {
-            process: Some(child),
-            port,
-            user_data_dir: state_user_data_dir,
-        });
-        
-        crate::logger::log(task_id, "browser", &format!("Spawned browser (PID: {:?}) on port {}", pid, port));
-        Ok(port)
-    }
-}
-
-pub fn get_browser_executable() -> Option<PathBuf> {
-    // Check local pre-installed or downloaded Chromium
-    if let Ok(app_dir) = crate::utils::workspace_root() {
-        let local_chromium_win = app_dir.join(".zeus").join("browsers").join("chromium").join("chrome-win").join("chrome.exe");
-        if local_chromium_win.exists() {
-            return Some(local_chromium_win);
-        }
-        let local_chromium_linux = app_dir.join(".zeus").join("browsers").join("chromium").join("chrome-linux").join("chrome");
-        if local_chromium_linux.exists() {
-            return Some(local_chromium_linux);
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let paths = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-        ];
-        for p in paths.iter() {
-            if Path::new(p).exists() {
-                return Some(PathBuf::from(p));
-            }
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let paths = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        ];
-        for p in paths.iter() {
-            if Path::new(p).exists() {
-                return Some(PathBuf::from(p));
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let paths = [
-            "/usr/bin/google-chrome",
-            "/usr/bin/microsoft-edge",
-            "/usr/bin/brave-browser",
-            "/usr/bin/chromium-browser",
-            "/usr/bin/chromium",
-        ];
-        for p in paths.iter() {
-            if Path::new(p).exists() {
-                return Some(PathBuf::from(p));
-            }
-        }
-    }
-    None
-}
-
-/// Spawns a browser process with the given port and user data dir
-pub fn spawn_browser(executable: &Path, port: u16, user_data_dir: Option<&Path>, headless: bool) -> Result<Child, String> {
-    let mut cmd = Command::new(executable);
-    cmd.arg(format!("--remote-debugging-port={}", port));
-    
-    if let Some(dir) = user_data_dir {
-        let mut dir_arg = std::ffi::OsString::from("--user-data-dir=");
-        dir_arg.push(dir.as_os_str());
-        cmd.arg(dir_arg);
-    }
-
-    let extensions = get_installed_extensions();
-    if !extensions.is_empty() {
-        let ext_paths: Vec<String> = extensions
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect();
-        let ext_arg = ext_paths.join(",");
-        cmd.arg(format!("--load-extension={}", ext_arg));
-        cmd.arg(format!("--disable-extensions-except={}", ext_arg));
-    }
-    
-    // Stealth & Anti-Bot flags
-    cmd.arg("--disable-blink-features=AutomationControlled");
-    cmd.arg("--disable-infobars");
-    cmd.arg("--no-first-run");
-    cmd.arg("--no-default-browser-check");
-    cmd.arg("--disable-sync");
-    cmd.arg("--disable-background-timer-throttling");
-    cmd.arg("--disable-renderer-backgrounding");
-    cmd.arg("--disable-backgrounding-occluded-windows");
-    
-    if headless {
-        cmd.arg("--headless=new");
-        cmd.arg("--disable-gpu");
-    } else {
-        cmd.arg("--restore-last-session");
-    }
-    
-    cmd.spawn().map_err(|e| format!("Failed to spawn browser: {}", e))
 }
 
 #[tauri::command]
@@ -332,135 +51,62 @@ pub async fn start_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
-    if crate::managed_browser::enabled(){return Err("BROWSER_UNSUPPORTED: visible managed-browser handoff is not enabled".into());}
-    let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
-    if let Some(browser_state) = browsers.get(&task_id) {
-        crate::logger::log(&task_id, "browser", &format!("Browser handoff started on port {}", browser_state.port));
-    }
-    Ok(())
+    let _ = (state, task_id);
+    Err(
+        "BROWSER_UNSUPPORTED: supervised login in Zeus's owned browser is a later capability"
+            .into(),
+    )
 }
-
 #[tauri::command]
 pub async fn finish_browser_handoff(
     state: State<'_, AppState>,
     task_id: String,
 ) -> Result<(), String> {
-    if crate::managed_browser::enabled(){return Err("BROWSER_UNSUPPORTED: visible managed-browser handoff is not enabled".into());}
-    let browsers = state.browser_manager.active_browsers.lock().map_err(|_| "Mutex poisoned")?;
-    if let Some(browser_state) = browsers.get(&task_id) {
-        crate::logger::log(&task_id, "browser", &format!("Browser handoff completed on port {}", browser_state.port));
-    }
-    Ok(())
+    let _ = (state, task_id);
+    Err("BROWSER_UNSUPPORTED: no supervised handoff is active".into())
 }
-
 #[tauri::command]
-pub async fn get_browser_history(task_id: String) -> Result<Vec<String>, String> {
-    let mut root_history = crate::utils::workspace_root()?;
-    root_history.push(".zeus");
-    root_history.push("browser_history");
-    root_history.push(&task_id);
-    
-    let mut files = Vec::new();
-    if root_history.exists() {
-        if let Ok(entries) = std::fs::read_dir(&root_history) {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(path_str) = path.to_str() {
-                        if path_str.ends_with(".png") || path_str.ends_with(".jpg") {
-                            files.push(path_str.to_string());
-                        }
-                    }
-                } else if path.is_dir() {
-                    if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                        for sub_entry in sub_entries.filter_map(Result::ok) {
-                            let sub_path = sub_entry.path();
-                            if let Some(sub_path_str) = sub_path.to_str() {
-                                if sub_path_str.ends_with(".png") || sub_path_str.ends_with(".jpg") {
-                                    files.push(sub_path_str.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if let Ok(ws) = crate::utils::task_workspace(&task_id) {
-        let legacy_dir = ws.join(".zeus").join("browser_history");
-        if legacy_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(legacy_dir) {
-                for entry in entries.filter_map(Result::ok) {
-                    if let Some(path_str) = entry.path().to_str() {
-                        if (path_str.ends_with(".png") || path_str.ends_with(".jpg")) && !files.contains(&path_str.to_string()) {
-                            files.push(path_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    files.sort();
-    Ok(files)
+pub async fn get_browser_history(
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<Vec<String>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::browser_recordings::task_exists(&conn, &task_id)?;
+    Err("BROWSER_HISTORY_API_RETIRED: use the paged recording history; older session readers remain available".into())
 }
 
 #[tauri::command]
 pub async fn get_browser_session(
+    state: State<'_, AppState>,
     task_id: String,
     session_id: String,
 ) -> Result<BrowserSessionData, String> {
-    let mut session_dir = crate::utils::workspace_root()?;
-    session_dir.push(".zeus");
-    session_dir.push("browser_history");
-    session_dir.push(&task_id);
-    session_dir.push(&session_id);
-
-    let manifest_path = session_dir.join("manifest.json");
-    if !manifest_path.exists() {
-        return Err(format!("Session manifest not found at {:?}", manifest_path));
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::browser_recordings::recording_page(&conn, &task_id, &session_id, 0, 1)?;
     }
-
-    let content = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Failed to read session manifest: {}", e))?;
-    let mut data: BrowserSessionData = serde_json::from_str(&content)
+    let (_, content) = crate::browser_recordings::legacy_manifest(&task_id, &session_id)?;
+    let mut data: BrowserSessionData = serde_json::from_value(content)
         .map_err(|e| format!("Failed to parse session manifest: {}", e))?;
-
-    for step in &mut data.steps {
-        if step.screenshot_path.is_empty() {
-            continue;
-        }
-        let p = std::path::Path::new(&step.screenshot_path);
-        let full_path = if p.is_absolute() {
-            p.to_path_buf()
-        } else {
-            session_dir.join(&step.screenshot_path)
-        };
-        if full_path.exists() {
-            if let Ok(bytes) = std::fs::read(&full_path) {
-                use base64::Engine;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                step.screenshot_path = format!("data:image/png;base64,{}", b64);
+    // Deprecated bounded adapter. New viewers use paged metadata and binary reads.
+    data.steps.truncate(100);
+    let mut total = 0;
+    for (index, step) in data.steps.iter_mut().enumerate() {
+        step.screenshot_path.clear();
+        if let Ok((bytes, mime)) =
+            crate::browser_recordings::legacy_image(&task_id, &session_id, index)
+        {
+            total += bytes.len();
+            if total > 8 * 1024 * 1024 {
+                continue;
             }
+            use base64::Engine;
+            step.screenshot_path = format!(
+                "data:{mime};base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            );
         }
     }
 
     Ok(data)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_browser_executable() {
-        // This test will pass if it finds any browser (Chrome, Edge, Brave) or fail if none are installed.
-        // It's a smoke test to ensure the OS-specific resolution logic executes without panicking.
-        let exe = get_browser_executable();
-        // We only assert it returns a valid option, it could be None on a CI without browsers.
-        if let Some(path) = exe {
-            assert!(path.exists(), "Browser executable path should exist");
-        }
-    }
 }

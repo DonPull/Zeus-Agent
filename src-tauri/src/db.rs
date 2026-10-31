@@ -180,6 +180,16 @@ pub fn init(db_path: &std::path::Path) -> Result<Connection, String> {
             e
         )
     })?;
+    // SQLite creates a consistent snapshot including committed WAL contents.
+    // Preserve an existing pre-capture database before its additive migration.
+    let has_tasks=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks')",[],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?;
+    let has_capture=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='managed_browser_capture_state')",[],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?;
+    if has_tasks && !has_capture {
+        let parent=db_path.parent().ok_or("Database backup parent is missing")?;
+        let folder=parent.join("migration-backups");std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
+        let target=folder.join(format!("before-browser-capture-{}.db",new_id()));
+        connection.execute("VACUUM INTO ?1",[target.to_string_lossy().as_ref()]).map_err(|e|format!("Could not preserve pre-migration database: {e}"))?;
+    }
     init_schema(&connection)?;
     Ok(connection)
 }

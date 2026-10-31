@@ -8,11 +8,11 @@ const response=value=>({choices:[{delta:{content:'```zeus-directive\n'+JSON.stri
 const action=(op,params={},action_id)=>({type:'browser_action',op,params,...(action_id?{action_id}:{})});
 const script=code=>({type:'run_action',action:{code,timeout_secs:30}});
 const finish={type:'final_answer',final_answer:{summary:'Browser test complete.'}};
-let server,url,updates;
+let server,url,updates,slowRequests;
 test.beforeAll(async()=>{
-    updates=0;
+    updates=0;slowRequests=0;
     server=http.createServer((request,result)=>{
-        if(request.url==='/slow')return;
+        if(request.url==='/slow'){slowRequests++;return;}
         if(request.method==='POST'){updates++;result.writeHead(204);result.end();return;}
         result.writeHead(200,{'Content-Type':'text/html'});
         result.end(`<!doctype html><label>Task note<input id="note"></label><button id="save" onclick="localStorage.note=note.value;document.cookie='continuity=present';statusText.textContent=note.value;fetch('/append',{method:'POST'})">Save note</button><p id="statusText"></p><script>statusText.textContent=localStorage.note||''</script>`);
@@ -154,9 +154,9 @@ test('duplicate IDs never repeat a mutation and failed locators stay failed',asy
 });
 
 test('Stop during navigation reaps the owner and retains uncertainty without replay',async()=>{
-    const app=await fixture();queueMockResponse(response(action('navigate',{url})));queueMockResponse(response(action('navigate',{url:url+'slow',timeout_ms:60000})));
+    const app=await fixture(),beforeSlow=slowRequests;queueMockResponse(response(action('navigate',{url})));queueMockResponse(response(action('navigate',{url:url+'slow',timeout_ms:60000})));
     const pending=app.send().then(()=>null,error=>String(error));
-    await expect.poll(async()=>{const sessions=await app.sessions();if(!sessions.length)return '';const rows=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:app.task.id,session:sessions[0].session_id});return rows.at(-1)?.op+':'+rows.at(-1)?.status;}).toBe('navigate:dispatched');
+    await expect.poll(()=>slowRequests).toBe(beforeSlow+1);
     await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.cancelTaskRun(id),app.task.id);expect(await pending).toContain('RUN_CANCELLED');
     const session=(await app.sessions())[0];expect(session.status).toBe('cancelled');expect(session.runtime.cleanup.owned_processes_remaining).toBe(0);
     const rows=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:app.task.id,session:session.session_id});

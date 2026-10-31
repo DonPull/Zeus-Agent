@@ -218,6 +218,7 @@ fn begin_durable_run(
             params![run_id, request_id, task_id, now],
         )
         .map_err(|e| format!("Failed to create durable run: {}", e))?;
+    crate::managed_browser::record_run_setup(connection,&run_id)?;
 
     connection
         .execute(
@@ -370,6 +371,7 @@ fn persist_cancelled_run(
     }
 
     transaction.execute("UPDATE attachment_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='dispatched'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
+    transaction.execute("UPDATE browser_visual_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='prepared'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
     let cancelled_run = finish_durable_run(&transaction, run_id, task_id, "cancelled", None)?;
     transaction.commit().map_err(|e| e.to_string())?;
     Ok((cancelled_run, messages))
@@ -1179,7 +1181,14 @@ pub async fn send_user_message(
     if let Err(error)=state.browser_manager.managed.finish(&state,&app_handle,&task_id,&run_id,browser_terminal).await{turn_result=Err(error);}
 
     match turn_result {
-        Ok(res) => Ok(res),
+        Ok(res) => {
+            // A completed root must include joined browser cleanup. Rehydrating
+            // clients must not observe completion while the owner is still alive.
+            let connection=state.db.lock().map_err(|e|e.to_string())?;
+            let completed=finish_durable_run(&connection,&run_id,&task_id,"completed",None)?;
+            emit_run_state(&app_handle,&completed);
+            Ok(res)
+        },
         Err(err) => {
             if err == "RUN_CANCELLED" {
                 let _ = finish_cancelled_run(&state, &app_handle, &task_id, &run_id);
@@ -1231,9 +1240,6 @@ async fn execute_user_turn(
             );
             insert_message(&connection, &mut warning)?;
             emit_message(app_handle, task_id, &warning);
-            
-            let completed_run = finish_durable_run(&connection, run_id, task_id, "completed", None)?;
-            emit_run_state(app_handle, &completed_run);
             
             return Ok(SendResultDto {
                 spent_credits: task.spent_credits,
@@ -1452,10 +1458,6 @@ async fn execute_user_turn(
             persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
             produced_final = true;
             
-            let connection = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-            let completed_run = finish_durable_run(&connection, &run_id, &task_id, "completed", None)?;
-            emit_run_state(&app_handle, &completed_run);
-            
             break;
         }
 
@@ -1465,6 +1467,7 @@ async fn execute_user_turn(
         if !turn_images.is_empty()&&!history.iter().any(|message|!message.images.is_empty()){
             history.push(ChatMessage{role:"user".into(),content:"Current user image inputs retained across compaction.".into(),images:turn_images.clone()});
         }
+        Box::pin(crate::browser_visuals::prepare(state,app_handle,task_id,run_id,"master",&cancellation_token,&mut history)).await?;
         let mut injected_reminder = false;
         if steps_since_action_plan >= 4 {
             history.push(ChatMessage { images: Vec::new(),
@@ -1563,6 +1566,8 @@ async fn execute_user_turn(
                 }
             }
         };
+        {let conn=state.db.lock().map_err(|e|e.to_string())?;crate::browser_visuals::finish(&conn,run_id,"master",stream_result.as_ref().ok().and_then(|value|value.2.request_id.as_deref()),stream_result.as_ref().err().map(String::as_str))?;}
+        crate::browser_visuals::clear_images(&mut history);
         if !delivery_ids.is_empty(){let conn=state.db.lock().map_err(|e|e.to_string())?;
             crate::attachments::finish_delivery(&conn,&delivery_ids,stream_result.as_ref().ok().and_then(|value|value.2.request_id.as_deref()),stream_result.as_ref().err().map(String::as_str))?;}
         if !delivery_ids.is_empty(){emit_attachment_state(state,app_handle,&user_message)?;}
@@ -1882,10 +1887,8 @@ async fn execute_user_turn(
                         success_criteria,
                     } => {
                         let workspace = crate::utils::task_workspace(task_id)?;
-                        let browser_context=if crate::managed_browser::enabled(){
-                            state.browser_manager.managed.release(run_id,"master");
-                            Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("master/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()})
-                        }else{None};
+                        state.browser_manager.managed.release(run_id,"master");
+                        let browser_context=Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("master/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()});
                         let action_future = crate::python_runner::run_python_action_scoped(
                             Some(app_handle.clone()),
                             Some(task_id.to_string()),
@@ -2642,16 +2645,6 @@ async fn execute_user_turn(
         persist_and_emit(&state, &app_handle, &task_id, &mut fallback)?;
     }
 
-    let completed_run = {
-        let connection = state
-            .db
-            .lock()
-            .map_err(|e| format!("Database lock error: {}", e))?;
-
-        finish_durable_run(&connection, &run_id, &task_id, "completed", None)?
-    };
-    emit_run_state(&app_handle, &completed_run);
-
     current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
     Ok(SendResultDto {
         spent_credits: current_spend,
@@ -2748,6 +2741,10 @@ pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle
         .transaction()
         .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
+    tx.execute("DELETE FROM browser_visual_deliveries WHERE run_id IN (SELECT id FROM runs WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
+    for table in ["managed_browser_capture_state","managed_browser_frames","managed_browser_coverage"] {
+        tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)"),[&task_id]).map_err(|e|e.to_string())?;
+    }
     tx.execute("DELETE FROM managed_browser_artifacts WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM managed_browser_actions WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM managed_browser_tabs WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
@@ -2756,6 +2753,7 @@ pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle
     tx.execute("DELETE FROM message_attachments WHERE attachment_id IN (SELECT id FROM attachments WHERE task_id=?1)",params![task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM attachments WHERE task_id=?1",params![task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM task_media_settings WHERE task_id=?1",params![task_id]).map_err(|e|e.to_string())?;
+    tx.execute("DELETE FROM run_browser_runtime WHERE run_id IN (SELECT id FROM runs WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM runs WHERE task_id = ?1", params![task_id])
         .map_err(|e| format!("Failed to delete task runs: {}", e))?;
     tx.execute("DELETE FROM messages WHERE task_id = ?1", params![task_id])

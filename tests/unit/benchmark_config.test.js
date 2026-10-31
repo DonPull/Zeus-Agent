@@ -49,7 +49,7 @@ test('fingerprints ignore property ordering and include changes to policy and ro
     resolveBenchmarkConfig({ cli: { permission_policy: 'scripted-no-tools-offline' } }).configuration_fingerprint);
 });
 test('browser ownership implementations are explicit distinct benchmark configurations',()=>{
-  const legacy=resolveBenchmarkConfig(),managed=resolveBenchmarkConfig({task:{browser_service:'managed-v1'}});
+  const legacy=resolveBenchmarkConfig({task:{browser_service:'legacy'}}),managed=resolveBenchmarkConfig();
   assert.notEqual(legacy.configuration_fingerprint,managed.configuration_fingerprint);
   assert.throws(()=>resolveBenchmarkConfig({task:{browser_service:'unknown'}}));
 });

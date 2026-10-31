@@ -13,13 +13,13 @@ import {createSyntheticSupervisor} from './synthetic_supervisor.js';
 import {startTicketPortal} from '../../tests/benchmarks/mission_graders/ticket_portal.js';
 import {watchTicketBrowser} from '../../tests/benchmarks/browser_observer.js';
 
-const args=process.argv.slice(2);let live=false,model='gpt-6-luna',id='D01',delivery='direct',visionModel=null,supervision='synthetic',effort='medium',protocol='responses',approvalControl=false,followups=false,managedBrowser=false;
+const args=process.argv.slice(2);let live=false,model='gpt-6-luna',id='D01',delivery='direct',visionModel=null,supervision='synthetic',effort='medium',protocol='responses',approvalControl=false,followups=false;
 for(let index=0;index<args.length;index++){
   if(args[index]==='--live')live=true;
   else if(args[index]==='--dry-run')live=false;
   else if(args[index]==='--approval-control')approvalControl=true;
   else if(args[index]==='--followups')followups=true;
-  else if(args[index]==='--managed-browser')managedBrowser=true;
+  else if(args[index]==='--managed-browser')continue;
   else if(['--model','--mission','--delivery','--vision-model','--supervision','--effort','--protocol'].includes(args[index])){
     const key=args[index],value=args[++index];if(!value||value.startsWith('--'))throw new Error(`Missing value for ${key}`);
     if(key==='--model')model=value;else if(key==='--mission')id=value;else if(key==='--delivery')delivery=value;else if(key==='--vision-model')visionModel=value;
@@ -29,7 +29,7 @@ for(let index=0;index<args.length;index++){
 // Executable submissions require a later isolated grader; this first diagnostic
 // uses data/controller-owned browser grading and never executes an agent output in the evaluator.
 if(!['D01','V01','B01'].includes(id))throw new Error('Native diagnostics support only D01/V01 data and the controller-owned B01 browser fixture');
-if(id==='B01'&&(!managedBrowser||approvalControl))throw new Error('B01 requires --managed-browser and has no artifact approval-control variant');
+if(id==='B01'&&approvalControl)throw new Error('B01 has no artifact approval-control variant');
 if(!['direct','helper'].includes(delivery))throw new Error('Delivery must be direct or helper');
 if(!['synthetic','manual'].includes(supervision)||!['low','medium','high'].includes(effort)||!['auto','chat','responses'].includes(protocol))throw new Error('Invalid supervision, effort or protocol');
 if(followups&&id!=='V01')throw new Error('Follow-up diagnostic is defined only for V01');
@@ -37,12 +37,12 @@ const helper=id==='V01'&&delivery==='helper'?(visionModel??model):null;
 // The combined V01 variant contains the artifact mission plus two separate
 // reinspection turns; the original 12-request allowance ended before its last
 // answer. Keep that capped result, and label this larger operating envelope.
-const limits={max_requests:followups?18:id==='B01'?12:id==='V01'?8:10,max_tokens:1000000,max_in_flight:1,max_output_tokens:8192,max_directives:24,wall_time_ms:300000};
+const limits={max_requests:followups?18:id==='B01'?16:id==='V01'?8:10,max_tokens:1000000,max_in_flight:1,max_output_tokens:8192,max_directives:24,wall_time_ms:300000};
 const experiment=`native-diagnostic-${crypto.randomUUID()}`,output=path.join(repoRoot,'.zeus/evaluations',experiment);
 const manifest={experiment_id:experiment,mission:id,task_version:mission(id).task.version,model,provider:'abacus-routellm',
   image_delivery:id==='V01'?delivery:null,vision_model:helper,
   supervision,effort,protocol,approval_control:approvalControl,followups,window_visible:supervision==='manual',
-  browser_service:managedBrowser?'managed-v1':'legacy',
+  browser_service:'managed-v1',diagnostic_envelope:id==='B01'?'phase3c-smoke-v1':null,
   execution_profile:'native-supervised',permission_policy:'normal-approvals-fixture-v1',limits,
   trial_retries:0,attempts:1,provider_credits:null,warning:'Native host permissions; independently graded outcome, partial authorization coverage. Not an isolated baseline.'};
 if(!live){console.log(JSON.stringify({dry_run:true,...manifest},null,2));process.exit(0);}
@@ -65,8 +65,13 @@ try{
     }
     if(!ready)throw new Error('Fixture frontend did not become ready');
   }
-  const app=await launchTauri(true,{policy:'standard',evaluationLimits:limits,visible:manifest.window_visible,managedBrowser});
+  // The old flag is accepted for CLI compatibility, not engine selection.
+  // Exercise ordinary startup with persisted setup and no browser env overrides.
+  const app=await launchTauri(true,{policy:'standard',evaluationLimits:limits,visible:manifest.window_visible,managedBrowser:false});
   await app.page.locator('#app-container').waitFor({state:'visible',timeout:15000});
+  const runtimePython=path.join(repoRoot,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
+  if(!fs.existsSync(runtimePython))throw new Error('Prepare the pinned browser runtime explicitly before live diagnostics');
+  await app.page.evaluate(async python=>{const settings=await window.__ZEUS_BRIDGE__.getSettings();await window.__ZEUS_BRIDGE__.saveSettings({...settings,browser_python_path:python});},runtimePython);
   // Query the supported catalogue through the app; never read/print API keys.
   const preflight=await app.page.evaluate(()=>Promise.race([
     (async()=>({key:await window.__ZEUS_BRIDGE__.hasApiKey(),
@@ -85,7 +90,7 @@ try{
   const result=await runMissionTrial({id,page:app.page,appWorkspace:app.workspace,output,experimentId:experiment,build:manifest.build,
     portal,browserObservation:async()=>browserObserver?await browserObserver.finish():null,
     models:{master:model,vision:helper??'None',delivery:helper?'helper':'auto',effort,visionEffort:effort,
-      masterProtocol:protocol,visionProtocol:protocol,masterImageInput:['V01','B01'].includes(id)?'supported':'unknown',visionImageInput:helper?'supported':'unknown',browserService:managedBrowser?'managed-v1':'legacy'},
+      masterProtocol:protocol,visionProtocol:protocol,masterImageInput:['V01','B01'].includes(id)?'supported':'unknown',visionImageInput:helper?'supported':'unknown',browserService:'managed-v1'},
     supervisionPolicy:(supervision==='synthetic'?'external-synthetic-supervisor-v1':'external-review')+(approvalControl?'+ask-artifact':'')+(followups?'+image-followups-v1':''),
     beforeSend:async context=>{supervisor=createSyntheticSupervisor({taskId:context.task.id,workspace:context.workspace,
       files:[...fs.readdirSync(path.join(mission(id).dir,'inputs')),...mission(id).task.artifacts]});

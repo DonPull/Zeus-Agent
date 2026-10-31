@@ -22,7 +22,7 @@ test('live and replay viewers use the available window and resize actual images 
     const session=`sess_${crypto.randomUUID()}`,directory=path.join(workspace,'.zeus/browser_history',task.id,session);
     fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'screen.png'),image);
     fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify({session_id:session,task_id:task.id,started_at:Date.now(),completed_at:null,duration_ms:null,final_url:'https://example.test/',total_steps:1,
-        steps:[{step:1,action:'observe',target:null,value:null,url:'https://example.test/',timestamp:Date.now(),bounding_box:{x:40,y:40,width:200,height:40},screenshot_path:'screen.png'}]}));
+        steps:Array.from({length:61},(_,i)=>({step:i+1,action:'observe',target:null,value:null,url:'https://example.test/',timestamp:Date.now(),bounding_box:{x:40,y:40,width:200,height:40},screenshot_path:'screen.png'}))}));
     for(const kind of ['live','replay']){
         await page.evaluate(async({kind,taskId,sessionId})=>{
             const React=(await import('/node_modules/.vite/deps/react.js')).default;
@@ -62,6 +62,12 @@ test('live and replay viewers use the available window and resize actual images 
             const close=modal.locator(`#${kind}-modal-close-button`),closeBox=await close.boundingBox();
             expect(closeBox.x+closeBox.width).toBeLessThanOrEqual(size.width);
             await page.screenshot({path:testInfo.outputPath(`${kind}-${size.width}.png`)});
+        }
+        if(kind==='replay'){
+            await modal.getByRole('button',{name:'Later actions',exact:true}).click();await expect(modal).toContainText('Action 51 of 61');
+            await page.keyboard.press('ArrowLeft');await expect(modal).toContainText('Action 50 of 61');
+            await page.keyboard.press('ArrowRight');await expect(modal).toContainText('Action 51 of 61');
+            await modal.getByRole('button',{name:'Earlier actions',exact:true}).click();await expect(modal).toContainText('Action 50 of 61');
         }
         await modal.locator(`#${kind}-modal-close-button`).click();
         await expect(modal).toHaveCount(0);

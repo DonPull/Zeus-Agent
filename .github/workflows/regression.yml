@@ -34,10 +34,6 @@ jobs:
         run: .zeus/browser-runtime/venv/Scripts/python.exe -m playwright install chromium
       - run: npm run build
       - run: npm run test:regression
-      - name: Build release runtime for transport regression
-        run: cargo build --manifest-path src-tauri/Cargo.toml --release --locked --bin zeus-evaluation --features evaluation-runner
-      - name: Release large-image and fresh-TLS regression
-        env:
-          ZEUS_TEST_RELEASE: '1'
-        run: node node_modules/@playwright/test/cli.js test --config=playwright.offline.config.js tests/regression/attachments.spec.js tests/regression/browser_ownership.spec.js --grep "large valid image|one root-owned browser|Stop during navigation"
+      - name: Optimized native browser and fresh-TLS acceptance
+        run: node scripts/run_regression.js --release
       - run: npm run eval:demo

@@ -90,13 +90,11 @@ Every reply you give MUST be exactly ONE directive: a fenced code block whose la
   - On macOS/Linux: Use standard POSIX shell commands or Python scripts.
   - Always write clean, cross-platform Python scripts for data manipulation, file creation, and network requests.
 - **Language**: You MUST ALWAYS communicate, reason, explain, and output results in **English**, unless explicitly instructed to generate content/deliverables in another language.
-- **Relentless Agentic Behavior**: Your highest priority is to achieve the objective at any cost. If you encounter roadblocks (like permission errors, tool failures, or API limits), you must find a way around them to achieve the goal. Do NOT simply report failure. Only if you determine that the goal is fundamentally impossible to achieve after exhausting every possible avenue, you must report back with a final answer explaining exactly what went wrong.
+- **Evidence-based recovery**: Work persistently toward the assigned objective within the user's authorization and available budget. After an error, inspect the actual state and choose a justified repair. Preserve completed work, distinguish attempts from verified successes, and report a concrete blocker when further attempts would repeat failures or drift away from the objective. Never bypass a denial or claim unverified completion.
 - **Zero-Knowledge Permissions**: DO NOT try to ask the user for permission. Just emit the directive. If permission is required, the system will seamlessly intercept your directive, ask the user, and execute it once they approve.
 - **Output Compression**: Commands producing large terminal outputs (>2,000 characters) are automatically compressed (retaining the first 15 lines and last 30 lines) and saved to a full artifact file. If you need the complete untruncated logs, use `read_file` on the artifact path listed in the truncation notice.
 - Never claim to have taken actions or fetched data you have not. Only report what actually ran.
-- **Browser Automation & Visual Analysis**: To control the browser, write a Python script using the `playwright` package. Connect to the active browser using the `ZEUS_BROWSER_WS_ENDPOINT` environment variable like this:
-  `p.chromium.connect_over_cdp(os.environ["ZEUS_BROWSER_WS_ENDPOINT"])`
-  Do NOT launch a new browser instance using `p.chromium.launch()`.
+- **Browser Automation & Visual Analysis**: Use the shared `browser_action` tools or the `zeus_browser` Python client documented below. Do not launch a browser or connect over CDP.
   When interacting with web applications, interactive widgets, or forms:
   1. Wait for page animations, transitions, and network requests to complete (`page.wait_for_timeout(1000)`).
   2. Actively inspect DOM state, element attributes, or visible feedback after every action or submission before deciding your next step. Never submit inputs blindly without evaluating the resulting state.
@@ -261,6 +259,7 @@ pub async fn run_worker(
                 break Err("Worker hit iteration cap without a final answer.".to_string());
             }
 
+            Box::pin(crate::browser_visuals::prepare(state,app_handle,task_id,run_id,&conversation,cancellation_token,&mut history)).await?;
             // Stream response
             let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
             let model_clone = worker_model.clone();
@@ -284,6 +283,8 @@ pub async fn run_worker(
                 }
             };
 
+            {let conn=state.db.lock().map_err(|e|e.to_string())?;crate::browser_visuals::finish(&conn,run_id,&conversation,stream_result.as_ref().ok().and_then(|value|value.2.request_id.as_deref()),stream_result.as_ref().err().map(String::as_str))?;}
+            crate::browser_visuals::clear_images(&mut history);
             let (reply_text, _reasoning_text, usage, usage_json, model_used) = match stream_result {
                 Ok(tuple) => {
                     transient_retries = 0;
@@ -384,18 +385,14 @@ pub async fn run_worker(
                         }
                         Directive::RunAction { action, success_criteria: _ } => {
                             let workspace = crate::utils::task_workspace(task_id)?;
-                            let task_data = crate::chat::load_task(&state.db.lock().unwrap(), task_id).map_err(|e| e.to_string())?;
-                            let browser_port = if crate::managed_browser::enabled(){None}else{state.browser_manager.ensure_browser(task_id, &task_data.browser_mode, &task_data.browser_executable_path).ok()};
-                            let browser_context=if crate::managed_browser::enabled(){
-                                state.browser_manager.managed.release(run_id,&conversation);
-                                Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("{conversation}/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()})
-                            }else{None};
+                            state.browser_manager.managed.release(run_id,&conversation);
+                            let browser_context=Some(crate::python_runner::BrowserScriptContext{run_id:run_id.into(),caller:format!("{conversation}/script:{}",crate::db::new_id()),cancel:cancellation_token.child_token()});
                             
                             let action_future = crate::python_runner::run_python_action_scoped(
                                 Some(app_handle.clone()),
                                 Some(task_id.to_string()),
                                 &workspace, &action.code, action.timeout_secs,
-                                browser_port,browser_context,
+                                None,browser_context,
                             );
                             tokio::pin!(action_future);
 
@@ -506,6 +503,11 @@ pub async fn run_worker(
             }
         };
 
+        if verifier_model.trim().is_empty() || verifier_model.eq_ignore_ascii_case("none") {
+            set_worker_status(state,&worker_id,"completed",None,Some(&final_result_text))?;
+            update_worker_event_and_emit(state,app_handle,&started_msg_id,task_id,&worker_id,delegate,"completed")?;
+            return Ok(format!("Worker result (verifier disabled; not independently verified):\n{final_result_text}"));
+        }
         set_worker_status(state, &worker_id, "verifying", None, Some(&final_result_text))?;
         update_worker_event_and_emit(state, app_handle, &started_msg_id, task_id, &worker_id, delegate, "verifying")?;
 

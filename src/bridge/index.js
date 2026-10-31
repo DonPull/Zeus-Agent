@@ -30,6 +30,16 @@ export const getManagedBrowserSessions = (taskId) => invoke("get_managed_browser
 export const getManagedBrowserStatus = () => invoke("get_managed_browser_status");
 export const getManagedBrowserActions = (taskId, sessionId, after = 0) => invoke("get_managed_browser_actions", { taskId, sessionId, after });
 export const getManagedBrowserObservation = (taskId) => invoke("get_managed_browser_observation", { taskId });
+export const getBrowserCapture = (taskId, sessionId) => invoke("get_browser_capture", {taskId, sessionId});
+export const heartbeatBrowserViewer = (taskId, sessionId) => invoke("heartbeat_browser_viewer", {taskId, sessionId});
+export const readBrowserLiveImage = (taskId, sessionId, seq) => invoke("read_browser_live_image", {taskId, sessionId, seq});
+export const onManagedBrowserCapture = callback => listen("managed-browser-capture", event => callback(event.payload));
+export const listBrowserRecordings = (taskId, offset=0) => invoke("list_browser_recordings",{taskId,offset});
+export const getBrowserRecordingPage = (taskId,sessionId,after=0,limit=50) => invoke("get_browser_recording_page",{taskId,sessionId,after,limit});
+export const readBrowserRecordingImage = (taskId,sessionId,frameId) => invoke("read_browser_recording_image",{taskId,sessionId,frameId});
+export const deleteBrowserRecordingImages = (taskId,sessionId) => invoke("delete_browser_recording_images",{taskId,sessionId});
+export const exportBrowserRecording = (taskId,sessionId) => invoke("export_browser_recording",{taskId,sessionId});
+export const getBrowserVisualDeliveries = taskId => invoke("get_browser_visual_deliveries",{taskId});
 export const getVaultAccounts = (domain)    => invoke("get_vault_accounts", { domain });
 export const getVaultAccount = (id)         => invoke("get_vault_account",  { id });
 export const saveVaultAccount = (entry)     => invoke("save_vault_account", { entry });

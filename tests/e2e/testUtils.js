@@ -87,7 +87,7 @@ export async function stopMockServer() {
   }
 }
 
-export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = 'debug', reuseWorkspace = null, managedBrowser=false, browserPython=null, allowMissingBrowserRuntime=false } = {}) {
+export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = process.env.ZEUS_TEST_RELEASE==='1'?'release':'debug', reuseWorkspace = null, managedBrowser=false, browserPython=null, allowMissingBrowserRuntime=false } = {}) {
   if (tauriProcess && tauriProcess.exitCode === null) throw new Error('A test app is already running');
   const offline = process.env.ZEUS_OFFLINE_TEST === '1';
   if (offline && useRealApi) throw new Error('Offline tests cannot launch a live-provider runtime');

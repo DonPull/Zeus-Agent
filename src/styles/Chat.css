@@ -39,11 +39,14 @@
 
 /* ---- top bar ---- */
 #chat-top-bar {
+    flex-wrap: wrap;
     padding: 14px 24px;
     border-bottom: 2px solid var(--zeus-border);
     justify-content: space-between;
     gap: 20px;
 }
+#chat-top-bar > div { flex-wrap: wrap; min-width: 0; }
+#chat-task-title { min-width: 0; max-width: 100%; }
 
 #chat-task-title {
     font-family: 'Lato-Bold';
@@ -1198,6 +1201,26 @@
 }
 
 /* ---- Replay Modal ---- */
+.browser-viewer { gap: 10px; min-height: 0; color: var(--zeus-text); }
+.browser-viewer:fullscreen { background: var(--zeus-background, #13151c); padding: 16px; box-sizing: border-box; width: 100vw; height: 100vh; }
+.browser-viewer-toolbar, .browser-viewer-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
+.browser-viewer-toolbar label, .browser-viewer-action label { display: inline-flex; align-items: center; gap: 6px; }
+.browser-viewer select { background: var(--zeus-input-bg, #242630); color: inherit; border: 1px solid var(--zeus-border, #454753); padding: 5px 8px; border-radius: 6px; }
+.browser-viewer-status, .browser-viewer-action, .browser-viewer-notice { font-size: 13px; overflow-wrap: anywhere; flex-shrink: 0; }
+.browser-viewer-notice { color: #efc77a; }
+.browser-viewer .modal-close-button, .browser-history-window .modal-close-button { background: var(--zeus-panel-2); border: 1px solid var(--zeus-border); border-radius: 6px; color: var(--zeus-text); min-width: 30px; min-height: 30px; cursor: pointer; }
+.browser-viewer-address { flex: 1; min-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.browser-viewer-footer { font-size: 12px; }
+.browser-viewer-footer > span { flex: 1; min-width: 160px; opacity: .8; }
+.browser-viewer .browser-viewer-viewport { display: flex; align-items: center; justify-content: center; padding: 8px; flex: 1; min-height: 0; overflow: auto; }
+.browser-viewer .browser-viewer-viewport.zoomed { align-items: flex-start; justify-content: flex-start; }
+.browser-viewer .browser-viewer-image { position: relative; flex: none; max-width: none; max-height: none; }
+.browser-viewer .browser-viewer-image img { display: block; max-width: none; max-height: none; object-fit: contain; }
+.browser-viewer-empty { margin: auto; text-align: center; color: var(--zeus-text-muted, #aaaebd); padding: 24px; }
+.browser-viewer-details { flex-shrink: 0; font-size: 12px; }
+.browser-viewer-details pre { max-height: 140px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.modal-container.browser-history-window { width: min(800px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.browser-history-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--zeus-border); border-radius: 8px; background: var(--zeus-panel-2); color: var(--zeus-text); text-align: left; }
 .modal-container.replay-modal-window,
 .modal-container.live-modal-window {
     width: calc(100vw - 32px) !important;

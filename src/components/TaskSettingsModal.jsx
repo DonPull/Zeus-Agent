@@ -306,31 +306,8 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
             <div className="column gap-20">
                 <h3 style={{ margin: 0, opacity: 0.9 }}>Browser</h3>
                 <div className="settings-section column gap-10">
-                    <div className="settings-model-row align-center gap-10">
-                        <label>Browser Mode</label>
-                        <select 
-                            className="settings-input" 
-                            style={{ flex: 1 }}
-                            value={settings.browser_mode} 
-                            onChange={e => updateSetting("browser_mode", e.target.value)}
-                        >
-                            <option value="sandboxed">Workspace Sandboxed Browser (Isolated)</option>
-                            <option value="main">User Main Browser Takeover</option>
-                        </select>
-                    </div>
-                    {settings.browser_mode === "main" && (
-                        <div className="settings-model-row align-center gap-10">
-                            <label>Browser Executable (Optional)</label>
-                            <input
-                                type="text"
-                                className="settings-input"
-                                style={{ flex: 1 }}
-                                placeholder="Auto-detect or enter path to browser .exe"
-                                value={settings.browser_executable_path}
-                                onChange={(e) => updateSetting("browser_executable_path", e.target.value)}
-                            />
-                        </div>
-                    )}
+                    <span>This task uses one shared Zeus browser. Runtime setup is in global settings. Personal-browser takeover is not enabled.</span>
+                    {(settings.browser_mode==='main'||settings.browser_executable_path)&&<><span>Your saved personal/custom-browser preference is inactive.</span><button className="settings-button" onClick={()=>{updateSetting('browser_mode','sandboxed');updateSetting('browser_executable_path',null);}}>Use Zeus’s dedicated browser</button></>}
                 </div>
             </div>
 

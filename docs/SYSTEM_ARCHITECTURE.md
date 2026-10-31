@@ -2,6 +2,8 @@
 
 This document provides detailed technical specifications of the core subsystems in the Zeus Agent desktop runtime.
 
+Browser update, 2026-10-31: the Phase 3C candidate replaces the historical launcher/recorder with one shared run-owned service. [Current contracts](../BRIDGE.md) and [delivery/acceptance](PHASE_3C_WORK_LOG.md) supersede older browser descriptions below. Personal-browser takeover and an OS sandbox are not implemented.
+
 ---
 
 ## 1. Dual Execution Paradigm: Cloud API vs. Local Model
@@ -143,7 +145,7 @@ The backend includes a dedicated execution engine for safely spawning, supervisi
 - **Dynamic Dependency Management**: Automatic `pip install` detection and dependency installation for scripts requiring external packages.
 - **Real-Time Streaming**: Standard output (`stdout`) and standard error (`stderr`) are piped back in real-time, enabling streaming terminal feedback in the UI.
 - **Audit & Syscall Trapping**: Uses Python's `sys.addaudithook` to inspect low-level network and filesystem syscalls (`urllib`, `requests`, `subprocess`, `open`).
-- **Browser CDP Injection**: Injects the active browser's CDP WebSocket URL via environment variables so generated automation scripts can hook directly into open browser pages.
+- **Shared browser client**: Injects an authenticated task/root/caller-scoped `zeus_browser.call` client. No actor CDP endpoint, private browser launch or per-script recording session. File/network approval instrumentation remains; Python is not an OS security sandbox.
 
 ---
 
@@ -159,7 +161,7 @@ The React frontend communicates with the Rust core exclusively through the bridg
 
 ## 9. Observability, Session Replay & Interactive Run Control
 
-- **Browser Session Replay**: Interactive modal that replays browser actions step-by-step with synchronized action metadata, highlighted selector boundaries, visual screenshots, and generated Playwright code.
+- **Browser Session Replay**: Read-only paged actual-action/outcome history and available timed before/after images, explicit coverage gaps and export/delete controls. It does not re-execute stored code/pages or claim pixel-perfect video. Live viewing independently samples the current target tab.
 - **Action Plan Stepper**: Real-time visual progress bar (`ActionPlanPanel.jsx`) displaying plan stages (`pending`, `in_progress`, `completed`, `interrupted`) parsed from agent directives.
 - **Interactive Budget Pause & Extension**: When a task approaches or exceeds its credit limit, the backend pauses execution and emits a budget notice. The user can review consumed units and grant an extension directly in the UI via `resolveBudgetDecision`.
 
