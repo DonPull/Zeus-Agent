@@ -77,6 +77,11 @@ test('live and replay viewers use the available window and resize actual images 
             await modal.getByRole('button',{name:'Forward 100 actions',exact:true}).click();await expect(modal).toContainText('Action 189 of 189');
             await expect(modal.getByRole('button',{name:'Forward 1 action',exact:true})).toBeDisabled();
             await expect(modal.getByRole('button',{name:'Export recording'})).toHaveCount(0);
+            await modal.getByRole('spinbutton',{name:'Replay speed'}).fill('90');await modal.getByRole('spinbutton',{name:'Replay speed'}).blur();
+            const replayStart=Date.now();await modal.getByRole('button',{name:'Play replay',exact:true}).click();
+            await expect.poll(()=>modal.locator('.replay-position').textContent(),{timeout:30000}).toBe('Action 189 of 189');
+            await expect(modal.getByRole('button',{name:'Play replay',exact:true})).toBeVisible();
+            console.log(JSON.stringify({replay_speed_measurement:{fixture:'189 synthetic archived PNG actions; software/UI only',requested_steps_per_second:90,elapsed_ms:Date.now()-replayStart}}));
             await modal.getByRole('spinbutton',{name:'Replay speed'}).fill('4');
             await modal.getByRole('button',{name:'Play replay',exact:true}).click();
             await expect(modal.getByRole('button',{name:'Pause',exact:true})).toBeVisible();

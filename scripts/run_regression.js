@@ -45,7 +45,7 @@ if (requested.includes('--release')) {
   env.ZEUS_TEST_RELEASE='1';
   run('cargo',['build','--release','--locked','--bin','zeus-evaluation','--features','evaluation-runner'],path.join(root,'src-tauri'));
   if(!code)run(process.execPath,[path.join(root,'node_modules/@playwright/test/cli.js'),'test','--config=playwright.offline.config.js',
-    'attachments','browser_capture','browser_ownership','browser_recordings','browser_visuals','browser_readiness','message_links','viewer_layout','replay_polish','--grep',
-    'large valid image|one root-owned browser|Stop during navigation|ordinary fresh launch|production collector and live viewer|real before/after evidence|explicit worker screenshot|readiness checks preserve|task files reveal|live and replay viewers use|replay keeps decoded images']);
+    'attachments','browser_capture','browser_ownership','browser_recordings','browser_visuals','browser_readiness','message_links','viewer_layout','replay_polish','chat_refinements','--grep',
+    'large valid image|one root-owned browser|Stop during navigation|ordinary fresh launch|production collector and live viewer|real before/after evidence|explicit worker screenshot|readiness checks preserve|task files reveal|live and replay viewers use|replay keeps decoded images|settings headers stay visible|normal model responses name|persistent UI showcase']);
 }
 process.exitCode = code;

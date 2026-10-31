@@ -1,0 +1,80 @@
+import {test,expect} from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {startMockServer,stopMockServer,launchTauri,stopTauri,queueMockResponse,getMockRequests} from '../e2e/testUtils.js';
+const reply=content=>({choices:[{delta:{content}}],usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10}});
+const directive=value=>'```zeus-directive\n'+JSON.stringify(value)+'\n```';
+const action=async(page,name)=>{const button=page.locator('#chat-top-bar').getByRole('button',{name,exact:true});if(await button.isVisible())return button.click();await page.getByRole('button',{name:'More chat actions'}).click();await page.getByRole('menuitem',{name,exact:true}).click();};
+test.afterEach(async()=>{await stopTauri();await stopMockServer();});
+
+test('settings headers stay visible, chat actions overflow in two rows and expanded drafts retain pasted images',async({},info)=>{
+    await startMockServer();const {page}=await launchTauri();await expect(page.locator('#app-container')).toBeVisible();
+    const task=await page.evaluate(()=>window.__ZEUS_BRIDGE__.createTask('A long conversation title for responsive header and modal checks'));
+    await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__());await page.locator('.sidebar-task-title').filter({hasText:'A long conversation title'}).click();
+    await expect(page.locator('#benchmark-mode-button')).toHaveCount(0);
+    await page.setViewportSize({width:1000,height:760});
+    const header=page.locator('#chat-top-bar');await expect(header).toHaveClass('compact');
+    const title=await page.locator('#chat-task-title').boundingBox(),box=await header.boundingBox();expect(Math.abs(title.x+title.width/2-box.x-box.width/2)).toBeLessThan(1);
+    await expect(page.getByRole('button',{name:'More chat actions'})).toBeVisible();
+    await page.screenshot({path:info.outputPath('header-1000.png')});
+    await page.setViewportSize({width:820,height:760});
+    await expect(header).toHaveClass('compact');
+    const controls=await page.locator('.chat-header-controls').boundingBox(),narrow=await header.boundingBox();
+    expect(controls.x+controls.width).toBeLessThanOrEqual(narrow.x+narrow.width);
+    expect(controls.y+controls.height).toBeLessThanOrEqual(narrow.y+narrow.height);
+    await page.screenshot({path:info.outputPath('header-820.png')});
+    await page.setViewportSize({width:1920,height:960});await expect(header).not.toHaveClass('compact');
+    await page.setViewportSize({width:1000,height:760});await expect(header).toHaveClass('compact');
+    await action(page,'Settings');
+    const checkPinned=async(closeId)=>{
+        await page.locator('.settings-dialog-window').evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
+        const close=page.locator(closeId),start=await close.boundingBox(),body=page.locator('.settings-panel-body');
+        await body.evaluate(el=>el.scrollTop=el.scrollHeight);const end=await close.boundingBox();expect(end.y).toBe(start.y);
+        const scroll=await body.boundingBox();expect(scroll.y).toBeGreaterThan(end.y+end.height);
+        expect((await page.locator('.settings-dialog-window').boundingBox()).width).toBeGreaterThan(900);
+        await close.click();
+    };
+    await checkPinned('#task-settings-close-button');await page.locator('#sidebar-settings-button').click();
+    await page.locator('.settings-dialog-window').evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
+    await page.screenshot({path:info.outputPath('settings-fixed-header.png')});await checkPinned('#settings-close-button');
+    await action(page,'Chat log');
+    await page.locator('.chat-log-dialog-window').evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
+    const log=page.locator('.chat-log-dialog-window'),name=await page.locator('#chat-log-title').boundingBox(),copy=await page.locator('#chat-log-copy-debug').boundingBox();
+    expect(copy.x-name.x-name.width).toBeGreaterThanOrEqual(23);expect((await log.boundingBox()).width).toBeGreaterThan(900);
+    await page.screenshot({path:info.outputPath('chat-log-wide.png')});await page.getByRole('button',{name:'Close chat log'}).click();
+    const bytes=fs.readFileSync('tests/benchmarks/missions/v1/V01/inputs/7f91c2a0.png');
+    const paste=()=>page.locator('#chat-input').evaluate((input,data)=>{const clipboardData=new DataTransfer();clipboardData.items.add(new File([new Uint8Array(data)],'pasted.png',{type:'image/png'}));input.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));},Array.from(bytes));
+    await paste();await expect(page.locator('#attachment-tray img')).toHaveCount(1);await page.locator('#chat-input-expand-button').click();await paste();
+    await expect(page.locator('#chat-composer.expanded #attachment-tray img')).toHaveCount(2);await expect(page.locator('#attachment-tray')).toBeVisible();
+    await page.screenshot({path:info.outputPath('expanded-with-images.png')});await page.locator('#chat-input-expand-button').click();await expect(page.locator('#attachment-tray img')).toHaveCount(2);
+    expect(getMockRequests()).toHaveLength(0);
+});
+
+test('normal model responses name new chats, manual rename wins, and Done plans display completed without duplicate notes',async({},info)=>{
+    await startMockServer();const {page}=await launchTauri();await expect(page.locator('#app-container')).toBeVisible();
+    const make=()=>page.evaluate(async()=>{const settings=await window.__ZEUS_BRIDGE__.getSettings();await window.__ZEUS_BRIDGE__.saveSettings({...settings,watcher_model:'phase1-mock',model_bindings:{}});const task=await window.__ZEUS_BRIDGE__.createTask('New agent task');await window.__ZEUS_BRIDGE__.updateTaskSettings(task.id,{master_model:'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',vision_model:'None',budget_credits:100000,model_bindings:{}});return task;});
+    const task=await make();queueMockResponse(reply('[[chat_title: Review library duplicates]]\n'+directive({type:'update_action_plan',action_plan:'- [Done] Inspect inputs\n- [Done] Verify result'})));queueMockResponse(reply(directive({type:'final_answer',final_answer:{summary:'The controlled review completed.'}})));
+    await page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Review the library and check duplicate entries, preserving the full input prompt instead of truncating it into a title.',crypto.randomUUID()),task.id);
+    await expect.poll(()=>page.evaluate(async id=>(await window.__ZEUS_BRIDGE__.listTasks()).find(task=>task.id===id).title,task.id)).toBe('Review library duplicates');
+    await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__());await page.locator('.sidebar-task-title[title="Review library duplicates"]').click();await action(page,'Action Plan');
+    await expect(page.locator('.action-plan-progress-info')).toContainText('100%');await expect(page.getByRole('button',{name:/Show notes|Full Plan Notes/})).toHaveCount(0);
+    await expect(page.locator('#chat-messages')).not.toContainText('[[chat_title:');await page.screenshot({path:info.outputPath('completed-plan-and-title.png')});
+    expect(getMockRequests()).toHaveLength(2);
+    const other=await make();queueMockResponse({...reply('[[chat_title: Automatic title]]\nA complete answer.'),_delay_ms:1000});
+    await page.evaluate(id=>{window.__TITLE_SEND__=window.__ZEUS_BRIDGE__.sendUserMessage(id,'Answer the example question.',crypto.randomUUID());},other.id);
+    await expect.poll(()=>page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id).then(run=>run?.status),other.id)).toBe('running');
+    await page.evaluate(id=>window.__ZEUS_BRIDGE__.renameTask(id,'My chosen title'),other.id);await page.evaluate(()=>window.__TITLE_SEND__);
+    expect(await page.evaluate(async id=>(await window.__ZEUS_BRIDGE__.listTasks()).find(task=>task.id===id).title,other.id)).toBe('My chosen title');
+});
+
+test('the persistent UI showcase is inert and contains all browser lifecycle variants without model requests',async({},info)=>{
+    await startMockServer();const app=await launchTauri(),page=app.page;await expect(page.locator('#app-container')).toBeVisible();
+    const created=JSON.parse(execFileSync(process.execPath,['scripts/diagnostics/create_ui_showcase.js','--data-dir',app.workspace],{cwd:path.resolve('.'),windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe']}));expect(created.created).toBe(true);
+    await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__());await page.locator('.sidebar-task-title[title="UI showcase — card variants"]').click();
+    await expect(page.locator('.ui-showcase-example')).toHaveCount(29);await expect(page.locator('.ui-showcase-example [aria-label="Managed browser session"]')).toHaveCount(9);
+    await expect(page.locator('#chat-send-button')).toBeDisabled();await expect(page.locator('#chat-input')).toHaveAttribute('readonly','');
+    await expect(page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Run this example',crypto.randomUUID()),created.task_id)).rejects.toThrow('SHOWCASE_READ_ONLY');
+    expect(await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),created.task_id)).toBeNull();expect(getMockRequests()).toHaveLength(0);
+    await page.locator('#chat-messages').evaluate(el=>el.scrollTop=0);await page.screenshot({path:info.outputPath('showcase-browser-cards.png')});
+});

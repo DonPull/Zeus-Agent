@@ -1029,6 +1029,9 @@ mod tests {
         assert_eq!(steps[1].status, "in_progress");
         assert_eq!(steps[2].status, "pending");
         assert!(steps[0].title.contains("Initialize project"));
+        let completed = parse_markdown_steps("- [Done] Inspect inputs\n- [COMPLETED] Verify output");
+        assert_eq!(completed.len(), 2);
+        assert!(completed.iter().all(|step| step.status == "completed"));
     }
 }
 
@@ -1046,7 +1049,7 @@ pub fn parse_markdown_steps(markdown: &str) -> Vec<ActionPlanStep> {
                 && trimmed.contains(". ["))
         {
             let lower = trimmed.to_lowercase();
-            let status = if trimmed.contains("[x]") || trimmed.contains("[X]") {
+            let status = if trimmed.contains("[x]") || trimmed.contains("[X]") || lower.contains("[done]") || lower.contains("[completed]") {
                 "completed"
             } else if trimmed.contains("[/]")
                 || trimmed.contains("[-]")

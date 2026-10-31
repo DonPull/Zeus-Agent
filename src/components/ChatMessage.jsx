@@ -505,7 +505,13 @@ function ChatMessage({
     onOpenLiveView,
     onOpenReplay,
     onReuseAttachment,
+    preview=false,
 }) {
+    if(message.kind==='ui_showcase'){
+        if(preview)return null;const data=parseEventContent(message);if(!data?.card)return null;
+        const card={...data.card,id:message.id,task_id:message.task_id,visible:true};
+        return <section className="ui-showcase-example"><span className="ui-showcase-caption">Design preview · {data.label} · Controls are inactive</span><div inert=""><ChatMessage message={card} preview reasoning={data.reasoning||''} onReuseAttachment={()=>{}} onApprovalDecision={()=>{}} onHandoffDecision={()=>{}} onChoiceDecision={()=>{}}/></div></section>;
+    }
     if (message.role === "user") {
         return (
             <div className="chat-message user">
@@ -513,14 +519,14 @@ function ChatMessage({
                     <div className="chat-bubble-content markdown-body">
                         <MessageMarkdown taskId={message.task_id} messageId={message.id}>{message.content}</MessageMarkdown>
                     </div>
-                    <MessageAttachments files={message.attachments} onReuse={onReuseAttachment}/>
+                    <MessageAttachments files={message.attachments} onReuse={onReuseAttachment} preview={preview}/>
                 </div>
             </div>
         );
     }
 
     if (message.role === "event") {
-        if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message} onOpenLiveView={onOpenLiveView} onOpenReplay={onOpenReplay}/>;
+        if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message} onOpenLiveView={onOpenLiveView} onOpenReplay={onOpenReplay} preview={preview}/>;
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
         if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;

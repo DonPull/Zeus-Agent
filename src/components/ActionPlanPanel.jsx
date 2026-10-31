@@ -3,92 +3,15 @@ import ModalCloseButton from './ModalCloseButton';
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "../styles/ActionPlan.css";
-
-function parseMarkdownSteps(markdown) {
-    if (!markdown) return [];
-    const steps = [];
-    const lines = markdown.split("\n");
-    let hasInProgress = false;
-
-    for (const rawLine of lines) {
-        const line = rawLine.trim();
-        // Check for checkbox syntax: - [x] or * [x] or - [ ] or * [ ]
-        const checkMatch = line.match(/^[-*]\s*\[([ xX])\]\s*(.+)$/);
-        if (checkMatch) {
-            const isDone = checkMatch[1].toLowerCase() === "x";
-            const text = checkMatch[2].trim();
-            const lower = text.toLowerCase();
-            let status = "pending";
-            if (isDone) {
-                status = "completed";
-            } else if (lower.includes("(in progress)") || lower.includes("[in progress]") || lower.includes("(current)")) {
-                status = "in_progress";
-                hasInProgress = true;
-            }
-            steps.push({
-                title: text.replace(/\s*[([](in progress|current)[)\]]/i, "").trim(),
-                status,
-                description: null,
-            });
-            continue;
-        }
-
-        // Check for numbered list: 1. Step title
-        const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
-        if (numMatch) {
-            const text = numMatch[2].trim();
-            const lower = text.toLowerCase();
-            let status = "pending";
-            if (lower.includes("(done)") || lower.includes("[done]") || lower.includes("✓")) {
-                status = "completed";
-            } else if (lower.includes("(in progress)") || lower.includes("[in progress]")) {
-                status = "in_progress";
-                hasInProgress = true;
-            }
-            steps.push({
-                title: text.replace(/\s*[([](done|in progress)[)\]]/i, "").replace(/✓/g, "").trim(),
-                status,
-                description: null,
-            });
-        }
-    }
-
-    // If no step is explicitly marked in_progress, mark the first pending step after completed ones
-    if (!hasInProgress) {
-        for (const s of steps) {
-            if (s.status === "pending") {
-                s.status = "in_progress";
-                break;
-            }
-        }
-    }
-
-    return steps;
-}
+import {readActionPlan} from '../actionPlan';
 
 export default function ActionPlanPanel({ actionPlanMarkdown, onClose }) {
     const [showMarkdown, setShowMarkdown] = useState(false);
 
     if (!actionPlanMarkdown) return null;
 
-    let markdownText = actionPlanMarkdown;
-    let steps = null;
+    const {steps,notes:markdownText}=readActionPlan(actionPlanMarkdown);
 
-    if (typeof actionPlanMarkdown === "string" && actionPlanMarkdown.trim().startsWith("{")) {
-        try {
-            const parsed = JSON.parse(actionPlanMarkdown);
-            if (parsed.markdown) markdownText = parsed.markdown;
-            if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-                steps = parsed.steps;
-            }
-        } catch (_) {
-            // fallback to raw markdown
-        }
-    }
-
-    if (!steps || steps.length === 0) {
-        steps = parseMarkdownSteps(markdownText);
-    }
 
     const totalSteps = steps.length;
     const completedSteps = steps.filter(s => s.status === "completed").length;
@@ -144,12 +67,12 @@ export default function ActionPlanPanel({ actionPlanMarkdown, onClose }) {
                     </div>
                 )}
 
-                <button
+                {markdownText&&<button
                     className="action-plan-toggle-markdown"
                     onClick={() => setShowMarkdown(!showMarkdown)}
                 >
-                    {showMarkdown ? "▲ Hide Full Plan Notes" : "▼ Show Full Plan Notes"}
-                </button>
+                    {showMarkdown ? "▲ Hide notes" : "▼ Show notes"}
+                </button>}
 
                 {showMarkdown && (
                     <div className="action-plan-markdown-section">

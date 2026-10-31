@@ -25,7 +25,7 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         queueMockResponse(reply({type:'final_answer',final_answer:{summary:'The controlled browser sequence completed.'}}));
         await page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Exercise the controlled replay sequence.',crypto.randomUUID()),task.id);
         await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__?.());await page.locator('.sidebar-task').filter({has:page.locator('.sidebar-task-title[title="Replay polish"]')}).click();
-        await page.getByRole('button',{name:'Replay',exact:true}).click();
+        await page.getByRole('button',{name:'View replay',exact:true}).click();
         const modal=page.locator('.replay-modal-window'),image=modal.locator('#replay-screenshot-img'),viewport=modal.locator('.browser-viewer-viewport');
         await expect.poll(()=>image.evaluate(img=>img.naturalWidth)).toBe(1280);
         await modal.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
@@ -33,12 +33,16 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         const stable=async()=>{const current=await viewport.boundingBox();expect(Math.abs(current.y-baseline.y)).toBeLessThan(1);expect(Math.abs(current.height-baseline.height)).toBeLessThan(1);};
         const seek=async seq=>{await modal.getByRole('button',{name:new RegExp(`^Action ${seq}:`)}).click();await expect(modal.locator('.replay-position')).toHaveText(`Action ${seq} of 6`);};
         const loaded=async seq=>{await expect.poll(()=>image.getAttribute('data-action-seq')).toBe(String(seq));await expect(modal.locator('.browser-image-progress')).toHaveCount(0);};
-        await page.evaluate(()=>{
+        await page.evaluate(async()=>{
             // Real native reads and real decoding still run. Hold the decoded
             // candidate to reproduce a slow consumer without changing backend policy.
-            const Image=window.Image;
+            // Attach to the module the viewer actually imported. A reused Vite
+            // server can retain an HMR timestamp; importing its bare path then
+            // patches a second class while the mounted viewer uses the first.
+            const source=performance.getEntriesByType('resource').map(entry=>entry.name).filter(name=>/\/src\/replayLoader(?:\.js)?$/.test(new URL(name).pathname)).at(-1)||'/src/replayLoader.js';
+            const {ReplayLoader}=await import(source),deliver=ReplayLoader.prototype.image;
             window.__HELD_REPLAY_READS__=[];window.__HOLD_REPLAY_IMAGES__=false;
-            window.Image=function(...args){const image=new Image(...args),decode=image.decode.bind(image);image.decode=async()=>{await decode();if(window.__HOLD_REPLAY_IMAGES__)await new Promise(resolve=>window.__HELD_REPLAY_READS__.push(resolve));};return image;};
+            ReplayLoader.prototype.image=async function(frame,priority){const result=await deliver.call(this,frame,priority);if(priority&&window.__HOLD_REPLAY_IMAGES__)await new Promise(resolve=>window.__HELD_REPLAY_READS__.push(resolve));return result;};
             window.__RELEASE_REPLAY_READS__=()=>{window.__HOLD_REPLAY_IMAGES__=false;window.__HELD_REPLAY_READS__.splice(0).forEach(resolve=>resolve());};
             window.__REPLAY_GAPS__=0;
             window.__REPLAY_IMAGE_OBSERVER__=new MutationObserver(()=>{const img=document.querySelector('#replay-screenshot-img');if(!img||!img.getAttribute('src'))window.__REPLAY_GAPS__++;});
@@ -46,7 +50,7 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         });
         const before=await image.getAttribute('src');await page.evaluate(()=>window.__HOLD_REPLAY_IMAGES__=true);await seek(2);
         await expect.poll(()=>page.evaluate(()=>window.__HELD_REPLAY_READS__.length)).toBe(1);
-        await expect(image).toHaveAttribute('src',before);await expect(modal.locator('.browser-image-progress')).toContainText('Previous image shown');await stable();
+        await expect(image).toHaveAttribute('src',before);await expect(modal.locator('.browser-image-progress')).toHaveCount(0);await expect(modal.locator('.browser-action-description')).toContainText('Navigate');await stable();
         await page.screenshot({path:info.outputPath('retained-image-while-loading.png')});
         await page.evaluate(()=>window.__RELEASE_REPLAY_READS__());await loaded(2);await stable();
         expect(await page.evaluate(()=>{window.__REPLAY_IMAGE_OBSERVER__.disconnect();return window.__REPLAY_GAPS__;})).toBe(0);
@@ -60,6 +64,9 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
             else await loaded(seq);
             await stable();
         }
+        await seek(2);await loaded(2);await modal.locator('#replay-next-button').click();await loaded(4);
+        await modal.locator('#replay-prev-button').click();await loaded(2);
+        await seek(3);await expect(image).toHaveCount(0);await modal.locator('#replay-next-button').click();await loaded(4);
         await modal.locator('summary').filter({hasText:'Action details'}).click();
         const expanded=await viewport.boundingBox();
         for(const seq of [2,5,6]){await seek(seq);await loaded(seq);const box=await viewport.boundingBox();expect(box.y).toBe(expanded.y);expect(box.height).toBe(expanded.height);}
@@ -68,7 +75,7 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         await speed.fill('0.44');await speed.blur();await expect(speed).toHaveValue('0.4');
         for(const value of ['0','-2','']){await speed.fill(value);await speed.blur();await expect(speed).toHaveValue('0.4');}
         await speed.fill('25.6');await speed.blur();await expect(speed).toHaveValue('25.6');
-        await speed.fill('4');await speed.blur();await seek(4);
+        await speed.fill('4');await speed.blur();await seek(4);await loaded(4);
         await page.evaluate(()=>{window.__REPLAY_GAPS__=0;window.__REPLAY_IMAGE_OBSERVER__.observe(document.querySelector('.browser-viewer-viewport'),{childList:true,subtree:true,attributes:true,attributeFilter:['src']});window.__HOLD_REPLAY_IMAGES__=true;});
         await modal.getByRole('button',{name:'Play replay',exact:true}).click();
         await expect.poll(()=>page.evaluate(()=>window.__HELD_REPLAY_READS__.length)).toBe(1);await expect(image).toBeVisible();

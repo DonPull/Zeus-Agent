@@ -14,6 +14,8 @@ pub mod browser_capture;
 pub mod browser_recordings;
 pub mod browser_visuals;
 pub mod message_links;
+pub mod task_titles;
+pub mod ui_showcase;
 pub mod managed_browser;
 pub mod process_tree;
 pub mod gatekeeper;

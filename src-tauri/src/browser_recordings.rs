@@ -258,12 +258,12 @@ pub async fn get_browser_recording_index(
         let conn=db.lock().map_err(|e|e.to_string())?;task_exists(&conn,&task_id)?;
         let after=after.unwrap_or(0);if !(0..=5000).contains(&after){return Err("BROWSER_PAGE_LIMIT: invalid cursor".into());}
         let rows:Vec<Value>=if session_id.starts_with("sess_") {
-            let (_,data)=legacy_manifest(&task_id,&session_id)?;
-            data["steps"].as_array().unwrap().iter().enumerate().skip(after as usize).take(500).map(|(i,s)|json!({"seq":i+1,"op":s["action"].as_str().unwrap_or("").chars().take(64).collect::<String>(),"status":"recorded_unverified"})).collect()
+            let (root,data)=legacy_manifest(&task_id,&session_id)?;
+            data["steps"].as_array().unwrap().iter().enumerate().skip(after as usize).take(500).map(|(i,s)|{let has_image=s["screenshot_path"].as_str().and_then(|key|capture::owned_file(&root,key).ok()).is_some_and(|path|path.is_file());json!({"seq":i+1,"op":s["action"].as_str().unwrap_or("").chars().take(64).collect::<String>(),"status":"recorded_unverified","has_image":has_image})}).collect()
         }else{
             store::session(&conn,&task_id,&session_id)?;
-            let mut stmt=conn.prepare("SELECT seq,op,status FROM managed_browser_actions WHERE session_id=?1 AND seq>?2 ORDER BY seq LIMIT 500").map_err(|e|e.to_string())?;
-            let rows=stmt.query_map(params![session_id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"op":r.get::<_,String>(1)?,"status":r.get::<_,String>(2)?}))).map_err(|e|e.to_string())?;
+            let mut stmt=conn.prepare("SELECT a.seq,a.op,a.status,EXISTS(SELECT 1 FROM managed_browser_frames f WHERE f.session_id=a.session_id AND f.action_id=a.id AND f.status='available') FROM managed_browser_actions a WHERE a.session_id=?1 AND a.seq>?2 ORDER BY a.seq LIMIT 500").map_err(|e|e.to_string())?;
+            let rows=stmt.query_map(params![session_id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"op":r.get::<_,String>(1)?,"status":r.get::<_,String>(2)?,"has_image":r.get::<_,bool>(3)?}))).map_err(|e|e.to_string())?;
             rows.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?
         };
         let next=if rows.len()==500{rows.last().and_then(|r|r["seq"].as_i64())}else{None};

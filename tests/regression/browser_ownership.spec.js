@@ -68,7 +68,7 @@ test('one root-owned browser survives separate Python clients, records effects, 
     await app.page.evaluate(async id=>{await window.__ZEUS_REFRESH_TASKS__?.();},app.task.id);
     await app.page.locator('.sidebar-task').filter({has:app.page.locator('.sidebar-task-title[title="Owned browser regression"]')}).click();
     await expect(app.page.getByRole('status',{name:'Managed browser session'})).toHaveCount(1);
-    await expect(app.page.getByRole('status',{name:'Managed browser session'})).toContainText('Browser closed');
+    await expect(app.page.getByRole('status',{name:'Managed browser session'})).toContainText('Finished');
     await app.page.setViewportSize({width:1000,height:760});await app.page.screenshot({path:testInfo.outputPath('owned-browser-card.png')});
     await app.page.reload();
     await app.page.locator('.sidebar-task').filter({has:app.page.locator('.sidebar-task-title[title="Owned browser regression"]')}).click();
@@ -100,7 +100,8 @@ test('app restart retains uncertain actions and hydrates interrupted browser sta
     const messages=await restarted.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id),app.task.id);
     expect(JSON.parse(messages.find(message=>message.kind==='managed_browser_session').content).status).toBe('interrupted');
     await restarted.page.locator('.sidebar-task').filter({has:restarted.page.locator('.sidebar-task-title[title="Owned browser regression"]')}).click();
-    await expect(restarted.page.getByRole('status',{name:'Managed browser session'})).toContainText('Browser interrupted');
+    const card=restarted.page.getByRole('status',{name:'Managed browser session'});
+    await expect(card).toContainText('Browser session');await expect(card.locator('.browser-card-status')).toHaveText('Interrupted');
 });
 
 test('data-only scripts never acquire a browser',async()=>{

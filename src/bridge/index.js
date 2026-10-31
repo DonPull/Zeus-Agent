@@ -78,6 +78,7 @@ export const negotiateWatcherPolicy   = (scope, prompt)                         
 
 // ---- Events (used from M1 onward; the core emits task progress here) --------
 export const onTaskEvent   = (callback) => listen("task-event",   (event) => callback(event.payload));
+export const onTaskTitle = callback => listen('task-title',event=>callback(event.payload));
 export const onChatStream  = (callback) => listen("chat-stream",  (event) => callback(event.payload));
 
 // ---- Live task messages (action cards, approvals) ---------------------------

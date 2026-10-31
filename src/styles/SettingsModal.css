@@ -103,28 +103,6 @@
     margin-bottom: 6px;
 }
 
-#settings-close-button {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background-color: var(--zeus-panel-2);
-    border: 2px solid var(--zeus-border);
-    justify-content: center;
-    align-items: center;
-    padding: 0;
-    transition: 120ms;
-}
-
-#settings-close-button label {
-    color: var(--zeus-text);
-    font-size: 14px;
-}
-
-#settings-close-button:hover {
-    background-color: #eaeaea1a;
-    border-color: #ff5c5c66;
-    box-shadow: inset 0 0 5px 1px #ffffff17;
-}
 
 /* ---- chat log modal ---- */
 #chat-log-modal { width: 100%; }

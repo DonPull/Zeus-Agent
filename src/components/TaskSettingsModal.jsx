@@ -133,11 +133,12 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
     };
 
     return (
-        <div className="modal column gap-20" style={{ padding: "24px", minWidth: "500px", maxHeight: "80vh", overflowY: "auto" }}>
-            <div className="align-center justify-space-between">
+        <div className="settings-panel column">
+            <div className="settings-panel-header align-center justify-space-between">
                 <h2 style={{ margin: 0 }}>Task Settings</h2>
                 <ModalCloseButton id="task-settings-close-button" label="Close task settings" onClick={onClose}/>
             </div>
+            <div className="settings-panel-body column gap-20">
 
             <div className="column gap-20" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "20px" }}>
                 <h3 style={{ margin: 0, opacity: 0.9 }}>Chat Models</h3>
@@ -313,6 +314,7 @@ const TaskSettingsModal = ({ task, onClose, onSave, onToast }) => {
             <button id="task-save-settings-button" className={`settings-button align-center justify-center ${saving ? "is-loading" : ""}`} onClick={handleSaveSettings} disabled={saving}>
                 <label>{saving ? "Saving..." : "Save settings"}</label>
             </button>
+            </div>
         </div>
     );
 };

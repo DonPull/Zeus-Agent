@@ -11,8 +11,9 @@ fn main() {
 }
 fn run() -> Result<serde_json::Value, String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let usage="Usage: zeus-diagnostics export-browser --task UUID --session UUID [--data-dir ABSOLUTE_DIRECTORY]";
-    if args.first().map(String::as_str) != Some("export-browser") {
+    let usage="Usage: zeus-diagnostics export-browser --task UUID --session UUID [--data-dir ABSOLUTE_DIRECTORY]\n       zeus-diagnostics create-ui-showcase [--data-dir ABSOLUTE_DIRECTORY]";
+    let showcase = args.first().map(String::as_str) == Some("create-ui-showcase");
+    if !showcase && args.first().map(String::as_str) != Some("export-browser") {
         return Err(usage.into());
     }
     let (mut task, mut session) = (None, None);
@@ -32,6 +33,9 @@ fn run() -> Result<serde_json::Value, String> {
             _ => return Err(usage.into()),
         }
         index += 2;
+    }
+    if showcase {
+        return zeus_agent_lib::ui_showcase::create_in_workspace();
     }
     zeus_agent_lib::browser_recordings::export_diagnostic_recording(
         task.ok_or(usage)?,

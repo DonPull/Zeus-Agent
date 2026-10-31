@@ -1139,6 +1139,7 @@ pub async fn send_user_message(
     request_id: String,
     attachment_ids: Option<Vec<String>>,
 ) -> Result<SendResultDto, String> {
+    {let conn=state.db.lock().map_err(|e|e.to_string())?;if conn.query_row("SELECT EXISTS(SELECT 1 FROM messages WHERE task_id=?1 AND kind='ui_showcase')",[&task_id],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?{return Err("SHOWCASE_READ_ONLY: this conversation contains inert UI examples; start a new chat to run an agent".into());}}
     let attachment_ids=attachment_ids.unwrap_or_default();
     let content = content.trim().to_string();
     if content.is_empty() && attachment_ids.is_empty() {
@@ -1230,7 +1231,7 @@ async fn execute_user_turn(
             .db
             .lock()
             .map_err(|e| format!("Database lock error: {}", e))?;
-        let mut task = load_task(&connection, task_id)?;
+        let task = load_task(&connection, task_id)?;
 
         if task.budget_credits > 0 && task.spent_credits >= task.budget_credits as f64 {
             let mut warning = new_message(
@@ -1247,7 +1248,6 @@ async fn execute_user_turn(
             });
         }
 
-        let now = now_iso();
         // If this message carries an approval decision, stamp the latest pending
         // approval card so it deactivates and the decision survives reloads.
         let mut updated_approval: Option<MessageDto> = None;
@@ -1326,19 +1326,7 @@ async fn execute_user_turn(
             }
         }
 
-        if task.title == DEFAULT_TASK_TITLE {
-            let mut title: String = content.chars().take(48).collect();
-            if content.chars().count() > 48 {
-                title.push('…');
-            }
-            connection
-                .execute(
-                    "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![title, now, task_id],
-                )
-                .map_err(|e| format!("Failed to update the task title: {}", e))?;
-            task.title = title;
-        }
+        crate::task_titles::prepare(&connection,task_id)?;
 
         let mut history = load_master_history(&connection, task_id, &task.master_model, Some(&task.master_effort))?;
         if let Some(system)=history.iter_mut().find(|message|message.role=="system") {
@@ -1511,6 +1499,8 @@ async fn execute_user_turn(
             });
         }
 
+        let title_requested={let conn=state.db.lock().map_err(|e|e.to_string())?;crate::task_titles::pending(&conn,task_id)};
+        if title_requested{history.push(ChatMessage{role:"system".into(),content:crate::task_titles::INSTRUCTION.into(),images:vec![]});}
         // Keep the streaming future in its own scope. It immutably borrows
         // `history`, so it must be dropped before this iteration appends any
         // assistant or directive-result messages to the history.
@@ -1555,7 +1545,7 @@ async fn execute_user_turn(
                             &task_id,
                             "assistant",
                             "chat",
-                            text,
+                            crate::task_titles::visible_partial(&text).to_owned(),
                             None,
                             None,
                             true,
@@ -1571,6 +1561,7 @@ async fn execute_user_turn(
         if !delivery_ids.is_empty(){let conn=state.db.lock().map_err(|e|e.to_string())?;
             crate::attachments::finish_delivery(&conn,&delivery_ids,stream_result.as_ref().ok().and_then(|value|value.2.request_id.as_deref()),stream_result.as_ref().err().map(String::as_str))?;}
         if !delivery_ids.is_empty(){emit_attachment_state(state,app_handle,&user_message)?;}
+        if title_requested{let _=history.pop();}
         if injected_plan.is_some() {
             let _ = history.pop();
         }
@@ -1634,6 +1625,13 @@ async fn execute_user_turn(
         }
 
         let model_name = model_used.unwrap_or_else(|| master_model.clone());
+
+        if let Some((title,body))=crate::task_titles::proposal(&reply_text){
+            let body=body.to_owned();let changed={let conn=state.db.lock().map_err(|e|e.to_string())?;crate::task_titles::apply(&conn,task_id,&title)?};
+            if changed{let _=app_handle.emit("task-title",serde_json::json!({"task_id":task_id,"title":title}));}
+            let mut raw=new_message(task_id,"assistant","title_proposal",reply_text[..reply_text.len()-body.len()].into(),None,Some(model_name.clone()),false);persist_and_emit(state,app_handle,task_id,&mut raw)?;
+            reply_text=body;
+        }
 
         // Persist the spend for this iteration.
         let units = {
@@ -1978,6 +1976,7 @@ async fn execute_user_turn(
                             ).unwrap_or(0)
                         };
 
+                        let steps_source=if steps.as_ref().is_some_and(|s|!s.is_empty()){"explicit"}else{"markdown"};
                         let parsed_steps = match steps {
                             Some(s) if !s.is_empty() => s,
                             _ => orchestrator::parse_markdown_steps(&action_plan),
@@ -1986,6 +1985,7 @@ async fn execute_user_turn(
                         let stored_payload = serde_json::json!({
                             "markdown": action_plan,
                             "steps": parsed_steps,
+                            "steps_source":steps_source,
                         }).to_string();
 
                         let mut msg = new_message(
@@ -2666,12 +2666,7 @@ pub async fn rename_task(
         .db
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
-    connection
-        .execute(
-            "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
-            params![title, now_iso(), task_id],
-        )
-        .map_err(|e| format!("Failed to rename the task: {}", e))?;
+    crate::task_titles::manual(&connection,&task_id,title)?;
     Ok(())
 }
 

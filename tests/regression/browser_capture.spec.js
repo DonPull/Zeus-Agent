@@ -77,7 +77,7 @@ test('production collector and live viewer recover changing pixels across close 
         await expect.poll(()=>app.page.locator('#live-viewport-img').evaluate(img=>img.naturalWidth)).toBe(1280);
     };
     await app.page.setViewportSize({width:1320,height:840});await openViewer();
-    await expect(app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
+    await expect(app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'View replay',exact:true})).toHaveCount(0);
     await expect(app.page.locator('.browser-viewer-badge')).toHaveText('Live');
     expect((await capture()).capture.frame.quality).toBe(80);
     await app.page.evaluate(()=>{window.__VIEWED_IMAGES__=0;window.__VIEWED_IMAGE_OBSERVER__=new MutationObserver(()=>window.__VIEWED_IMAGES__++);window.__VIEWED_IMAGE_OBSERVER__.observe(document.querySelector('#live-viewport-img'),{attributes:true,attributeFilter:['src']});});

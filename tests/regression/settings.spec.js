@@ -24,6 +24,7 @@ test('global and task model dropdowns open, select and persist without blanking 
     await page.keyboard.press('Escape');await expect(page.locator('#settings-modal-content')).toHaveCount(0);
     const task=await page.evaluate(async()=>{const task=await window.__ZEUS_BRIDGE__.createTask('Settings regression');await window.__ZEUS_REFRESH_TASKS__?.();return task;});
     await page.locator('.sidebar-task').filter({has:page.locator('.sidebar-task-title[title="Settings regression"]')}).click();
+    if(!await page.locator('#chat-task-settings-button').isVisible())await page.getByRole('button',{name:'More chat actions'}).click();
     await page.locator('#chat-task-settings-button').click();
     for(const role of ['master','worker','verifier','watcher','vision']){
         await page.getByRole('combobox',{name:`${role} model`,exact:true}).click();
@@ -31,6 +32,7 @@ test('global and task model dropdowns open, select and persist without blanking 
     }
     await page.locator('#task-save-settings-button').click();
     await expect.poll(()=>page.evaluate(async id=>(await window.__ZEUS_BRIDGE__.listTasks()).find(task=>task.id===id).master_model,task.id)).toBe('phase1-mock');
+    if(!await page.locator('#chat-task-settings-button').isVisible())await page.getByRole('button',{name:'More chat actions'}).click();
     await page.locator('#chat-task-settings-button').click();
     for(const role of ['master','worker','verifier','watcher','vision'])await expect(page.getByRole('combobox',{name:`${role} model`,exact:true})).toContainText('phase1-mock');
     await expect(page.locator('#app-container')).toBeVisible();expect(errors).toEqual([]);

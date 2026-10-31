@@ -46,6 +46,25 @@
     gap: 20px;
 }
 #chat-top-bar > div { flex-wrap: wrap; min-width: 0; }
+#chat-top-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px 24px; }
+#chat-top-bar.compact { grid-template-columns:minmax(0,1fr); }
+#chat-top-bar.compact #chat-task-title { text-align:center; }
+#chat-top-bar > .chat-header-controls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:nowrap; gap:10px; min-width:0; }
+.chat-header-controls > button { flex:none; white-space:nowrap; }
+.chat-header-controls #chat-spend-container { min-width:0; flex:0 1 auto; }
+.chat-header-controls #chat-spend-label { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-header-controls #chat-spend-bar { flex:none; }
+.chat-header-overflow { position:relative; flex:none; }
+.chat-header-menu { position:absolute; right:0; top:calc(100% + 8px); display:flex; flex-direction:column; gap:4px; padding:8px; min-width:170px; background:var(--zeus-panel-2); border:1px solid var(--zeus-border); border-radius:10px; box-shadow:0 10px 30px #0009; z-index:45; }
+.chat-header-menu button { white-space:nowrap; text-align:left; }
+#chat-top-bar > .chat-header-measure { position:fixed; left:-20000px; top:0; visibility:hidden; pointer-events:none; display:flex; flex-wrap:nowrap; width:max-content; gap:0; }
+.chat-header-measure > * { flex:none; white-space:nowrap; }
+.chat-header-measure .title-measure { font-family:'Lato-Bold'; font-size:18px; }
+.chat-header-measure .units-measure { font-family:monospace; font-size:13px; }
+.browser-card-status { display:block; font-size:12px; padding:3px 7px; border:1px solid currentColor; border-radius:6px; }
+.ui-showcase-example { display:flex; flex-direction:column; gap:10px; padding:12px; border:1px dashed var(--zeus-border); border-radius:12px; }
+.ui-showcase-example > div { display:block; }
+.ui-showcase-caption { display:block; font-size:12px; color:var(--zeus-text-dim); }
 #chat-task-title { min-width: 0; max-width: 100%; }
 
 #chat-task-title {
@@ -569,7 +588,7 @@
     color: var(--zeus-accent);
 }
 
-#chat-input-bar.expanded {
+#chat-composer.expanded {
     position: absolute;
     inset: 0;
     background-color: rgba(11, 10, 15, 0.96);
@@ -578,6 +597,10 @@
     align-items: stretch;
     flex-direction: column;
 }
+#chat-composer { display:flex; flex-direction:column; flex:none; min-height:0; }
+#chat-composer.expanded #chat-input-bar { flex:1; min-height:0; padding:0; }
+#chat-composer.expanded .attachment-tray { flex:none; max-height:160px; overflow:auto; padding:0 0 12px; }
+#chat-input-bar.expanded { align-items:stretch; flex-direction:column; }
 
 #chat-input-bar.expanded #chat-input-wrapper {
     flex: 1;
@@ -1230,7 +1253,7 @@
 .replay-position { display:block; width:150px; text-align:center; font-size:12px; line-height:32px; font-variant-numeric:tabular-nums; }
 .replay-actions-strip { display:block; overflow-x:auto; overflow-y:hidden; height:56px; width:100%; scrollbar-width:thin; scrollbar-color:var(--zeus-scroll-thumb) var(--zeus-scroll-track); }
 .replay-actions-strip > div { display:block; flex:none; }
-.replay-actions-strip .replay-step-pill { position:absolute; top:4px; width:110px; height:32px; padding:4px 7px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; box-sizing:border-box; }
+.replay-actions-strip .replay-step-pill { position:absolute; top:4px; width:110px; height:32px; padding:4px 7px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; box-sizing:border-box; transition:none; animation:none; }
 .replay-playback label { display:inline-flex; align-items:center; gap:6px; font-size:12px; }
 .replay-playback label > span { display:block; }
 .replay-playback input { display:block; width:84px; }
@@ -1574,7 +1597,7 @@
     color: var(--zeus-text-dim);
     font-size: 11.5px;
     cursor: pointer;
-    transition: 0.15s ease;
+    transition: none;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;

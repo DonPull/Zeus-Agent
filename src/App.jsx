@@ -8,6 +8,8 @@ import * as bridge from "./bridge";
 import Sidebar from "./components/Sidebar";
 import ChatMessage from "./components/ChatMessage";
 import MessageMarkdown from './components/MessageMarkdown';
+import ChatHeader from './components/ChatHeader';
+import {titleFreeText} from './taskTitle';
 import SettingsModal from "./components/SettingsModal";
 import UiErrorBoundary from "./components/UiErrorBoundary";
 import TaskSettingsModal from "./components/TaskSettingsModal";
@@ -19,7 +21,7 @@ import TaskPermissionsModal from "./components/TaskPermissionsModal";
 import Toast from "./components/Toast";
 import Modal from "./components/Modal";
 import ActionPlanPanel from "./components/ActionPlanPanel";
-import { formatCredits, mergeMessages, reconcileMessageSnapshot } from "./utils";
+import { mergeMessages, reconcileMessageSnapshot } from "./utils";
 
 const WARN_PROMPT_CHARS = 5000;
 
@@ -103,6 +105,8 @@ function App() {
             showToast(`Failed to load tasks: ${err}`);
         }
     };
+
+    useEffect(()=>{const subscription=bridge.onTaskTitle(()=>refreshTasks());return()=>{subscription.then(stop=>stop());};},[]);
 
     // P0: the ONE reconcile path. Re-fetches the visible message list from the
     // DB, preserving only newer backend-versioned resource projections that
@@ -748,43 +752,6 @@ function playNotificationChime(type = "complete") {
     const actionPlanMessage = messages.filter((m) => m.kind === "action_plan").pop();
     const actionPlanMarkdown = actionPlanMessage ? actionPlanMessage.content : "";
 
-    const handleStartBenchmarkMode = async () => {
-        if (!activeTaskId) return;
-        try {
-            const scope = `task:${activeTaskId}`;
-            
-            // Configure exact requested permissions
-            const perms = [
-                { path: "D:\\Hristian projects\\Zeus-Agent", action: "allow", type: "read", match: "prefix" },
-                { path: "D:\\Hristian projects\\Zeus-Agent", action: "deny", type: "delete", match: "prefix" },
-                { path: "D:\\Hristian projects\\Zeus-Agent", action: "deny", type: "write", match: "prefix" },
-                { path: "D:\\Hristian projects\\Zeus-Agent\\EVAL_STATUS.md", action: "allow", type: "write", match: "exact" },
-                { path: "D:\\Hristian projects\\Zeus-Agent\\EVAL_STATUS.md", action: "allow", type: "read", match: "exact" },
-                { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "write", match: "exact" },
-                { path: "D:\\Hristian projects\\Zeus-Agent\\FINAL_EVAL_REPORT.md", action: "allow", type: "read", match: "exact" },
-                { path: "D:\\Hristian projects\\Zeus-Agent\\docs\\ARCHITECTURE_AND_VISION.md", action: "allow", type: "read", match: "exact" },
-                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "command", match: "prefix" },
-                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "delete", match: "prefix" },
-                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "write", match: "prefix" },
-                { path: "E:\\Programs\\Zeus-Agent", action: "allow", type: "read", match: "prefix" },
-            ];
-
-            for (const p of perms) {
-                await bridge.addFilePermission(scope, p.path, p.action, p.type, p.match);
-            }
-
-            const promptText = `I am giving you a complex and very time consuming agentic task. Check out this file for all details and instructions and follow them exactly: "D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\eval_evaluator_prompt.txt"`;
-            setInputValue(promptText);
-
-            await bridge.renameTask(activeTaskId, "⚡ Autonomous Benchmark & Self-Refine");
-            setTasks((prev) => prev.map((t) => t.id === activeTaskId ? { ...t, title: "⚡ Autonomous Benchmark & Self-Refine" } : t));
-            showToast("Benchmark permissions configured and prompt loaded!", "success", 4000);
-        } catch (err) {
-            console.error("Failed to setup benchmark mode:", err);
-            showToast(`Failed to setup benchmark: ${err.message || err}`, "error", 4000);
-        }
-    };
-
     return (
         <main id="app-container">
             {toastObj.show && (
@@ -798,7 +765,7 @@ function playNotificationChime(type = "complete") {
                 />
             )}
 
-            <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} closeOnHover={false}>
+            <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} closeOnHover={false} className="settings-dialog-window">
                 <UiErrorBoundary onRecover={() => setIsSettingsOpen(false)}>
                     <SettingsModal onClose={() => setIsSettingsOpen(false)} onToast={showToast} />
                 </UiErrorBoundary>
@@ -815,7 +782,7 @@ function playNotificationChime(type = "complete") {
                 )}
             </Modal>
 
-            <Modal isOpen={isTaskSettingsOpen} onClose={() => setIsTaskSettingsOpen(false)} closeOnHover={false}>
+            <Modal isOpen={isTaskSettingsOpen} onClose={() => setIsTaskSettingsOpen(false)} closeOnHover={false} className="settings-dialog-window">
                 {activeTask && (
                     <UiErrorBoundary onRecover={() => setIsTaskSettingsOpen(false)}><TaskSettingsModal
                         task={activeTask}
@@ -830,7 +797,7 @@ function playNotificationChime(type = "complete") {
                 )}
             </Modal>
 
-            <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="compact">
+            <Modal isOpen={isChatLogOpen} onClose={() => setIsChatLogOpen(false)} closeOnHover={false} className="chat-log-dialog-window">
                 {activeTask && (
                     <ChatLogModal
                         taskId={activeTask.id}
@@ -868,42 +835,13 @@ function playNotificationChime(type = "complete") {
                     </div>
                 ) : (
                     <>
-                        <div id="chat-top-bar" className="align-center">
-                            <label id="chat-task-title" title={activeTask.title}>{activeTask.title}</label>
-                            <div className="align-center gap-15">
-                                <div id="chat-spend-container" className="align-center gap-10 no-user-select" title="Units spent on this task vs. its budget">
-                                    <label id="chat-spend-label">{formatCredits(spend.spent_credits)} / {spend.budget_credits} units</label>
-                                    <div id="chat-spend-bar">
-                                        <div
-                                            id="chat-spend-bar-fill"
-                                            style={{ width: `${Math.min(100, spendRatio * 100)}%`, background: spendRatio >= 0.8 ? "#ff5c5c" : "" }}
-                                        ></div>
-                                    </div>
-                                </div>
-                                <button className="settings-button" onClick={()=>setIsBrowserHistoryOpen(true)}>Browser history</button>
-                                <button id="chat-log-button" title="View the full chat log and copy it" onClick={() => setIsChatLogOpen(true)}>
-                                    <label>Chat log</label>
-                                </button>
-                                <button className="settings-button" title="Chat-scoped File Permissions" onClick={() => setIsTaskPermsOpen(true)}>
-                                    <label>Permissions</label>
-                                </button>
-                                <button id="chat-task-settings-button" className="settings-button" title="Chat-scoped Settings" onClick={() => setIsTaskSettingsOpen(true)}>
-                                    <label>Settings</label>
-                                </button>
-                                <button className={`settings-button ${isActionPlanOpen ? 'active' : ''}`} title="Toggle Action Plan" onClick={() => setIsActionPlanOpen(!isActionPlanOpen)}>
-                                    <label>Action Plan</label>
-                                </button>
-                                <button
-                                    id="benchmark-mode-button"
-                                    className="settings-button"
-                                    style={{ color: "#f59e0b", borderColor: "rgba(245, 158, 11, 0.5)", fontWeight: "bold", background: "rgba(245, 158, 11, 0.1)" }}
-                                    title="Auto-configure permissions & load benchmark mission prompt"
-                                    onClick={handleStartBenchmarkMode}
-                                >
-                                    <label>⚡ Start Benchmark</label>
-                                </button>
-                            </div>
-                        </div>
+                        <ChatHeader title={activeTask.title} spend={spend} spendRatio={spendRatio} actions={[
+                            {label:'Browser history',onClick:()=>setIsBrowserHistoryOpen(true)},
+                            {label:'Chat log',id:'chat-log-button',title:'View the full chat log and copy it',onClick:()=>setIsChatLogOpen(true)},
+                            {label:'Permissions',title:'Chat-scoped File Permissions',onClick:()=>setIsTaskPermsOpen(true)},
+                            {label:'Settings',id:'chat-task-settings-button',title:'Chat-scoped Settings',onClick:()=>setIsTaskSettingsOpen(true)},
+                            {label:'Action Plan',active:isActionPlanOpen,title:'Toggle Action Plan',onClick:()=>setIsActionPlanOpen(value=>!value)}
+                        ]}/>
 
                         <BrowserHistoryModal isOpen={isBrowserHistoryOpen} onClose={()=>setIsBrowserHistoryOpen(false)} taskId={activeTaskId} onOpenReplay={(session,task)=>{setIsBrowserHistoryOpen(false);handleOpenReplay(session,task);}}/>
                         <BrowserSessionReplayModal
@@ -943,7 +881,7 @@ function playNotificationChime(type = "complete") {
                                         )}
                                         {streamText ? (
                                             <div className="chat-bubble-content markdown-body streaming">
-                                                <MessageMarkdown taskId={activeTaskId}>{streamText}</MessageMarkdown>
+                                                <MessageMarkdown taskId={activeTaskId}>{titleFreeText(streamText)}</MessageMarkdown>
                                             </div>
                                         ) : !showReasoningPill ? (
                                             <div id="thinking-indicator" className="align-center gap-10 no-user-select">
@@ -966,6 +904,7 @@ function playNotificationChime(type = "complete") {
                             </button>
                         )}
 
+                        <div id="chat-composer" className={inputExpanded?'expanded':''}>
                         {attachments.length > 0 && (
                             <div id="attachment-tray" className="attachment-tray">
                                 {attachments.map((att) => (
@@ -993,6 +932,7 @@ function playNotificationChime(type = "complete") {
                         <div id="chat-input-bar" className={`align-center gap-15 ${inputExpanded ? "expanded" : ""}`}>
                             <button
                                 id="chat-attach-button"
+                                disabled={messages.some(message=>message.kind==='ui_showcase')}
                                 type="button"
                                 title="Attach files or paste screenshots. Up to 8 files / 30 MiB total; static PNG, JPEG or WebP images: 10 MiB / 25 MP each. Unsent uploads may be cleaned up after 7 days."
                                 onClick={() => fileInputRef.current?.click()}
@@ -1009,11 +949,12 @@ function playNotificationChime(type = "complete") {
                             <div id="chat-input-wrapper" className="relative">
                                 <textarea
                                     id="chat-input"
+                                    readOnly={messages.some(message=>message.kind==='ui_showcase')}
                                     rows={3}
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
-                                    onPaste={handlePaste}
-                                    placeholder="Describe the goal for Zeus... (Enter to send, Shift+Enter for a new line, paste images with Ctrl+V)"
+                                    onPaste={messages.some(message=>message.kind==='ui_showcase')?event=>event.preventDefault():handlePaste}
+                                    placeholder={messages.some(message=>message.kind==='ui_showcase')?'UI design gallery — examples only, no agent runs':'Describe the goal for Zeus... (Enter to send, Shift+Enter for a new line, paste images with Ctrl+V)'}
                                     onKeyDown={handleInputKeyDown}
                                 ></textarea>
                                 <button
@@ -1042,9 +983,7 @@ function playNotificationChime(type = "complete") {
                                         : () => handleSend()
                                 }
                                 disabled={
-                                    activeTaskIsSending
-                                        ? stopping
-                                        : sending
+                                    messages.some(message=>message.kind==='ui_showcase')||(activeTaskIsSending?stopping:sending)
                                 }
                             >
                                 <label>
@@ -1057,6 +996,7 @@ function playNotificationChime(type = "complete") {
                                             : "Send"}
                                 </label>
                             </button>
+                        </div>
                         </div>
                     </>
                 )}
