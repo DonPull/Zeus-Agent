@@ -135,13 +135,28 @@ whose login or bot protection happens to block the model that day.
 
 ## Validation and remaining work
 
-Pending final regression, native UI and live-control outcomes. The first four
+Final full validation remains pending. The first four
 Luna/Responses attempts failed before handoff; a chat-protocol control also
 failed before handoff. A clarified text-transport control navigated once but
 then returned narration instead of the next tool action. These are retained
 capability/protocol-compliance failures, not passes and not proof that handoff
 itself failed. Do not silently switch the user's saved models or erase those
-trials. A control using the user's current master model is running separately.
+trials. The user's current master model (GPT-6.1 Sol/chat) passed successful
+help and unchanged Done/Resume. Its cancellation cases initially hit the
+shared-process evaluation cap; the driver now uses a fresh process with the
+same cap for each case. Both cancellation cases then passed. Four scenarios
+passed across the retained Sol runs; this does not upgrade the Luna trials.
+All paid diagnostics together used 30 requests and 59,288 provider-reported
+tokens, with no missing usage records and unknown provider subscription
+credits. Individual build/configuration fingerprints remain in the reports.
+
+The recent-action feed now has a four-second minimum readable lifetime,
+bounded to four entries, with longer lifetimes at slow playback rates. The
+unchanged real autoplay assertion and four browser-view unit tests pass, and
+the three-caption screenshot was inspected. Sequential capture/replay checks
+also pass (3/3). An overlapping full/release run invalidated broader results
+through its shared development server; final suites must run sequentially.
+The exact unfinished work is in [the durable checkpoint](RESUME_BROWSER_RELIABILITY.md).
 
 The larger work on deterministic completion/state, context/compaction, native
 tool interfaces, cost normalization and the repeated Solo/Team benchmark still

@@ -67,29 +67,36 @@ Live handoff evidence:
 
 ## Unresolved checks — immediate next work
 
-1. **Recent-action feed UI assertion:** new autoplay check in
-   `tests/regression/replay_polish.spec.js` around line 93 expected >1 caption
-   after replay reached action 6, but found 0. Pure helper test passes. Inspect
-   real frame annotations/action IDs, component lifetime/conditional mounting,
-   and whether the test waits past caption expiration. Do not merely weaken
-   the assertion. Stronger single-target overlay was visually inspected and
-   looks correct. Need inspect a multi-caption screenshot after fixing.
+1. **Recent-action feed repaired after checkpoint:** the same real autoplay
+   assertion now passes with a minimum readable caption lifetime of four
+   seconds (still four entries maximum, longer at slow playback rates).
+   The prior one-second lifetime at 4 steps/s expired during slower actual
+   rendering. `node --test tests/unit/browser_view.test.js` passes 4/4;
+   standalone replay UI passes 1/1. Inspect `replay-recent-actions.png` and
+   include this fix in final sequential validation. No assertion was weakened.
 2. **Actual Wordle compatibility:**
    `.zeus/evaluations/wordle-adblock-compatibility/report.json` failed waiting
    for a locked-in first guess. This smoke navigated Unlimited and typed before
    confirming all game readiness/overlays; collect screenshot/text/feedback on
-   failure, distinguish late hydration/focus from blocker compatibility. It
-   makes no model calls and does not inspect game answers. Do not claim the
-   blocker works on Wordle until this is checked.
+   failure, distinguish late hydration/focus from blocker compatibility. The
+   smoke now uses visible keyboard controls and captures screenshot/text/
+   page errors on failure. Both headless controls failed (with and without
+   blocking), as did the private-desktop production-mode blocked case.
+   A matching production-mode no-blocker control is running/retained under
+   `.zeus/evaluations/wordle-production-no-adblock`. Inspect its report first.
+   Other recent reports: `wordle-adblock-diagnostic`,
+   `wordle-visible-controls-adblock`, `wordle-visible-controls-no-adblock`,
+   `wordle-production-compatibility`. This uses no model calls and does not
+   inspect game answers. Do not claim blocker compatibility until checked.
 3. **Validation runner interference:** full and release runs were mistakenly
    started together and shared Vite on port 1420 and `test-results/offline`.
    Release exiting shut down the shared server; later full-run desktop tests
    fail at startup (~16 sec each). These are invalid infrastructure results.
    Run UI groups **sequentially**, never together. The user cancelled the
    pending cleanup tool approval, so the full runner may still be alive.
-   Last unified-exec session was `20442`; after shutdown it will no longer
-   exist. Stop only that owned `node scripts/run_regression.js` process/tree
-   if still running. Never stop the user's `zeus-agent.exe` or unrelated Node.
+   The overlapping full run (session `20442`) has now ended unsuccessfully;
+   no cleanup kill is needed for it. Its private native handoff checks passed
+   again. Never stop the user's `zeus-agent.exe` or unrelated Node.
 
 ## Validation status (accurate, not a green full-suite claim)
 
@@ -106,6 +113,10 @@ Live handoff evidence:
   needs sequential confirmation. The caption assertion needs investigation.
 - Latest full run is invalid due to the shared-server interference above;
   do not sum those failures into a product-regression count.
+- Later sequential capture/replay check passed 3/3. Optimized acceptance is
+  rerunning sequentially (last session `70196`); inspect its completion, then
+  run the full suite separately. Public-site control was session `70306`.
+  Session IDs expire after shutdown; all completed probe reports remain on disk.
 - No measured claim of two-minute Wordle completion or lower credit spend.
 
 After fixing the unresolved checks, run sequentially:
