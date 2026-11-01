@@ -23,6 +23,28 @@ MAX_TEXT = 256 * 1024
 MAX_IMAGE = 2 * 1024 * 1024
 OPERATIONS = {"observe", "inspect", "navigate", "click", "fill", "press", "type_text", "select_option", "wait", "tabs", "new_tab", "select_tab", "close_tab", "dialog", "upload_file", "download"}
 TRANSFER_LIMIT = 50 * 1024 * 1024
+VIEWPORT = {'width': 1600, 'height': 900}
+UBOL_VERSION = '2026.1026.1812'
+UBOL_SHA256 = 'd3788eac9f0a44c67f3745a43c3fd446ef33d56b1121f469b19e0fa0a836c2b5'
+
+# Trusted extension code, with no content scripts or external message listener.
+# Browser-level sound settings cover WebAudio, frames and newly opened tabs.
+# JavaScript media-element patches cannot provide that guarantee.
+AUDIO_CONTROL = r"""
+globalThis.setAudio = async allow => {
+    await chrome.contentSettings.sound.clear({});
+    await chrome.contentSettings.sound.set({primaryPattern:'<all_urls>',setting:allow?'allow':'block'});
+    const tabs = await chrome.tabs.query({});
+    await Promise.all(tabs.map(tab=>chrome.tabs.update(tab.id,{muted:!allow})));
+    return chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'});
+};
+chrome.tabs.onCreated.addListener(async tab => {
+    try {
+        const value=await chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'});
+        await chrome.tabs.update(tab.id,{muted:value.setting==='block'});
+    } catch {} // A tab may close before this callback runs; global sound policy remains.
+});
+"""
 
 # Page-originated telemetry is observation, never an authorization channel.
 HUMAN_OBSERVER = r"""(() => {
@@ -68,7 +90,7 @@ class OwnedWindow:
         for hwnd in windows:
             self.api.ShowWindow(hwnd,4)  # non-minimized; hidden/minimized capture is slow
             flags=0x0010 | (0x0040 if visible else 0x0004)
-            if not self.api.SetWindowPos(hwnd,None,80 if visible else -30000,80 if visible else -30000,1320,820,flags):
+            if not self.api.SetWindowPos(hwnd,None,80 if visible else -30000,80 if visible else -30000,1640,1000,flags):
                 fail('BROWSER_WINDOW_FAILED','Could not position the owned browser window')
         if visible:self.api.SetForegroundWindow(windows[0])
 
@@ -172,6 +194,7 @@ class Service:
         self.human_dialogs={}
         self.dialog_sessions={}
         self.browser_disconnected=False
+        self.audio_worker = None
 
     def register(self, page):
         for key, existing in self.pages.items():
@@ -248,11 +271,41 @@ class Service:
         self.transfer_dir.mkdir(parents=True,exist_ok=True)
         (self.transfer_dir/'incoming').mkdir(exist_ok=True)
         windowed = os.name == 'nt' and self.config.get('window_mode') == 'offscreen'
+        control = profile.parent / 'audio-control'
+        native_path(control).mkdir(parents=True, exist_ok=True)
+        native_path(control / 'manifest.json').write_text(json.dumps({'manifest_version':3,'name':'Zeus browser audio','version':'1.0.0','permissions':['contentSettings'],'background':{'service_worker':'audio.js'}}), encoding='utf8')
+        native_path(control / 'audio.js').write_text(AUDIO_CONTROL, encoding='utf8')
+        extensions = [control]
+        adblock = self.config.get('adblock_dir')
+        if adblock:
+            directory = Path(adblock).resolve()
+            try:
+                integrity = json.loads((directory / 'zeus-integrity.json').read_text(encoding='utf8'))
+                if integrity['archive_sha256'] != UBOL_SHA256 or integrity['version'] != UBOL_VERSION:
+                    raise ValueError('Wrong release')
+                for name, digest in integrity['files'].items():
+                    path = (directory / name).resolve()
+                    if not path.is_relative_to(directory) or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                        raise ValueError('Modified extension')
+            except Exception:
+                fail('BROWSER_EXTENSION_MISSING','Prepare the pinned uBO Lite release with setup_runtime.py --extensions, or disable ad blocking in settings')
+            extensions.append(directory)
+        if any(',' in str(path) for path in extensions):
+            fail('BROWSER_RUNTIME_PATH','Browser extension paths cannot contain commas')
+        extension_paths = ','.join(str(path) for path in extensions)
         self.context = await self.playwright.chromium.launch_persistent_context(
-            str(profile), headless=not windowed, viewport={"width": 1280, "height": 720},
-            args=['--window-position=-30000,-30000'] if windowed else [],
+            str(profile), channel='chromium', headless=not windowed, viewport=VIEWPORT, device_scale_factor=1,
+            args=([ '--window-position=-30000,-30000' ] if windowed else []) + [f'--disable-extensions-except={extension_paths}',f'--load-extension={extension_paths}'],
+            ignore_default_args=['--mute-audio'],
             accept_downloads=True, downloads_path=str(self.download_dir), timeout=12000,
         )
+        deadline=time.monotonic()+5
+        while self.audio_worker is None:
+            self.audio_worker=next((worker for worker in self.context.service_workers if worker.url.endswith('/audio.js')),None)
+            if self.audio_worker:break
+            if time.monotonic()>deadline:fail('BROWSER_AUDIO_UNAVAILABLE','The browser audio controller did not become ready')
+            await asyncio.sleep(.025)
+        await self.set_audio(False)
         await self.context.expose_binding('__zeusObserveHuman',self.record_human)
         await self.context.add_init_script(HUMAN_OBSERVER)
         if windowed:
@@ -281,7 +334,17 @@ class Service:
             fail("BROWSER_RUNTIME_VERSION", "Browser executable does not match the pinned SDK manifest")
         return {"protocol": PROTOCOL, "sdk": SDK_VERSION, "browser": self.context.browser.version, "browser_revision": chromium["revision"],
                 "session_id": self.config["session_id"], "generation": self.config["generation"], "tabs": self.tab_list(),
-                "handoff_supported": self.window is not None, "window_mode": 'offscreen' if windowed else 'headless'}
+                "handoff_supported": self.window is not None, "window_mode": 'offscreen' if windowed else 'headless',
+                'viewport': VIEWPORT, 'agent_audio': bool(self.config.get('agent_audio',False)),
+                'adblock': {'enabled':bool(adblock),'version':UBOL_VERSION if adblock else None}}
+
+    async def set_audio(self, human_open):
+        allow = bool(human_open or self.config.get('agent_audio',False))
+        try:
+            result=await asyncio.wait_for(self.audio_worker.evaluate('(allow)=>setAudio(allow)',allow),3)
+            if result.get('setting') != ('allow' if allow else 'block'):raise ValueError('Policy mismatch')
+        except Exception:
+            fail('BROWSER_AUDIO_UNAVAILABLE','Could not confirm browser sound policy')
 
     def download_started(self, download):
         if len(self.transfers)>=64:
@@ -345,7 +408,7 @@ class Service:
         self.human_events.append(event)
         if len(self.human_events)>64:
             self.human_events.pop(0);self.human_dropped+=1
-        self.annotation={'actor':'Human','op':event['op'],'text':event['text'][:200],'tab_id':tab}
+        self.annotation={'actor':'Human','op':event['op'],'text':event['text'][:200],'tab_id':tab,'action_id':f'human-{self.human_seq}'}
         self.annotation_target=None;self.annotation_until=time.monotonic()+1.5
         if not page.is_closed():self.selected=tab
 
@@ -363,7 +426,11 @@ class Service:
         if not self.human or params.get('epoch')!=self.human:
             fail('BROWSER_HANDOFF_STALE','This intervention is no longer active')
         if op=='_human_open':
-            self.window.position(True)
+            await self.set_audio(True)
+            try:self.window.position(True)
+            except Exception:
+                await self.set_audio(False)
+                raise
             return {'phase':'open'}
         if op=='_human_capture':
             return {'capture':await self.boundary_capture(captures.get('after'),params)}
@@ -373,6 +440,7 @@ class Service:
                 if not page.is_closed():
                     try:await page.evaluate('window.__zeusFlushHuman?.()')
                     except Exception:pass
+            await self.set_audio(False)
             self.window.position(False)
         events,self.human_events=self.human_events,[]
         result={'events':events,'dropped':self.human_dropped,'transfers':list(self.transfers.values()),'coverage':'page actions only; browser chrome/native dialogs are outside recording; batched images are approximate'}
@@ -479,7 +547,7 @@ class Service:
         safe_url = parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1], query="", fragment="").geturl()[:2048]
         return {"key": key, "mime": "image/jpeg", "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                 "tab_id": tab, "tab_revision": self.revisions.get(tab), "url": safe_url,
-                "started_ms": started, "ended_ms": int(time.time() * 1000), "width": 1280, "height": 720,
+                "started_ms": started, "ended_ms": int(time.time() * 1000), **(page.viewport_size or VIEWPORT),
                 "quality": quality, "masking": "browser-visible", "annotation": annotation}
 
     def publish_capture(self, state, error=None):
@@ -565,8 +633,8 @@ class Service:
             fail("BROWSER_ARGUMENT", "Timeout must be 100–60000 milliseconds")
         self.seen.add(action_id)
         self.active_action=action_id
-        self.annotation_target = None
-        self.annotation = None
+        if op in {'navigate','new_tab','select_tab','close_tab'}:
+            self.annotation=None;self.annotation_target=None
         if op in {'click', 'fill', 'press', 'type_text', 'select_option'}:
             tab, page = self.page(params)
             locator = self.locator(page, params)
@@ -613,7 +681,8 @@ class Service:
         response['transfers']=list(self.transfers.values())
         self.active_action=None
         ended=time.monotonic()
-        self.annotation_until = time.monotonic() + 1.5
+        if op in {'click', 'fill', 'press', 'type_text', 'select_option'}:
+            self.annotation_until = time.monotonic() + 1.5
         response['timing_ms']={'before_capture':round((execution_started-action_started)*1000,2),'execution':round((after_started-execution_started)*1000,2),'after_capture':round((ended-after_started)*1000,2),'total':round((ended-action_started)*1000,2)}
         self.results[action_id] = response
         if len(self.results) > 64:

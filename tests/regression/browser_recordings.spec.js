@@ -28,7 +28,7 @@ test('real before/after evidence pages, failed action, export and explicit image
     await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
     await app.page.locator('#replay-next-button').click();await expect(app.page.locator('.browser-viewer-action')).toContainText('Fill');
     await app.page.getByRole('combobox',{name:'Action image timing'}).selectOption('before');await expect(app.page.locator('#replay-screenshot-img')).toBeVisible();
-    await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('2');await expect.poll(()=>app.page.locator('#replay-screenshot-img').evaluate(img=>img.clientWidth)).toBe(2560);
+    await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('2');await expect.poll(()=>app.page.locator('#replay-screenshot-img').evaluate(img=>img.clientWidth)).toBe(3200);
     await app.page.getByRole('combobox',{name:'Browser image size'}).selectOption('fit');
     await app.page.locator('#replay-modal-close-button').click();
     const exported=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.exportBrowserRecording(task,session),identities);

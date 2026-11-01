@@ -29,7 +29,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.94.1
       - run: npm ci
       - name: Prepare isolated pinned browser runtime
-        run: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install
+        run: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install --extensions
       - name: Install matching browser explicitly
         run: .zeus/browser-runtime/venv/Scripts/python.exe -m playwright install chromium
       - run: npm run build

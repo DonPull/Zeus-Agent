@@ -27,7 +27,7 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__?.());await page.locator('.sidebar-task').filter({has:page.locator('.sidebar-task-title[title="Replay polish"]')}).click();
         await page.getByRole('button',{name:'View replay',exact:true}).click();
         const modal=page.locator('.replay-modal-window'),image=modal.locator('#replay-screenshot-img'),viewport=modal.locator('.browser-viewer-viewport');
-        await expect.poll(()=>image.evaluate(img=>img.naturalWidth)).toBe(1280);
+        await expect.poll(()=>image.evaluate(img=>img.naturalWidth)).toBe(1600);
         await modal.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
         const baseline=await viewport.boundingBox();
         const stable=async()=>{const current=await viewport.boundingBox();expect(Math.abs(current.y-baseline.y)).toBeLessThan(1);expect(Math.abs(current.height-baseline.height)).toBeLessThan(1);};
@@ -89,6 +89,13 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         await expect.poll(()=>page.evaluate(()=>window.__HELD_REPLAY_READS__.length)).toBe(1);await expect(image).toBeVisible();
         await page.evaluate(()=>window.__RELEASE_REPLAY_READS__());await loaded(6);await expect(modal.getByRole('button',{name:'Play replay',exact:true})).toBeVisible();
         expect(await page.evaluate(()=>{window.__REPLAY_IMAGE_OBSERVER__.disconnect();return window.__REPLAY_GAPS__;})).toBe(0);
+        await modal.getByRole('checkbox',{name:'Show actions'}).check();
+        await seek(1);await loaded(1);await modal.getByRole('button',{name:'Play replay',exact:true}).click();
+        await loaded(6);await expect(modal.getByRole('button',{name:'Play replay',exact:true})).toBeVisible();
+        await expect.poll(()=>modal.locator('.browser-action-caption').count()).toBeGreaterThan(1);
+        expect(await modal.locator('.browser-action-caption').count()).toBeLessThanOrEqual(4);
+        await page.screenshot({path:info.outputPath('replay-recent-actions.png')});
+        await modal.getByRole('checkbox',{name:'Show actions'}).uncheck();
         await page.screenshot({path:info.outputPath('replay-mixed-actions-1320.png')});
         await page.setViewportSize({width:1000,height:760});await page.screenshot({path:info.outputPath('replay-mixed-actions-1000.png')});
         // The fixed counter must be centered between the adjacent -1/+1 controls.
@@ -97,10 +104,10 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         const close=modal.getByRole('button',{name:'Close browser viewer'}),full=modal.getByRole('button',{name:'Full screen',exact:true});
         const closeBox=await close.boundingBox(),fullBox=await full.boundingBox(),iconBox=await close.locator('svg').boundingBox();
         expect(fullBox.x).toBeLessThan(closeBox.x);expect(fullBox.height).toBe(closeBox.height);expect(Math.abs(iconBox.x+iconBox.width/2-closeBox.x-closeBox.width/2)).toBeLessThan(1);expect(Math.abs(iconBox.y+iconBox.height/2-closeBox.y-closeBox.height/2)).toBeLessThan(1);
-        await page.setViewportSize({width:3200,height:2100});
+        await page.setViewportSize({width:4000,height:2700});
         for(const factor of ['1','1.5','2']){
             await modal.getByRole('combobox',{name:'Browser image size'}).selectOption(factor);
-            await expect.poll(()=>image.evaluate(img=>img.clientWidth)).toBe(1280*Number(factor));
+            await expect.poll(()=>image.evaluate(img=>img.clientWidth)).toBe(1600*Number(factor));
             await expect.poll(async()=>{const a=await image.boundingBox(),b=await viewport.boundingBox();return Math.max(Math.abs(a.x+a.width/2-b.x-b.width/2),Math.abs(a.y+a.height/2-b.y-b.height/2));}).toBeLessThan(2);
         }
         await page.setViewportSize({width:1000,height:760});

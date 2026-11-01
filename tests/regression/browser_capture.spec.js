@@ -66,7 +66,7 @@ test('production collector and live viewer recover changing pixels across close 
         const context=canvas.getContext('2d');context.drawImage(image,0,0);image.close();
         return {pixel:Array.from(context.getImageData(1000,600,1,1).data),width:canvas.width,height:canvas.height};
     },identity);
-    expect([pixels.width,pixels.height]).toEqual([1280,720]);
+    expect([pixels.width,pixels.height]).toEqual([1600,900]);
     expect(Math.abs(pixels.pixel[0]-pixels.pixel[2])).toBeGreaterThan(100);
     expect(pixels.pixel[1]).toBeGreaterThan(70);expect(pixels.pixel[1]).toBeLessThan(90);
     expect(getMockRequests()).toHaveLength(requestCount);
@@ -74,7 +74,7 @@ test('production collector and live viewer recover changing pixels across close 
         await app.page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__?.());
         await app.page.locator('.sidebar-task').filter({has:app.page.locator('.sidebar-task-title[title="Independent capture"]')}).click();
         await app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'Watch',exact:true}).click();
-        await expect.poll(()=>app.page.locator('#live-viewport-img').evaluate(img=>img.naturalWidth)).toBe(1280);
+        await expect.poll(()=>app.page.locator('#live-viewport-img').evaluate(img=>img.naturalWidth)).toBe(1600);
     };
     await app.page.setViewportSize({width:1320,height:840});await openViewer();
     await expect(app.page.getByRole('status',{name:'Managed browser session'}).getByRole('button',{name:'View replay',exact:true})).toHaveCount(0);

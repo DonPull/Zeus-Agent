@@ -93,13 +93,19 @@ pub async fn prepare(
     let mut failures = Vec::new();
     for (id, session, key, size, hash) in &rows {
         let outcome = (|| -> Result<ImageInput, String> {
-            let metadata = json!({"storage":"artifacts","bytes":size,"sha256":hash,"mime":"image/jpeg","width":1280,"height":720});
+            let mut metadata = json!({"storage":"artifacts","bytes":size,"sha256":hash,"mime":"image/jpeg"});
             let folder = crate::browser_capture::frame_folder(task, session, &metadata)?;
             let bytes = crate::browser_capture::bounded_read(
                 &folder,
                 key,
                 crate::browser_capture::IMAGE_LIMIT,
             )?;
+            // Historical artifacts can have a different viewport. Read actual
+            // encoded dimensions, then apply the same bounded pixel/hash
+            // validation as capture; never invent dimensions for delivery.
+            let (width,height)=image::ImageReader::with_format(std::io::Cursor::new(&bytes),image::ImageFormat::Jpeg)
+                .into_dimensions().map_err(|e|format!("BROWSER_IMAGE_FORMAT: {e}"))?;
+            metadata["width"]=json!(width);metadata["height"]=json!(height);
             crate::browser_capture::validate_image(&bytes, &metadata)?;
             Ok(ImageInput {
                 attachment_id: format!("browser:{id}"),

@@ -134,6 +134,8 @@ class PageHandler(BaseHTTPRequestHandler):
     updates = 0
     uploaded=b''
     def do_GET(self):
+        if self.path=='/ads/index.js':
+            self.send_response(200);self.send_header('Content-Type','application/javascript');self.end_headers();self.wfile.write(b'window.fixtureAdExecuted=true');return
         if self.path=='/slow-download':
             self.send_response(200);self.send_header('Content-Type','application/octet-stream');self.send_header('Content-Disposition','attachment; filename="unfinished.bin"');self.send_header('Content-Length',str(1024*1024));self.end_headers()
             for _ in range(16):
@@ -276,7 +278,7 @@ class BrowserServiceTests(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(data).hexdigest(),frame['sha256'])
                     self.assertEqual(len(data),frame['bytes'])
                     self.assertLessEqual(len(data),2*1024*1024)
-                    self.assertEqual((frame['width'],frame['height']),(1280,720))
+                    self.assertEqual((frame['width'],frame['height']),(1600,900))
                     self.assertEqual(value['session_id'],self.broker.session)
                 self.assertLessEqual(len(descriptor),8192)
                 return value
@@ -538,6 +540,57 @@ class HandoffServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(polled['events']),64);self.assertEqual(polled['dropped'],6)
         self.assertEqual((await self.call('_human_poll',{'epoch':epoch}))['result']['events'],[])
 
+    async def test_audio_policy_covers_new_tabs_and_changes_only_on_open_and_resume(self):
+        async def state():
+            return await self.service.audio_worker.evaluate("async()=>({policy:await chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'}),tabs:(await chrome.tabs.query({})).map(tab=>tab.mutedInfo.muted)})")
+        self.assertEqual((await state())['policy']['setting'],'block')
+        self.assertTrue(all((await state())['tabs']))
+        epoch=str(uuid.uuid4());await self.call('_human_begin',{'epoch':epoch})
+        self.assertEqual((await state())['policy']['setting'],'block')
+        await self.call('_human_open',{'epoch':epoch})
+        self.assertEqual((await state())['policy']['setting'],'allow')
+        self.assertFalse(any((await state())['tabs']))
+        await self.call('_human_end',{'epoch':epoch})
+        await self.service.context.new_page()
+        import asyncio
+        for _ in range(50):
+            if all((await state())['tabs']):break
+            await asyncio.sleep(.02)
+        self.assertTrue(all((await state())['tabs']))
+        self.service.config['agent_audio']=True
+        await self.service.set_audio(False)
+        self.assertEqual((await state())['policy']['setting'],'allow')
+        self.assertFalse(any((await state())['tabs']))
+        metrics=await self.page.evaluate('({width:innerWidth,height:innerHeight,scale:visualViewport.scale,dpr:devicePixelRatio})')
+        self.assertEqual(metrics,{'width':1600,'height':900,'scale':1,'dpr':1})
+
+    async def test_pinned_adblocker_blocks_fixture_ad_without_breaking_the_page(self):
+        import asyncio
+        package=ROOT/'.zeus/browser-runtime/extensions/ubol-2026.1026.1812'
+        self.assertTrue((package/'zeus-integrity.json').is_file(),'Run setup_runtime.py --extensions explicitly before this check')
+        await self.page.goto(self.url)
+        await self.page.evaluate("()=>{let script=document.createElement('script');script.src='/ads/index.js';document.body.append(script)}")
+        await self.page.wait_for_function('window.fixtureAdExecuted===true')
+        await self.service.close()
+        spec=importlib.util.spec_from_file_location('zeus_adblock_service',SERVICE)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        self.config.update({'adblock_dir':str(package),'profile_dir':str(Path(self.folder.name)/'filtered-profile')})
+        self.service=module.Service(self.config)
+        ready=await self.service.start()
+        self.assertTrue(ready['adblock']['enabled'])
+        self.page=self.service.pages[self.service.selected]
+        failures=[];self.page.on('requestfailed',lambda request:failures.append(request.url))
+        await self.page.goto(self.url)
+        await self.page.evaluate("()=>{let script=document.createElement('script');script.src='/ads/index.js';document.body.append(script)}")
+        for _ in range(100):
+            if any(url.endswith('/ads/index.js') for url in failures):break
+            await asyncio.sleep(.02)
+        self.assertTrue(any(url.endswith('/ads/index.js') for url in failures))
+        self.assertFalse(await self.page.evaluate('window.fixtureAdExecuted===true'))
+        await self.call('fill',{'target':{'css':'#note'},'value':'Still works'})
+        await self.call('click',{'target':{'css':'#save'}})
+        self.assertEqual(await self.page.locator('#statusText').inner_text(),'Still works')
+
     async def test_capture_annotation_is_frame_owned_and_locator_failure_does_not_crash_service(self):
         frame=str(uuid.uuid4())
         response=await self.call('fill',{'target':{'css':'#note'},'value':'A visible note'},captures={'after':frame})
@@ -563,6 +616,10 @@ class HandoffServiceTests(unittest.IsolatedAsyncioTestCase):
         # unfinished work while preserving the earlier verified file.
         await self.page.evaluate("()=>{const link=document.createElement('a');link.href='/slow-download';link.textContent='Slow report';document.body.append(link)}")
         await self.call('click',{'target':{'text':'Slow report'}})
+        import asyncio
+        for _ in range(100):
+            if any(row['status']=='pending' for row in self.service.transfers.values()):break
+            await asyncio.sleep(.01)
         self.assertTrue(any(row['status']=='pending' for row in self.service.transfers.values()))
         await self.service.close()
         self.assertTrue(path.exists(),'Saved download must outlive its temporary browser context')

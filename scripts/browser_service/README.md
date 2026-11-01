@@ -5,7 +5,7 @@ Phase 3C uses one shared owner for normal Solo/Team browser work. There is no br
 Prepare an isolated environment explicitly from the repository root:
 
 ```powershell
-python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install
+python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install --extensions
 # Needed if this SDK's matching browser is not already installed:
 .zeus/browser-runtime/venv/Scripts/python.exe -m playwright install chromium
 ```
@@ -22,7 +22,9 @@ npm.cmd run tauri dev
 
 `ZEUS_BROWSER_PYTHON` remains an explicit development interpreter override, not an engine choice. Zeus never falls back to global Python or installs dependencies implicitly. Runtime setup is frozen at root-run acceptance; a setting change applies to the next run. Missing or mismatched setup returns a typed error. Text/data-only work needs no browser installation.
 
-Profiles belong to Zeus tasks, with no automatic imports or extensions. Master/workers/scripts share the same context for a root run. A later user turn creates another session using the task's retained profile. Script/worker exit releases control, not the browser. Completion and Stop join browser cleanup. Watch shows current pixels at a fixed viewed target of 8 FPS/JPEG quality 80, without adaptive throttling. Replay shows actual requests/outcomes and sampled before/after evidence, not an 8-FPS stored video. History and explicit image deletion are available without starting a browser. Diagnostic export remains internal. Sampling is not a guarantee that the user's goal succeeded.
+Profiles belong to Zeus tasks, with no automatic personal-profile imports. The trusted runtime preloads its audio controller and, by default, pinned official uBlock Origin Lite (2026.1026.1812, GPL-3.0 upstream). `--extensions` explicitly downloads and verifies that release; the app never downloads or updates it implicitly. Ad blocking can be disabled in global settings for compatibility. Missing/changed required assets fail explicitly. Agent-controlled sound is blocked by default, enabled during an opened handoff, and restored on Resume; a setting permits agent audio. The page viewport is 1600×900 CSS pixels at scale/DPR 1.
+
+Master/workers/scripts share the same context for a root run. A later user turn creates another session using the task's retained profile. Script/worker exit releases control, not the browser. Completion and Stop join browser cleanup. Watch shows current pixels at a fixed viewed target of 8 FPS/JPEG quality 80, without adaptive throttling. Replay shows actual requests/outcomes and sampled before/after evidence, not an 8-FPS stored video. History and explicit image deletion are available without starting a browser. Diagnostic export remains internal. Sampling is not a guarantee that the user's goal succeeded.
 
 Actors use one directive per turn:
 

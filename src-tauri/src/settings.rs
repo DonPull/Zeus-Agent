@@ -26,6 +26,10 @@ pub struct AppSettings {
     pub browser_executable_path: Option<String>,
     #[serde(default)]
     pub browser_python_path: Option<String>,
+    #[serde(default)]
+    pub browser_agent_audio: bool,
+    #[serde(default = "default_browser_block_ads")]
+    pub browser_block_ads: bool,
     #[serde(default = "default_local_base_url")]
     pub local_base_url: Option<String>,
     pub local_api_key: Option<String>,
@@ -49,6 +53,29 @@ pub fn default_vision_model() -> String {
     "gemini-3.8-flash".into()
 }
 pub fn default_image_delivery() -> String { "auto".into() }
+pub fn default_browser_block_ads() -> bool { true }
+
+#[cfg(test)]
+mod browser_preferences_tests {
+    use super::*;
+    #[test]
+    fn browser_preferences_preserve_old_settings_and_round_trip() {
+        let conn=Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);").unwrap();
+        let mut settings=read_settings(&conn).unwrap();
+        assert!(settings.browser_block_ads);
+        assert!(!settings.browser_agent_audio);
+        settings.browser_block_ads=false;settings.browser_agent_audio=true;
+        write_settings(&conn,&settings).unwrap();
+        let saved=read_settings(&conn).unwrap();
+        assert!(!saved.browser_block_ads);assert!(saved.browser_agent_audio);
+        let mut old=serde_json::to_value(saved).unwrap();
+        old.as_object_mut().unwrap().remove("browser_block_ads");
+        old.as_object_mut().unwrap().remove("browser_agent_audio");
+        let restored:AppSettings=serde_json::from_value(old).unwrap();
+        assert!(restored.browser_block_ads);assert!(!restored.browser_agent_audio);
+    }
+}
 
 pub fn default_effort() -> String {
     "default".into()
@@ -75,6 +102,8 @@ impl Default for AppSettings {
             browser_mode: "sandboxed".into(),
             browser_executable_path: None,
             browser_python_path: None,
+            browser_agent_audio: false,
+            browser_block_ads: true,
             local_base_url: Some("http://localhost:11434/v1".into()),
             local_api_key: None,
             xiaomi_base_url: default_xiaomi_base_url(),
@@ -137,6 +166,8 @@ pub fn read_settings(connection: &Connection) -> Result<AppSettings, String> {
         browser_mode: get_setting(connection, "browser_mode")?.unwrap_or_else(|| defaults.browser_mode),
         browser_executable_path: get_setting(connection, "browser_executable_path")?,
         browser_python_path: get_setting(connection,"browser_python_path")?,
+        browser_agent_audio: get_setting(connection,"browser_agent_audio")?.as_deref() == Some("true"),
+        browser_block_ads: get_setting(connection,"browser_block_ads")?.as_deref() != Some("false"),
         local_base_url: get_setting(connection, "local_base_url")?.or_else(|| defaults.local_base_url),
         local_api_key: get_setting(connection, "local_api_key")?,
         xiaomi_base_url: get_setting(connection, "xiaomi_base_url")?.or_else(|| defaults.xiaomi_base_url),
@@ -195,6 +226,8 @@ fn write_settings_inner(connection: &Connection, settings: &AppSettings) -> Resu
         &settings.default_budget_credits.to_string(),
     )?;
     set_setting(connection, "browser_mode", &settings.browser_mode)?;
+    set_setting(connection,"browser_agent_audio",&settings.browser_agent_audio.to_string())?;
+    set_setting(connection,"browser_block_ads",&settings.browser_block_ads.to_string())?;
     if let Some(path)=settings.browser_python_path.as_ref().filter(|s|!s.trim().is_empty()) {
         if !std::path::Path::new(path).is_absolute() || crate::file_paths::normal(std::path::Path::new(path)).starts_with("//") {
             return Err("BROWSER_RUNTIME_PATH: choose an absolute local Python executable path".into());

@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {browserBadge,browserDuration,browserTime,browserActor,replaySpeed} from '../../src/browserView.js';
+import {actionFeed} from '../../src/browserActionFeed.js';
+
+test('recent action feed deduplicates live frames, expires and keeps four chronological actions',()=>{
+    let feed=[];
+    for(let i=1;i<=6;i++)feed=actionFeed(feed,{actor:'Agent',op:'click',action_id:String(i)},i*100,2,true);
+    assert.deepEqual(feed.map(entry=>entry.id),['3','4','5','6']);
+    const unchanged=actionFeed(feed,{actor:'Agent',action_id:'6'},1000,2,true);
+    assert.deepEqual(unchanged,feed);
+    assert.equal(actionFeed(feed,null,2700).length,0);
+    assert.equal(actionFeed([],{actor:'Page',action_id:'untrusted'},0).length,0);
+    assert.equal(actionFeed([],{actor:'Human',action_id:'h'},0,.4,true)[0].expires,10000);
+    assert.equal(actionFeed([],{actor:'Agent',action_id:'a'},0,90,true)[0].expires,400);
+});
 test('displayed-frame freshness distinguishes live, stale, error, waiting and terminal states',()=>{
     assert.deepEqual(browserBadge('active',{state:'live'},1000,2500),{label:'Live',tone:'live'});
     assert.deepEqual(browserBadge('active',{state:'live'},1000,6000),{label:'Outdated · 5s',tone:'outdated'});

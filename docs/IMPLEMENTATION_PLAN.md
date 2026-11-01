@@ -498,3 +498,14 @@ The user approved implementation on 2026-11-01 and separately scheduled both act
 Validation: **288 offline checks and 18 optimized desktop checks pass**, plus frontend production/optimized runtime builds, targeted unfinished-download cancellation and diff checks. The new checks use real local browser interactions and normal policy with mock model responses; native window/handoff UI tests run on a private desktop, not over the user's game. No live-model credits, account purchases, classifier inference, MCP connections or skill installations were used. These are integration/regression results, not an agent-intelligence score.
 
 Before major Phase 4/6 state/Team changes, prepare the bounded canonical benchmark baseline checkpoint: exact current build/configurations, repeatable reset/grading, Solo/Team comparison where meaningful, all-role usage/cost and retained failures. The six-mission/native foundation remains partial; neither Phase 3D nor historical Wordle success completes Zeus Benchmark v1. Phase 4 still needs its focused plan for deterministic task state, always-current plans, completion, memory and compaction. Phase 5 retains two-axis Smart authorization, prompt-injection defenses and measured classifier selection; direct paid Jev/alternative providers are permitted options to investigate, with no funding/provider choice implied here. Proposed MCP/desktop and skills workstreams 5B/5C keep their own alignment gates. Native document previews, conversation portability and replay compression remain future scope.
+
+## 24. Browser reliability follow-up
+
+The user authorized investigation and stabilization after a 641.6-second Wordle
+diagnostic, ad/audio disruption, a small viewport and hard-to-read overlays.
+The [focused follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) records tangible changes,
+old/new decisions, read-only timing analysis, expanded Windows experiments,
+concurrent physical-input evidence and bounded live handoff diagnostics. This
+increment precedes the canonical baseline checkpoint above. Validation is in
+progress; no new speed/cost baseline or universal browser-isolation guarantee
+has been established.

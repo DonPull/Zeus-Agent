@@ -116,16 +116,16 @@ pub fn validate_image(bytes: &[u8], frame: &Value) -> Result<(), String> {
         return Err("BROWSER_IMAGE_INVALID: expected JPEG".into());
     }
     let mut limits = image::Limits::default();
-    limits.max_image_width = Some(1280);
-    limits.max_image_height = Some(720);
+    limits.max_image_width = Some(1600);
+    limits.max_image_height = Some(900);
     limits.max_alloc = Some(8 * 1024 * 1024);
     reader.limits(limits);
     let decoder = reader.into_decoder().map_err(|e| e.to_string())?;
     let (width, height) = decoder.dimensions();
     if width == 0
         || height == 0
-        || width > 1280
-        || height > 720
+        || width > 1600
+        || height > 900
         || frame["width"] != width
         || frame["height"] != height
     {
