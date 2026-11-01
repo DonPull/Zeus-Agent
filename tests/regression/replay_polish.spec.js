@@ -53,6 +53,14 @@ test('replay keeps decoded images and stable geometry across mixed actions, dela
         await expect(image).toHaveAttribute('src',before);await expect(modal.locator('.browser-image-progress')).toHaveCount(0);await expect(modal.locator('.browser-action-description')).toContainText('Navigate');await stable();
         await page.screenshot({path:info.outputPath('retained-image-while-loading.png')});
         await page.evaluate(()=>window.__RELEASE_REPLAY_READS__());await loaded(2);await stable();
+        const originalPixels=await image.getAttribute('src');
+        await modal.getByRole('checkbox',{name:'Show actions'}).check();
+        await expect(modal.locator('.browser-action-caption')).toContainText('Preserved note');
+        await expect(modal.locator('.browser-action-target')).toBeVisible();
+        await expect(image).toHaveAttribute('src',originalPixels);await stable();
+        await page.screenshot({path:info.outputPath('replay-action-overlay.png')});
+        await modal.getByRole('checkbox',{name:'Show actions'}).uncheck();
+        await expect(modal.locator('.browser-action-overlay')).toHaveCount(0);
         expect(await page.evaluate(()=>{window.__REPLAY_IMAGE_OBSERVER__.disconnect();return window.__REPLAY_GAPS__;})).toBe(0);
         // Obsolete decodes must not replace the final selection after a rapid seek.
         await page.evaluate(()=>window.__HOLD_REPLAY_IMAGES__=true);await seek(5);

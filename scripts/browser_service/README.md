@@ -56,13 +56,23 @@ call('click', target={'role':'button','name':'Save'}, timeout_ms=5000,
 
 `wait` also accepts `condition` and optional `settle_ms`. Text, input value, `data-*`/`aria-*` attributes and enabled/disabled conditions are supported. Checks and the interaction share one deadline. Settling is explicit and bounded, not a universal sleep. Visibility/actionability alone cannot guarantee hydration: choose relevant page signals and verify the intended result. If the result is unconfirmed or text entry may be partial, inspect actual state before deciding whether any repeat is safe. Zeus does not automatically retry the mutation. See [Playwright hydration guidance](https://playwright.dev/python/docs/navigations#hydration) and [actionability](https://playwright.dev/python/docs/actionability).
 
-No raw CDP, arbitrary page evaluation, custom launches, default-profile takeover, login handoff, extensions or file transfers are implemented on this path. Unsupported operations fail explicitly. Arbitrary host Python remains subject to the existing policy and is not sandboxed by this service.
+No raw CDP, arbitrary page evaluation, custom launches, default-profile takeover or extensions are exposed to actors. Unsupported operations fail explicitly. Arbitrary host Python remains subject to the existing policy and is not sandboxed by this service.
+
+On Windows, ordinary sessions now use full Chromium offscreen without minimizing or hiding its native window. An agent's `ask_user_for_login` request produces Open browser / Resume Zeus / Stop run controls for that same process, context and tabs. Agent operations pause while page capture/observation continue. Pending native dialogs block Resume. An explicit `ZEUS_BROWSER_WINDOW_MODE=headless` diagnostic override is recorded per run; it does not support native handoff. Other platforms currently retain that headless limitation.
+
+`call('upload_file', target={'css':'input[type=file]'}, path='report.pdf')` selects a validated, snapshotted task-workspace file under normal policy. Selection is distinct from server acceptance; use `expect` for relevant page confirmation. `call('download', target={'text':'Export CSV'})` waits for real bytes and returns a verified retained task path. Ordinary clicks/human downloads are also tracked. Limits are 50 MiB/file, 250 MiB retained downloads/session and 64 download attempts. Temporary disk checks are application limits, not strict OS quotas. Download files survive context closure. Source upload snapshots are temporary.
+
+Human observations are page-local, grouped and explicitly untrusted; batch images are approximate. Browser chrome/native-dialog pixels are not recorded. Original screenshot pixels retain their visible browser presentation; Show actions adds optional metadata overlays. Masked input values are omitted from observations, including the accessibility-derived resume context. See [the Phase 3D packet](../../docs/PHASE_3D_EXECUTION_DESIGN.md).
 
 Run the real service probes without an LLM:
 
 ```powershell
 .zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/test_service.py
 node scripts/run_regression.js
+# Native handoff UI checks use a private Win32 desktop and never switch it:
+node scripts/run_regression.js --ui-files browser_handoff
+# Opt-in foreground diagnostics: schedule a pause with the user first!
+.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_native_handoff.py --interactive
 ```
 
 Full setup, regression and bounded live commands: [evaluation guide](../eval_harness/README.md).

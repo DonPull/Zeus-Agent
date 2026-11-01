@@ -415,31 +415,9 @@ pub async fn run_worker(
                             history.push(ChatMessage { images: Vec::new(), role: "user".into(), content: msg });
                         }
                         Directive::AskUserForLogin { reason } => {
-                            if crate::managed_browser::enabled(){
-                                let feedback=orchestrator::directive_result_message(&json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Visible login/handoff is not enabled on the managed route"}}));
-                                let mut result=new_message_for_conversation(task_id,&conversation,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
-                                history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});continue;
-                            }
-                            let mut approval = new_message_for_conversation(
-                                task_id, &conversation, "event", "handoff", json!({ "status": "pending", "reason": reason }).to_string(), None, None, true
-                            );
-                            persist_and_emit(state, app_handle, task_id, &mut approval)?;
-                            
-                            // Stop headless browser, start headed, then wait for approval
-                            let _ = crate::browser_manager::start_browser_handoff(state.clone(), task_id.to_string()).await;
-                            
-                            // Wait for user
-                            let (approved, note) = crate::chat::wait_for_approval(state.inner(), app_handle, task_id, &approval.id, run_id, cancellation_token).await?;
-                            
-                            // Restart headless
-                            let _ = crate::browser_manager::finish_browser_handoff(state.clone(), task_id.to_string()).await;
-                            
-                            let feedback = if approved {
-                                format!("User completed the handoff. You may continue. Note: {}", note)
-                            } else {
-                                "User denied the handoff or it failed.".to_string()
-                            };
-                            
+                            let feedback=match Box::pin(crate::managed_browser::request_handoff(state,app_handle,task_id,run_id,cancellation_token,&conversation,&reason)).await{
+                                Ok(result)=>result,Err(error) if cancellation_token.is_cancelled()=>return Err(error),
+                                Err(error)=>orchestrator::directive_result_message(&json!({"ok":false,"error":error}))};
                             let mut hidden_result = new_message_for_conversation(
                                 task_id, &conversation, "user", "handoff_result", feedback.clone(), None, None, false
                             );

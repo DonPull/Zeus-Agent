@@ -43,6 +43,8 @@ test('live and replay viewers use the available window and resize actual images 
         const modal=page.locator(`.modal-container.${kind}-modal-window`),image=modal.locator('img'),stage=modal.locator(`.${kind}-viewport-wrapper`);
         await expect(modal).toBeVisible();
         await expect.poll(()=>image.evaluate(element=>element.naturalWidth)).toBe(1280);
+        await expect(modal.locator('.replay-bounding-box')).toHaveCount(0);
+        await modal.getByRole('checkbox',{name:'Show actions'}).check();
         for(const size of [{width:1920,height:1080},{width:1320,height:840},{width:1000,height:760}]){
             await page.setViewportSize(size);
             await expect.poll(async()=>Math.round((await modal.boundingBox()).width)).toBe(size.width-32);

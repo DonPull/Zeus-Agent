@@ -87,7 +87,7 @@ export async function stopMockServer() {
   }
 }
 
-export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = process.env.ZEUS_TEST_RELEASE==='1'?'release':'debug', reuseWorkspace = null, managedBrowser=false, browserPython=null, allowMissingBrowserRuntime=false } = {}) {
+export async function launchTauri(useRealApi = false, { policy = 'standard', evaluationLimits = null, visible = false, expectedPageErrors = [], buildProfile = process.env.ZEUS_TEST_RELEASE==='1'?'release':'debug', reuseWorkspace = null, managedBrowser=false, browserPython=null, allowMissingBrowserRuntime=false, browserWindowMode='headless' } = {}) {
   if (tauriProcess && tauriProcess.exitCode === null) throw new Error('A test app is already running');
   const offline = process.env.ZEUS_OFFLINE_TEST === '1';
   if (offline && useRealApi) throw new Error('Offline tests cannot launch a live-provider runtime');
@@ -109,6 +109,8 @@ export async function launchTauri(useRealApi = false, { policy = 'standard', eva
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
     WEBVIEW2_USER_DATA_FOLDER: path.join(workspace, 'webview'), ZEUS_TEST_HIDE_WINDOW: visible ? '0' : '1' };
   delete env.ZEUS_MANAGED_BROWSER;delete env.ZEUS_BROWSER_PYTHON;
+  if(!['headless','offscreen'].includes(browserWindowMode))throw new Error('Invalid browser window mode');
+  env.ZEUS_BROWSER_WINDOW_MODE=browserWindowMode;
   if(managedBrowser){
     const interpreter=browserPython??path.join(root,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
     if(!allowMissingBrowserRuntime&&!fs.existsSync(interpreter))throw new Error('Prepare the isolated browser runtime explicitly: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install');

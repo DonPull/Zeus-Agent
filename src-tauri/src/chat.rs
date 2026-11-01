@@ -1017,39 +1017,19 @@ pub(crate) async fn wait_until_no_pending_approvals(
 #[tauri::command]
 pub async fn resolve_handoff(
     state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
     task_id: String,
     approved: bool,
     note: String,
     message_id: Option<String>,
 ) -> Result<(), String> {
-    let connection = state
-        .db
-        .lock()
-        .map_err(|e| format!("Database lock error: {}", e))?;
-        
-    let status = if approved { "approved" } else { "denied" };
-    
-    if let Some(id) = message_id.filter(|s| !s.trim().is_empty()) {
-        connection
-            .execute(
-                "UPDATE messages 
-                 SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2) 
-                 WHERE id = ?3 AND task_id = ?4 AND kind = 'handoff' AND json_extract(content, '$.status') = 'pending'",
-                rusqlite::params![status, note, id, task_id],
-            )
-            .map_err(|e| format!("Failed to update handoff: {}", e))?;
-    } else {
-        connection
-            .execute(
-                "UPDATE messages 
-                 SET content = json_set(json_set(content, '$.status', ?1), '$.note', ?2) 
-                 WHERE task_id = ?3 AND kind = 'handoff' AND json_extract(content, '$.status') = 'pending'",
-                rusqlite::params![status, note, task_id],
-            )
-            .map_err(|e| format!("Failed to update handoff: {}", e))?;
+    let id=message_id.filter(|id|!id.is_empty()).ok_or("BROWSER_HANDOFF_ID: select a specific intervention")?;
+    if approved {crate::managed_browser::resume_handoff(&state,&app_handle,&task_id,&id,&note).await}
+    else {
+        crate::managed_browser::validate_handoff(&state,&task_id,&id)?;
+        let expected_run={let conn=state.db.lock().map_err(|e|e.to_string())?;let msg=load_message(&conn,&id)?;serde_json::from_str::<serde_json::Value>(&msg.content).map_err(|e|e.to_string())?["root_run_id"].as_str().ok_or("BROWSER_HANDOFF_STALE")?.to_string()};
+        cancel_task_run_bound(state,app_handle,task_id,Some(expected_run)).await.map(|_|())
     }
-        
-    Ok(())
 }
 
 #[tauri::command]
@@ -1058,20 +1038,19 @@ pub async fn cancel_task_run(
     app_handle: tauri::AppHandle,
     task_id: String,
 ) -> Result<RunStateDto, String> {
-    let token = {
+    cancel_task_run_bound(state,app_handle,task_id,None).await
+}
+
+async fn cancel_task_run_bound(state:State<'_,AppState>,app_handle:tauri::AppHandle,task_id:String,expected_run:Option<String>)->Result<RunStateDto,String>{
+    let run = {
+        // Keep single-flight ownership stable while binding a cancellation to
+        // its durable run. A stale handoff must never stop a later run.
         let active_runs = state
             .active_runs
             .lock()
             .map_err(|e| format!("Active-run lock error: {}", e))?;
 
-        active_runs.get(&task_id).cloned()
-    }
-    .ok_or_else(|| "TASK_NOT_RUNNING".to_string())?;
-
-    // Signal first so the executor begins shutting down immediately.
-    token.cancel();
-
-    let run = {
+        let token=active_runs.get(&task_id).ok_or("TASK_NOT_RUNNING")?;
         let connection = state
             .db
             .lock()
@@ -1089,6 +1068,8 @@ pub async fn cancel_task_run(
                 |row| row.get(0),
             )
             .map_err(|_| "TASK_NOT_RUNNING".to_string())?;
+        if expected_run.as_ref().is_some_and(|expected|expected!=&latest_run_id){return Err("BROWSER_HANDOFF_STALE: intervention belongs to an older run".into());}
+        token.cancel();
 
         connection
             .execute(
@@ -2505,35 +2486,11 @@ async fn execute_user_turn(
                         }
                     }
                     Directive::AskUserForLogin { reason } => {
-                        if crate::managed_browser::enabled(){
-                            let feedback=orchestrator::directive_result_message(&serde_json::json!({"ok":false,"error":{"code":"BROWSER_UNSUPPORTED","message":"Visible login/handoff is not enabled on the managed route"}}));
-                            let mut result=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
-                            history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});continue;
-                        }
-                        let summary = format!("Login Required: {}", reason);
-                        let blocked_dir = Directive::AskUserForLogin { reason: reason.clone() };
-                        let mut approval_message = new_message(
-                            &task_id, "event", "approval",
-                            serde_json::json!({ "summary": summary, "detail": reason, "status": "pending", "blocked_directive": blocked_dir }).to_string(),
-                            None, None, true,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut approval_message)?;
-                        let mut assistant_message = new_message(
-                            &task_id, "assistant", "chat",
-                            "I need you to log in before continuing — see the card above.".into(),
-                            Some(units), Some(model_name.clone()), true,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
-                        apply_resolved_approval(
-                            &state,
-                            &app_handle,
-                            &task_id,
-                            &run_id,
-                            &cancellation_token,
-                            &approval_message.id,
-                            blocked_dir,
-                            &mut history,
-                        ).await?;
+                        let feedback=match Box::pin(crate::managed_browser::request_handoff(state,app_handle,task_id,run_id,&cancellation_token,"master",&reason)).await{
+                            Ok(result)=>result,Err(error) if cancellation_token.is_cancelled()=>return Err(error),
+                            Err(error)=>orchestrator::directive_result_message(&serde_json::json!({"ok":false,"error":error}))};
+                        let mut result=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
+                        history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});
                     }
                     Directive::RecallMessages { query, limit } => {
                         let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::RecallMessages { query, limit }).await {

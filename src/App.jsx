@@ -282,20 +282,9 @@ function App() {
     };
 
     const handleHandoffDecision = async (approved, note, permData) => {
-        const verb = approved ? "COMPLETED" : "CANCELLED";
-        const extra = note && note.trim() ? ` Note: ${note.trim()}` : "";
-        const instruction = approved ? " You may now continue." : " Please abort the task or find an alternative approach.";
-        
-        try {
-            await bridge.resolveHandoff(activeTaskIdRef.current, approved, note || "", permData && permData.messageId);
-            await reconcileMessages(activeTaskIdRef.current);
-        } catch (err) {
-            console.error("Failed to resolve handoff", err);
-        }
-
-        if (!sendLockRef.current && !sending) {
-            handleSend(`[HANDOFF ${verb}]${extra}${instruction}`);
-        }
+        const task=permData?.taskId||activeTaskIdRef.current;
+        await bridge.resolveHandoff(task, approved, note || "", permData?.messageId);
+        await reconcileMessages(task);
     };
 
     const handleChoiceDecision = async (choiceId, customText, extraArgs) => {
@@ -738,6 +727,10 @@ function playNotificationChime(type = "complete") {
         reasoningText,
     ]);
 
+    const awaitingBrowser=messages.some(message=>{
+        if(message.kind!=='handoff'||message.visible===false)return false;
+        try{return JSON.parse(message.content).status==='pending';}catch{return false;}
+    });
     const thinkingLabel =
         thinkingStage === "generating" ? "Zeus is generating the reply..." :
         thinkingStage === "reasoning"  ? "Zeus is thinking (reasoning through the problem)..." :
@@ -872,7 +865,7 @@ function playNotificationChime(type = "complete") {
                                     onOpenLiveView={handleOpenLiveView}
                                 />
                             ))}
-                            {activeTaskIsSending && (
+                            {activeTaskIsSending && !awaitingBrowser && (
                                 <div className="chat-message assistant">
                                     <div className="chat-bubble column">
                                         <label className="chat-bubble-author">Zeus</label>

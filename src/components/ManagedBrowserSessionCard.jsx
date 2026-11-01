@@ -17,7 +17,7 @@ export default function ManagedBrowserSessionCard({message,onOpenLiveView,onOpen
         return()=>{disposed=true;unsubscribe?.();};
     },[preview,data?.run_id,data?.task_id]);
     if(!data)return <div className="chat-message event"><div className="chat-bubble event">Browser session details are unavailable.</div></div>;
-    const active=['starting','active','finalizing'].includes(data.status),waiting=active&&['waiting_for_approval','waiting_for_user'].includes(runStatus??data.run_status);
+    const active=['starting','active','finalizing'].includes(data.status),waiting=active&&(data.handoff_pending||['waiting_for_approval','waiting_for_user'].includes(runStatus??data.run_status));
     const labels={starting:'Preparing',active:'In progress',finalizing:'Finishing',completed:'Finished',cancelled:'Stopped',failed:'Error',interrupted:'Interrupted'};
     return <div className="chat-message event"><div className="browser-session-card column gap-10" role="status" aria-label="Managed browser session">
         <div className={`browser-card-heading ${waiting?'waiting':data.status}`}><span className={`browser-status-dot ${active&&!waiting?'working':''}`} aria-hidden="true"/><strong>Browser session</strong><span className="browser-card-status">{waiting?'Waiting for you':labels[data.status]||'Unknown status'}</span></div>

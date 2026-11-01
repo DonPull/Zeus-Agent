@@ -898,6 +898,9 @@
 
 /* ---- approval cards ---- */
 .approval-card { max-width: 92%; }
+.handoff-body { display:block; }
+.handoff-reason { display:block; margin-top:10px; padding:10px; background:#00000019; border-radius:6px; text-align:left; line-height:1.5; }
+.handoff-reason > strong { display:inline; }
 
 .approval-card.pending { border-color: #ffcf3f66; }
 .approval-card.approved { border-color: #7ee0a355; }
@@ -1261,7 +1264,14 @@
 @keyframes browser-working { 0%,100% {opacity:1;box-shadow:0 0 0 0 currentColor;} 50% {opacity:.45;box-shadow:0 0 0 3px transparent;} }
 @media(prefers-reduced-motion:reduce) { .browser-status-dot.working {animation:none;} }
 .browser-viewer:fullscreen { background: var(--zeus-background, #13151c); padding: 16px; box-sizing: border-box; width: 100vw; height: 100vh; }
-.browser-viewer-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:16px; height:36px; min-height:36px; flex:none; }
+.browser-viewer-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:16px; height:36px; min-height:36px; flex:none; }
+.browser-actions-toggle { white-space:nowrap; font-size:13px; }
+.browser-action-overlay { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.browser-action-target { position:absolute; border:2px solid var(--zeus-accent,#e8b94b); border-radius:4px; box-shadow:0 0 0 2px #17192188; }
+.browser-action-target > span { position:absolute; top:0; left:0; color:#171921; background:var(--zeus-accent,#e8b94b); font-size:10px; line-height:14px; padding:0 3px; }
+.browser-action-caption { position:absolute; bottom:12px; left:12px; max-width:calc(100% - 24px); display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:#171921ed; border:1px solid #ffffff36; color:#f6f6f7; font:13px/1.4 var(--font-family,system-ui); box-shadow:0 2px 12px #0005; }
+.browser-action-caption strong { color:#e8b94b; }
+.browser-action-input { white-space:pre; max-width:320px; overflow:hidden; text-overflow:ellipsis; border-left:1px solid #ffffff36; padding-left:8px; }
 .browser-viewer-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
 .browser-viewer-toolbar label, .browser-viewer-action label { display: inline-flex; align-items: center; gap: 6px; }
 .browser-viewer select,.browser-viewer input { background:var(--zeus-input-bg,#242630); color:inherit; border:1px solid var(--zeus-border,#454753); padding:5px 8px; border-radius:6px; height:34px; }

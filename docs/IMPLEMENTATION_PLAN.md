@@ -2,6 +2,10 @@
 
 Status: **Roadmap through Phase 3C approved in conversation. Phase 3C implemented and locally accepted on 2026-10-31: the shared browser is now the sole ordinary executor with Live View/Replay. See its delivery record for the passing controls and both live outcomes. Subsequent major phases require focused aligned designs; this is not stable-v1 certification.**
 
+Current checkpoint (2026-11-01): the user approved Phase 3D implementation. [The execution/delivery contract](PHASE_3D_EXECUTION_DESIGN.md) records same-process native handoff, optional action annotations, human page observations, verified browser transfers, Windows experiments and validation. [The alignment notes](PHASE_3D_ALIGNMENT_NOTES.md) retain the broader Smart-permissions and canonical Solo/Team/build-comparison benchmark requirements; those later systems are not implemented by this patch.
+
+Further [capability/handoff research](CAPABILITY_AND_HANDOFF_RESEARCH.md) records agent-requested intervention, rejection of browser passthrough as the selected design, background-window rendering constraints, autonomous MCP/app setup, reusable/self-created skills, and revised uncertain-low-impact/rationale handling. Proposed capability/skills workstreams 5B/5C depend on the relevant state/authorization foundation and require their own aligned designs.
+
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).
 
 ## 1. Product decisions and scope
@@ -96,6 +100,8 @@ Exit: the known measurement defects have reproducing tests; intentional failures
 
 ## 5. Phase 2: a capability benchmark we can believe
 
+This is the official **Zeus Benchmark v1** project suite being built: it must compare Solo against Team, and an identical configuration on an older against a newer Zeus build. Version missions/graders/configurations, repeat trials, retain failures and report verified goal completion/quality against total agent usage and cost per successful goal. Product verifier/routing/retry costs belong to agent cost; external benchmark-grader expense is reported separately. The existing six missions/native diagnostics are a partial foundation, not the finished repeated benchmark. Establish a bounded baseline before major task-state/Team architecture changes.
+
 Focused design prepared after the Phase 1 commit: [Phase 2 benchmark design](PHASE_2_BENCHMARK_DESIGN.md). The user approved its first implementation packet, six missions with proven graders (2A), and permits efficient live models where useful. This grader-validation slice needs no inference; later runtime/environment work and larger baselines remain separate decisions. The rest of this section records the approved roadmap direction.
 
 ### Initial task portfolio
@@ -177,7 +183,8 @@ The user subsequently requested [replay UI refinements](REPLAY_UI_REFINEMENT.md)
 - Record action start, outcome/error, relevant before/after state, timestamps, artifacts, and stable sequence numbers. Never record a successful click before knowing whether it succeeded.
 - Use a durable action journal plus trace/screenshot artifacts. Update manifests atomically; set completion only at a real terminal transition. Evaluate Playwright tracing within a managed service rather than relying on incomplete monkey patches.
 - Implement a real human handoff and resume lifecycle, including a visible browser where required. Do not present a logging stub as a successful handoff.
-- Redact secrets and sensitive form values in events, screenshots where practical, and exports. Define retention, storage caps, and user deletion/export controls.
+- Phase 3D alignment adds optional click/target/key/text overlays in Live View and Replay, stored separately from image pixels. Normal handoff must preserve the existing process/context/tabs and unsaved state. The user's preference is to retain human page actions and visible content seamlessly in that same replay, rather than blanket-excluding the human segment; exact capture coverage and credential-event semantics require the focused design. See [alignment notes](PHASE_3D_ALIGNMENT_NOTES.md).
+- Apply the agreed visible-content policy: retain normal human/browser presentation, preserve native password masking, and omit underlying masked credentials from input telemetry/model context. Do not blanket-blackout the human segment. Browser chrome/native dialogs remain outside page-pixel capture; gaps, storage caps and deletion/export controls remain explicit. This user preference supersedes the original blanket screenshot-masking suggestion.
 - Close owned resources when the goal completes or is terminated, according to the agreed persistence policy. Cancellation and interrupted-recording finalization must not depend solely on Python `atexit`.
 
 Exit: actual local-browser integration tests verify continuity across scripts, live hydration, truthful replay, errors, human handoff, cancellation, and cleanup. The same image and browser missions work in Solo and Team. Wordle-specific code is out of scope.
@@ -233,6 +240,8 @@ Recommended pipeline: **parse actual shell syntax -> enumerate valid scoped rule
 - Offer approve once, scoped persistent allow, deny once, persistent deny, and denial with alternative guidance. Explain what the persistent rule covers, support revocation, and test both native and Python-originated cards.
 
 ### Smart classification
+
+The 2026-11-01 alignment requirement is two separate axes: **relationship to the current user goal** and **consequences/authorization**. Apply this to browser UI actions as well as files, commands and scripts. Aligned low-impact actions can pass; aligned consequential actions need approval unless already authorized; clearly off-goal actions should be held/rejected and workers redirected through the master rather than spamming the user. Uncertain alignment with verified bounded low impact may pass under a limited exploration allowance; repeated uncertainty/no progress triggers review. Consider worker explanations as evidence to cross-check, without letting them grant consent or rewrite the goal. Current user requirements/delegation scope, explicit rules and text/visual/tool/skill prompt-injection resistance remain authoritative. The [proposed decision matrix](PHASE_3D_ALIGNMENT_NOTES.md) and [concrete classifier/calibration explanation](CAPABILITY_AND_HANDOFF_RESEARCH.md) are input to Phase 5's focused design, not an already selected classifier or approval shortcut.
 
 - Strict and Smart are permission modes. Host and Sandbox are execution environments. Keep collaboration mode independent of both.
 - Apply deterministic hard boundaries and explicit user authorizations first. Classify remaining uncertainty using a compact trusted action envelope and clearly delimited untrusted evidence.
@@ -481,3 +490,11 @@ Validated checks now total 196 (36 JS, 37 mission/grader, 67 Rust, 56 desktop), 
 Phase 3B/3C delivery and manual follow-ups are recorded in their focused work logs. Subsequent accepted browser/link presentation changes are in [BROWSER_UX_FOLLOWUP.md](BROWSER_UX_FOLLOWUP.md), [REPLAY_UI_REFINEMENT.md](REPLAY_UI_REFINEMENT.md), and the current [chat workflow follow-up](CHAT_WORKFLOW_REFINEMENT.md). The last checkpoint before this follow-up is `fa22ac2`.
 
 This user-authorized increment removes replay seek flashes, skips image gaps during playback/jumps, improves playback scheduling, fixes modal/composer/header usability, names new conversations using their normal model reply, repairs the reported Done-plan projection, and adds an inert persistent card gallery. It does not implement the larger deterministic task-state/memory/completion phase. After validation and manual review, return to the existing roadmap with a focused tangible-impact and decision packet before the next substantial phase.
+
+## 23. Phase 3D delivery and next checkpoint
+
+The user approved implementation on 2026-11-01 and separately scheduled both active-desktop experiments. [The delivery packet](PHASE_3D_EXECUTION_DESIGN.md) records the decisions, exact native evidence and limitations. Ordinary Windows sessions now use full pinned Chromium offscreen; native human handoff preserves its process/context/tabs, pauses agent operations without model polling, and provides Open browser / Resume / Stop. Human page observations remain in the same recording, optional capture-bound action overlays are available, and managed uploads/downloads have owned snapshots, real-byte verification and durable transfer outcomes. Browser/service loss and cancellation close handoff cards truthfully. Masked credentials are excluded from events and resume/model observations without blanket-masking visible human content.
+
+Validation: **288 offline checks and 18 optimized desktop checks pass**, plus frontend production/optimized runtime builds, targeted unfinished-download cancellation and diff checks. The new checks use real local browser interactions and normal policy with mock model responses; native window/handoff UI tests run on a private desktop, not over the user's game. No live-model credits, account purchases, classifier inference, MCP connections or skill installations were used. These are integration/regression results, not an agent-intelligence score.
+
+Before major Phase 4/6 state/Team changes, prepare the bounded canonical benchmark baseline checkpoint: exact current build/configurations, repeatable reset/grading, Solo/Team comparison where meaningful, all-role usage/cost and retained failures. The six-mission/native foundation remains partial; neither Phase 3D nor historical Wordle success completes Zeus Benchmark v1. Phase 4 still needs its focused plan for deterministic task state, always-current plans, completion, memory and compaction. Phase 5 retains two-axis Smart authorization, prompt-injection defenses and measured classifier selection; direct paid Jev/alternative providers are permitted options to investigate, with no funding/provider choice implied here. Proposed MCP/desktop and skills workstreams 5B/5C keep their own alignment gates. Native document previews, conversation portability and replay compression remain future scope.

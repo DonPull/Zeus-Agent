@@ -2,6 +2,7 @@ import MessageAttachments from "./MessageAttachments";
 import ManagedBrowserSessionCard from "./ManagedBrowserSessionCard";
 import { useMemo, useState } from "react";
 import MessageMarkdown from './MessageMarkdown';
+import * as bridge from '../bridge';
 import { formatCredits, formatTime } from "../utils";
 
 function parseEventContent(message) {
@@ -247,36 +248,41 @@ function WorkerCard({ message }) {
     );
 }
 
-function HandoffCard({ message, onDecision }) {
+function HandoffCard({ message, onDecision, preview=false }) {
     const data = useMemo(() => parseEventContent(message), [message]);
+    const [busy,setBusy]=useState(false),[error,setError]=useState('');
     if (!data) return null;
 
     const pending = data.status === "pending";
+    const opened=data.phase==='open';
+    const act=async action=>{if(preview||busy)return;setBusy(true);setError('');try{await action();}catch(reason){setError(String(reason));}finally{setBusy(false);}};
 
     return (
         <div className="chat-message event">
-            <div className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
-                <div className="approval-card-header align-center justify-space-between no-user-select">
-                    <span className="approval-card-title">Browser Handoff Needed</span>
-                    <span className="approval-card-status">{pending ? "waiting for user" : data.status}</span>
+            <div role="group" aria-label="Browser intervention" className={`chat-bubble approval-card column gap-10 ${pending ? "pending" : data.status === "approved" ? "approved" : "denied"}`}>
+                <div className="approval-card-header align-center justify-space-between">
+                    <span className="approval-card-title">Browser needs your help</span>
+                    <span className="approval-card-status">{pending ? opened?'your turn':'waiting for you' : data.status==='approved'?'completed':data.status}</span>
                 </div>
                 
-                <div className="approval-card-body">
-                    Zeus needs you to complete a manual task in the browser before it can continue.
-                    {data.reason && <div style={{ marginTop: "10px", padding: "10px", background: "rgba(0,0,0,0.1)", borderRadius: "6px" }}><strong>Reason:</strong> {data.reason}</div>}
+                <div className="approval-card-body handoff-body">
+                    {pending?(opened?'Complete the requested task in the browser, then resume Zeus.':'Open the browser to complete the requested task. Zeus will wait here.'):data.status==='approved'?'Your intervention is complete. Zeus resumed from the current page.':'This browser intervention has ended.'}
+                    {data.reason && <div className="handoff-reason"><strong>Reason: </strong>{data.reason}</div>}
                 </div>
                 
                 {pending ? (
                     <div className="align-center gap-10" style={{ marginTop: "10px" }}>
-                        <button className="confirm-dialog-button danger" onClick={() => onDecision(false, null, { messageId: message.id, mode: "once" })}>
-                            <label>Cancel Task</label>
+                        <button disabled={busy||preview} className="confirm-dialog-button danger" onClick={() => act(()=>onDecision(false, null, { messageId: message.id, taskId:message.task_id }))}>
+                            <label>Stop run</label>
                         </button>
                         
-                        <button className="confirm-dialog-button" onClick={() => onDecision(true, null, { messageId: message.id, mode: "once" })}>
-                            <label>Done, Resume Agent</label>
+                        <button disabled={busy||preview} className="confirm-dialog-button" onClick={() => act(()=>bridge.openBrowserHandoff(message.task_id,message.id))}>
+                            <label>{busy?'Working…':opened?'Show browser':'Open browser'}</label>
                         </button>
+                        {opened&&<button disabled={busy||preview} className="confirm-dialog-button" onClick={()=>act(()=>onDecision(true,null,{messageId:message.id,taskId:message.task_id}))}><label>Resume Zeus</label></button>}
                     </div>
                 ) : null}
+                {error&&<div className="browser-viewer-notice" role="alert">{error}</div>}
             </div>
         </div>
     );
@@ -529,7 +535,7 @@ function ChatMessage({
         if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message} onOpenLiveView={onOpenLiveView} onOpenReplay={onOpenReplay} preview={preview}/>;
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;
-        if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} />;
+        if (message.kind === "handoff") return <HandoffCard message={message} onDecision={onHandoffDecision} preview={preview}/>;
         if (message.kind === "choice") return <InteractiveChoiceCard message={message} onDecision={onChoiceDecision} />;
         if (message.kind === "worker_started" || message.kind === "worker_update") return <WorkerCard message={message} />;
         if (message.kind === "browser_session_started") return <BrowserSessionStartedCard message={message} onOpenReplay={onOpenReplay} />;

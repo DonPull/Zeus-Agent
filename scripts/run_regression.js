@@ -39,13 +39,19 @@ if (selected('ui')) {
   const browserPython=path.join(root,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
   if(!fs.existsSync(browserPython)){console.error('Prepare the isolated browser runtime explicitly: python scripts/browser_service/setup_runtime.py --destination .zeus/browser-runtime/venv --install');code||=1;}
   else if(!uiFiles.length)run(browserPython,['tests/browser_service/test_service.py']);
-  run(process.execPath, [path.join(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config=playwright.offline.config.js',...uiFiles.map(name=>`${name}.spec.js`)]);
+  const regular=uiFiles.filter(name=>name!=='browser_handoff');
+  if(!uiFiles.length||regular.length)run(process.execPath, [path.join(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config=playwright.offline.config.js',...regular.map(name=>`${name}.spec.js`)]);
+  // Native Open-browser tests inherit a private Win32 desktop. Never expose
+  // their windows over the user's current applications or inject desktop input.
+  if(process.platform==='win32'&&(!uiFiles.length||uiFiles.includes('browser_handoff'))&&fs.existsSync(browserPython))run(browserPython,['tests/browser_service/probe_native_handoff.py','--e2e']);
 }
 if (requested.includes('--release')) {
   env.ZEUS_TEST_RELEASE='1';
   run('cargo',['build','--release','--locked','--bin','zeus-evaluation','--features','evaluation-runner'],path.join(root,'src-tauri'));
   if(!code)run(process.execPath,[path.join(root,'node_modules/@playwright/test/cli.js'),'test','--config=playwright.offline.config.js',
-    'attachments','browser_capture','browser_ownership','browser_recordings','browser_visuals','browser_readiness','message_links','viewer_layout','replay_polish','chat_refinements','--grep',
-    'large valid image|one root-owned browser|Stop during navigation|ordinary fresh launch|production collector and live viewer|real before/after evidence|explicit worker screenshot|readiness checks preserve|task files reveal|live and replay viewers use|replay keeps decoded images|settings headers stay visible|normal model responses name|persistent UI showcase']);
+    'attachments','browser_capture','browser_ownership','browser_recordings','browser_visuals','browser_readiness','browser_transfers','message_links','viewer_layout','replay_polish','chat_refinements','--grep',
+    'large valid image|one root-owned browser|Stop during navigation|ordinary fresh launch|production collector and live viewer|real before/after evidence|explicit worker screenshot|readiness checks preserve|managed transfers verify|task files reveal|live and replay viewers use|replay keeps decoded images|settings headers stay visible|normal model responses name|persistent UI showcase']);
+  const browserPython=path.join(root,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
+  if(!code&&process.platform==='win32'&&fs.existsSync(browserPython))run(browserPython,['tests/browser_service/probe_native_handoff.py','--e2e']);
 }
 process.exitCode = code;

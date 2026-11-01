@@ -19,6 +19,7 @@ export const sendUserMessage = (taskId, content, requestId, attachmentIds = []) 
 export const onUserMessageAccepted = callback => listen("user-message-accepted",event=>callback(event.payload));
 export const resolvePendingApprovals = (taskId, approved, messageId, note = null) => invoke("resolve_pending_approvals", { taskId, approved, messageId, note });
 export const resolveHandoff = (taskId, approved, note, messageId) => invoke("resolve_handoff", { taskId, approved, note, messageId });
+export const openBrowserHandoff = (taskId,messageId) => invoke("open_browser_handoff",{taskId,messageId});
 export const resolveChoice = (taskId, choiceId, customText, messageId) => invoke("resolve_choice", { taskId, choiceId, customText, messageId });
 export const renameTask  = (taskId, title)  => invoke("rename_task",        { taskId, newTitle: title });
 export const updateTaskSettings = (taskId, settings) => invoke("update_task_settings", { taskId, settings });
@@ -29,6 +30,7 @@ export const getBrowserSession = (taskId, sessionId) => invoke("get_browser_sess
 export const getManagedBrowserSessions = (taskId) => invoke("get_managed_browser_sessions", { taskId });
 export const getManagedBrowserStatus = () => invoke("get_managed_browser_status");
 export const getManagedBrowserActions = (taskId, sessionId, after = 0) => invoke("get_managed_browser_actions", { taskId, sessionId, after });
+export const getManagedBrowserTransfers = (taskId,sessionId) => invoke("get_managed_browser_transfers",{taskId,sessionId});
 export const getManagedBrowserObservation = (taskId) => invoke("get_managed_browser_observation", { taskId });
 export const getBrowserCapture = (taskId, sessionId) => invoke("get_browser_capture", {taskId, sessionId});
 export const heartbeatBrowserViewer = (taskId, sessionId) => invoke("heartbeat_browser_viewer", {taskId, sessionId});

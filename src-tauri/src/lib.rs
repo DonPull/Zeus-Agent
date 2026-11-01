@@ -78,6 +78,8 @@ pub fn run() {
             chat::send_user_message,
             chat::resolve_pending_approvals,
             chat::resolve_handoff,
+            managed_browser::open_browser_handoff,
+            managed_browser::get_managed_browser_transfers,
             chat::resolve_choice,
             chat::rename_task,
             chat::update_task_settings,

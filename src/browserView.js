@@ -23,7 +23,7 @@ export function browserDuration(session,now=Date.now()){
     const seconds=Math.floor(ms/1000),hours=Math.floor(seconds/3600),minutes=Math.floor(seconds%3600/60);
     return `${hours?`${hours}h `:''}${hours||minutes?`${minutes}m `:''}${seconds%60}s`;
 }
-export const browserActor=caller=>caller==='master'?'Zeus':caller?.startsWith('worker:')?'Worker':caller==='observer'?'Observer':caller?.includes('/script:')?'Script':'Agent';
+export const browserActor=caller=>caller==='human'?'Human':caller==='master'?'Zeus':caller?.startsWith('worker:')?'Worker':caller==='observer'?'Observer':caller?.includes('/script:')?'Script':'Agent';
 
 export function replaySpeed(value){
     if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(String(value).trim()))return null;
