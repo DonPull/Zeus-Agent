@@ -1,12 +1,24 @@
 # Zeus Agent: stabilization and development plan
 
-Status: **Phase 3D and its browser reliability follow-up approved and implemented. The full 293-check follow-up regression passed; final delivery is recorded below. Subsequent major phases require focused aligned designs; this is not stable-v1 certification.**
+Updated: **5 November 2026. This is the canonical live implementation roadmap.**
+Current status and delivery order below take precedence over historical milestone
+tables and the dated delivery notes later in this file. Update the current
+checkpoint, status table and relevant focused packet when scope or delivery
+changes; preserve past evidence as history rather than leaving it as current status.
 
-Current checkpoint (2026-11-04): Phase 3D and the [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) are implemented. [The execution/delivery contract](PHASE_3D_EXECUTION_DESIGN.md) records same-process native handoff, optional action annotations, human page observations and verified browser transfers. The follow-up adds prepared ad blocking, handoff-aware audio, a larger viewport, clearer overlays, Windows input evidence and bounded live handoff checks. Next is the bounded canonical benchmark baseline checkpoint before the focused Phase 4 design. [The alignment notes](PHASE_3D_ALIGNMENT_NOTES.md) retain the broader Smart-permissions and canonical Solo/Team/build-comparison requirements; those later systems are not implemented by this patch.
+Current checkpoint: Phase 3A–3D and the browser reliability/usability follow-ups
+are delivered. The initial matched native benchmark reference is also recorded:
+three missions, six pilot attempts, then 18 repeated attempts with 17 successful
+outcomes. It is an early measurement foundation, not the full benchmark suite.
+The [Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md) has been reviewed positively,
+with the user's lightweight-check and lossless-history requirements incorporated.
+Runtime Phase 4 implementation has not started. Next: the bounded response-format
+diagnostic, 4A automatic task state, 4B context plus searchable originals, and 4C
+completion evidence, with focused review before each substantial slice.
 
-The user authorized this next work on 4 November. The completed browser commits
-are merged/pushed to main and their temporary branch is deleted. The active
-[benchmark baseline checkpoint](BENCHMARK_BASELINE_CHECKPOINT.md) defines the
+The completed browser and benchmark commits are merged/pushed to main and the
+temporary browser branch is deleted. The delivered
+[benchmark baseline checkpoint](BENCHMARK_BASELINE_CHECKPOINT.md) records the
 small matched native-supervised pilot, repeat/resume/comparison tooling and its
 limits. Browser-agent speed and efficiency remain an explicit follow-up using
 these measurements; current browser behavior is not considered fully optimized.
@@ -21,6 +33,11 @@ complete Benchmark v1 or demonstrate active Team collaboration. One retained
 protocol failure and browser recovery overhead inform the next
 [Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md), prepared for alignment before
 runtime implementation. Browser efficiency remains an explicit measurement track.
+**Full 12-core-mission Benchmark v1 completion is scheduled immediately after
+Phase 4, before Phase 5**, as the explicit return to Phase 2D/2E. Do not postpone
+it until the Team redesign, automatic routing or self-improvement phases. See
+the scope and acceptance checklist below; no calendar date is promised before
+the remaining engineering and execution-environment work is scoped.
 
 Further [capability/handoff research](CAPABILITY_AND_HANDOFF_RESEARCH.md) records agent-requested intervention, rejection of browser passthrough as the selected design, background-window rendering constraints, autonomous MCP/app setup, reusable/self-created skills, and revised uncertain-low-impact/rationale handling. Proposed capability/skills workstreams 5B/5C depend on the relevant state/authorization foundation and require their own aligned designs.
 
@@ -45,6 +62,8 @@ Manual testing on 2026-10-28 found a native stack-overflow crash, duplicate-answ
 - Efficient live models may be used when they materially improve testing; there is no blanket prohibition on live inference. Keep deterministic regression checks where appropriate, choose economical models for targeted integration checks, and retain usage/results. Expensive frontier-model sweeps and substantial benchmark runs still need a bounded plan.
 - Refresh economical live-model choices against dated primary benchmark evidence and the actual Abacus catalogue. Do not equate public API prices with subscription credits or reuse outdated models merely because their adapters are familiar.
 - Recoverable runtime failures should return typed errors and user feedback; native aborts require a demonstrated cause/fix rather than a blanket catch mechanism. Manual crashes remain blockers despite passing scripted tests. Reuse existing UI styles and give changed controls a basic visual/layout check.
+- Compaction changes the model's working context, not the durable conversation. Automatically preserve original messages, linked image/document bytes and source references; make history searchable/readable back to the start of the chat. Do not depend on the model remembering to archive it. Explicit deletion/retention choices still apply; indexes/summaries never replace originals.
+- Keep plan/state checks proportionate: automatic local lifecycle bookkeeping, meaningful revision/evidence checks and targeted replanning, without a mandatory approval/verifier/model turn for every harmless operation. Measure retention, successful goals, latency and cost; fewer tokens alone do not prove a better compactor.
 - Routine automated tests should run in the background without flashing windows or stealing the user's focus. Hidden test windows must start hidden; background Python/command tools should capture output without opening consoles. Preserve intentional app/browser/handoff visibility. Reuse existing command-specific Codex approvals with plain invocations where possible.
 - Later capabilities: image generation/editing, audio and video analysis, transcription, voice interaction, automatic model selection, supervised improvement, and unrestricted operation inside a real sandbox.
 
@@ -64,23 +83,54 @@ Each topic's design should contain:
 
 After alignment: implement a small complete slice, run the relevant checks, compare results, then expand. Routine fixes inside an approved design do not require repeated approval. Keep research proportional to the decision; do not create an open-ended research or rewrite project.
 
-## 3. Proposed sequence
+## 3. Current delivery order and status
 
-| Phase | Deliverable | Dependencies | Exit evidence |
-|---|---|---|---|
-| 0 | Baseline checkpoint and agreed proposal | None | Baseline committed; roadmap and Phase 1 packet approved |
-| 1 | Trustworthy test runner, result records, accounting, and CI foundation | 0 | Deliberately failing checks reliably fail and are recorded; no paid calls in ordinary regression checks |
-| 2 | Benchmark v1 and a reproducible initial baseline | 1 | Outcome graders validated; effective runtime configuration recorded; repeated baseline trials retained |
-| 3 | Current execution, image, and browser reliability | 1; use 2 for before/after comparisons | Managed sessions, real image delivery, reliable stop/replay, common Solo/Team tool behavior |
-| 4 | Durable task state, current plan, memory, and compaction | 1, shared execution from 3 | State and constraints survive long sessions, corrections, compaction, and restart tests |
-| 5 | Authorization repair, parent-command suggestions, and Smart mode | 1, execution foundation from 3 | Scoped policy tests pass; classifier calibrated in shadow mode before enabling auto-approval |
-| 6 | Team contracts, supervision, and independent verification | 2, 3, 4, 5 | Wrong-task workers can be redirected early; independent checks detect plausible but incorrect work |
-| 7 | Automatic model selection and measured architecture choices | 2, accounting from 1, 6 | Routing meets agreed quality/cost targets on held-out tasks and preserves overrides |
-| 8 | Bounded, supervised self-improvement workflow | 1-6; 7 optional | A candidate patch can be proposed, tested, rejected, and reviewed without changing the evaluator or main branch |
-| 9 | Multimodal features: images, audio, video, voice | Stable execution, attachment contract, accounting | Each modality has real processing checks, quotas, and explicit failure behavior |
-| 10 | Production sandbox and managed subscription delivery | Separate designs; commercial discovery can start now | Isolation and onboarding are independently validated before promising unrestricted or bundled service |
+| Phase / workstream | Status | Deliverable and next acceptance evidence |
+|---|---|---|
+| 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 302 checks |
+| 2A — mission contracts/graders | Initial six delivered | B01, C01, C02, D01, D02, V01 references and negative controls; these are grader tests, not six live capability results |
+| 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
+| 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
+| 2C — small matched reference checkpoint | Delivered for three native missions | Six pilot plus 18 repeated D01/B01/V01 attempts; 17/18 repeated outcomes, retained protocol failure, actual role use and unknown provider credits |
+| 4 — state, memory and context | Current next phase; direction reviewed, slices below | Response-format diagnosis → 4A automatic task checkpoint/plan → 4B compaction plus searchable originals → 4C honest completion evidence |
+| 2D/2E — complete Benchmark v1 | **Immediately after Phase 4, before Phase 5** | All 12 core mission contracts/graders/runtime paths, validated benchmark isolation/coverage, repeated matched current Solo/Team baseline, versioned comparison report |
+| Browser speed/efficiency track | Explicit follow-up alongside 4 and v1 completion | Profile controlled multi-step browser work, isolate format/observation/wait/batching overhead and verify outcomes before accepting an optimization |
+| 5 — permissions and Smart mode | Planned after state and full v1 baseline | Scoped files/commands/scripts/browser policy, goal-alignment and consequences checks, prompt-injection tests and calibrated shadow classifier |
+| 6 — Team contracts and supervision | Planned after 4/5; benchmark v1 already available | Delegation/scope/evidence contracts, early redirection and independent verification; rerun v1 before/after without changing graders |
+| 5B — autonomous MCP/app/desktop setup | Planned extension after relevant 4/5 foundations; focused design required | Discover/connect suitable services/apps with bounded setup, authentication and normal permissions; not implied by unrestricted host scripts |
+| 5C — reusable and agent-created skills | Planned extension after relevant 4/5 foundations; focused design required | Versioned/provenance-bearing skill discovery, reuse and creation, with injection/quality checks |
+| 7 — automatic model selection | Planned after full v1 and Team measurements | Measured success/resource tradeoffs, availability and explicit overrides |
+| 8 — supervised improvement | Planned after regression, benchmark, state and authorization foundations | Bounded candidate patch/test/reject/review loop, protected evaluator and main branch |
+| 9 — future multimodal capabilities | Planned after core stability | Image generation/editing, audio/video analysis, transcription and voice; real processing and failure tests |
+| 10 — product sandbox/subscription delivery | Separate later designs | Production containment, onboarding, managed subscriptions and service guarantees; benchmark-only isolation is not this product feature |
 
 Phases are delivery order, not a prohibition on fixing a directly observed critical defect earlier. Add a regression check, keep scope narrow, and record the reason for any reprioritization. Prefer sequential delivery initially; no blanket agent delegation is proposed.
+
+### Full benchmark delivery commitment
+
+The existing six grader fixtures and three-mission native reference are useful
+early infrastructure. They do not complete Benchmark v1. The next scheduled
+benchmark milestone is **2D/2E immediately after Phase 4**, rather than an
+unspecified revisit in a distant phase. Author/prove memory/recovery cases during
+Phase 4 so the new functionality has direct acceptance checks as it lands.
+
+| Required for full core v1 | Remaining work |
+|---|---|
+| 12 core missions | Complete B02/B03 multi-step browser work, C03 application work, M01/M02 memory/recovery and R01 source-grounded research; retain the six existing contracts |
+| Every mission actually runnable and gradeable | Enable C01/C02/D02 submitted-program grading in a validated benchmark environment; finish browser/download/restart/research drivers and independent controls |
+| Independent evaluator and stated authorization coverage | Prepare/validate benchmark-only isolated actor and executable-grader boundaries, clean resets and protected fixtures before claiming isolated or verified results; do not wait for product Phase 10 |
+| Repeated matched Solo/Team measurements | Freeze current architecture/model/policy/limits and task versions; retain failures and report actual role usage even if Team does not delegate or outperform Solo |
+| Build comparisons and efficiency | Preserve raw source/configuration/task/grader identities, latency, interventions and all-role usage; keep unknown credits explicit and validate matched before/after comparisons |
+| Frozen release and usable report | Publish versioned v1 contracts, proven graders, reviewed repeated baseline and reproducible commands; report per-category/coverage gaps rather than a misleading single score |
+
+The four planned stretch missions are an additional track, separate from the
+12-core headline. Their later expansion does not keep core v1 permanently
+unfinished. The full benchmark measures the app as it exists; fixing every
+failure or finishing the Phase 6 Team redesign is not a release prerequisite.
+Phase 5 Smart mode and Phase 6 Team changes then reuse v1 for before/after checks.
+Execution-environment installation and larger live budgets receive their own
+bounded concrete setup/run packet; a declaration in a document is not isolation.
 
 ## 4. Phase 1: make measurement trustworthy
 
@@ -209,6 +259,11 @@ Exit: actual local-browser integration tests verify continuity across scripts, l
 
 ## 7. Phase 4: task state, plan, memory, and compaction
 
+The [focused Phase 4 packet](PHASE_4_TASK_STATE_DESIGN.md), updated after the
+5 November feedback, is the implementation contract for the next slices.
+The requirements below remain applicable; original-history preservation and
+retrieval are explicit 4B deliverables, not optional future memory features.
+
 ### Deterministic responsibilities
 
 Extend SQLite-backed task state rather than treating freeform chat or a markdown plan as the authoritative execution record. Candidate concepts are requirement revisions, plan steps, attempts, evidence, blockers, pending approvals, artifacts, and summaries; exact schema belongs in the phase design.
@@ -216,7 +271,7 @@ Extend SQLite-backed task state rather than treating freeform chat or a markdown
 - Stable IDs and versioned updates tie each plan step to the current requirements and observed evidence.
 - The runtime updates mechanical state after tool start/finish, worker state changes, approvals, budget pauses, cancellation, and interruption. The model does not have to remember to do this bookkeeping.
 - Before every model call and after compaction/restart, the context builder supplies the current task contract, requirement revision, plan, blockers, relevant evidence, and recent work.
-- User corrections invalidate or mark affected plans for review. A stale semantic plan is labeled stale; the runtime requires reconciliation before further dependent work or completion.
+- Meaningful user corrections mark affected plans for review. Reconcile conflicting requirements before work that depends on them or claims to satisfy them; unrelated questions and useful independent work do not require a separate replanning turn.
 - Require replanning at meaningful checkpoints and detected divergence, rather than demanding another model call after every harmless micro-action.
 - A step or goal cannot be marked verified solely because a model says it is done. Use outcome predicates where possible and explicit verifier/human judgments with evidence where semantic checks are necessary.
 - Simple tasks can use a minimal implicit plan; avoid a mandatory planning conversation for a one-step request.
@@ -226,14 +281,14 @@ Deterministic code can guarantee revision tracking, updates, reinjection, and en
 ### Memory and context
 
 - Separate durable task facts/constraints, verified findings, model hypotheses, reusable user preferences, and compacted history. Preserve source/provenance and corrections.
-- Begin with structured SQLite records and existing transcript recall. Do not introduce a vector database without demonstrating a retrieval need.
+- Preserve originals automatically in SQLite and linked attachment storage. Extend transcript recall with indexed, paged search and exact source/attachment reads, shared by Solo and task-owned workers. Do not introduce a vector database without demonstrating a retrieval need.
 - Use context budgets appropriate to the selected model, reserving output/tool headroom. Handle large individual messages and tool results as well as long transcripts.
 - Create semantic summaries at controlled checkpoints, retain the raw transcript, and validate coverage of critical requirements and unresolved work before replacing context.
 - Keep original requirements, current state, pending authorizations, and key evidence outside lossy summary-only storage. Do not promote instructions found in a webpage or log into trusted policy memory.
 - Apply equivalent compaction and recovery rules to workers and verifiers. Failed summarization has a defined bounded fallback; it must not silently drop constraints.
 - Reconcile external state on resume before replaying an uncertain side effect. Distinguish interrupted, paused, failed, and successfully completed runs.
 
-Exit: scripted long-session tests preserve requirements through corrections, compaction, worker handoff, and restart; stale-plan tests force reconciliation; replay does not duplicate a previously observed side effect. Capability trials measure actual semantic retention separately.
+Exit: scripted long-session tests preserve requirements through corrections, repeated compaction, worker handoff, and restart; old facts and attachments remain retrievable even when absent from a summary; stale-plan tests reconcile affected work; replay does not duplicate a previously observed side effect. Capability trials measure actual semantic retention, successful outcomes, latency and cost separately.
 
 ## 8. Phase 5: permissions and Smart mode
 

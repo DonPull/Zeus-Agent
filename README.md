@@ -67,10 +67,10 @@ Zeus Agent is a desktop autonomous-agent runtime for open-ended computer tasks. 
 
 For in-depth architecture, design invariants, implementation roadmaps, and evaluation history, refer to:
 
-- [**`docs/IMPLEMENTATION_PLAN.md`**](docs/IMPLEMENTATION_PLAN.md): Current agreed stabilization plan and delivery order; takes precedence over historical milestone claims.
+- [**`docs/IMPLEMENTATION_PLAN.md`**](docs/IMPLEMENTATION_PLAN.md): Live roadmap with current phase status, next work, and the full Benchmark v1 milestone; takes precedence over historical milestone claims.
 
 - [**`docs/PRODUCT_VISION.md`**](docs/PRODUCT_VISION.md): Core vision, user autonomy model, non-negotiable architectural invariants, and engineering principles.
 - [**`docs/SYSTEM_ARCHITECTURE.md`**](docs/SYSTEM_ARCHITECTURE.md): Comprehensive technical specification covering the Dual Execution Engine, LLM Gateway, Watcher AI, Gatekeeper, Python Sandbox, and IPC Bridge contract.
-- [**`ROADMAP.md`**](ROADMAP.md): Completed milestone registry, active implementation phases, and complete backlog of planned features and workstreams.
-- [**`FINAL_EVAL_REPORT.md`**](FINAL_EVAL_REPORT.md): Executive summary and results matrix for the 10/10 Agentic Benchmark Suite.
+- [**`ROADMAP.md`**](ROADMAP.md): Historical milestone registry and earlier backlog; use the live implementation plan above for current delivery status/order.
+- [**`FINAL_EVAL_REPORT.md`**](FINAL_EVAL_REPORT.md): Historical 10/10 evaluator report, not the current official benchmark or a current reliability guarantee.
 - [**`scripts/eval_harness/README.md`**](scripts/eval_harness/README.md): Guide to the automated evaluation harness, scoring rubrics, and dashboard telemetry.

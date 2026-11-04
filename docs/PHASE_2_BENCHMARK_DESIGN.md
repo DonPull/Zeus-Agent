@@ -1,6 +1,14 @@
 # Phase 2: a useful, reproducible Zeus capability benchmark
 
-Status: **Phase 2A implemented; Phase 2B native supervised integration implemented and locally validated. Isolated grading, a larger pilot, and repeated capability baselines remain pending.**
+Status, 5 November 2026: **initial six mission graders and native integration
+delivered; a three-mission native repeated reference is recorded. Full core
+Benchmark v1 remains unfinished.** The canonical
+[implementation roadmap](IMPLEMENTATION_PLAN.md) schedules completion of 2D/2E
+immediately after Phase 4, before Phase 5: 12 core missions, complete runtime and
+grading paths, validated benchmark execution boundaries, and repeated matched
+current Solo/Team measurements. [The initial reference](benchmarks/native-baseline-20261104.md)
+does not certify isolation or active collaboration. Dated findings and original
+packet approvals below remain historical evidence, not the current completion status.
 
 Prepared: 2026-10-27. Reviewed code baseline: `818eb67`, the committed Phase 1 measurement/regression foundation. This is the focused design requested by the [development plan](IMPLEMENTATION_PLAN.md), not another proposal to rewrite the agent.
 

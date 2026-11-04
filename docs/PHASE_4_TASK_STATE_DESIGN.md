@@ -1,9 +1,11 @@
 # Phase 4: durable task state and reliable context
 
-Status: focused design for alignment before runtime implementation. The
-[native reference](benchmarks/native-baseline-20261104.md) is now recorded.
-This packet proposes small sequential slices; it does not authorize one large
-state, memory, protocol and Team rewrite.
+Status, 5 November 2026: direction reviewed positively by the user, with explicit
+requirements for lightweight checks and lossless, searchable conversation
+retention. Those requirements are incorporated below. Runtime implementation
+has not started. The [native reference](benchmarks/native-baseline-20261104.md)
+is recorded; delivery remains small sequential slices with focused review for
+4B/4C, rather than one state, memory, protocol and Team rewrite.
 
 ## Tangible differences
 
@@ -25,6 +27,7 @@ progress transitions, evidence and context assembly.
 | Model-authored plan text is reinjected as the source of truth; every four actions a reminder asks the model to update it | Versioned SQLite task checkpoint; runtime events update execution status automatically. Model-authored plans are versioned proposals linked to actual user input |
 | One overwritten `chat_memory` string appended to system instructions | Source-backed task facts/notes with revision, trust category and freshness; older memory retained as historical notes |
 | First-line snippets of old messages become a system-role summary | Context builder preserves critical state and source references; untrusted page/tool/model text remains data and never becomes product policy |
+| Originals already persist, but recall is a newest-first substring query without stable source IDs or attachment results | Preserve originals automatically and add indexed, paged search plus exact source/attachment retrieval from the beginning of the chat |
 | Master gets its history/plan while workers get a separate objective prompt | Shared checkpoint contract, with a worker's delegated scope and the same current user requirements/constraints |
 | `final_answer` ends execution without a general evidence contract | Preserve conversational answers, add explicit work-completion claims/check outcomes with honest partial/unknown states |
 | Sparse syntax failures are repaired with more text-only turns | First diagnose actual response/stream output; evaluate native structured tools as a separate measured design rather than weakening multi-directive rejection |
@@ -33,6 +36,23 @@ Keep SQLite authority, persist-before-emit, backend visibility, stable message
 IDs/sequence, task single-flight, normal policy and owned-process cancellation.
 Do not add a competing PLAN.md authority, change saved user models or implement
 Smart permissions/MCP/skills as part of this packet.
+
+## Proportionate checks and performance
+
+Bookkeeping should remove work from the actor. Do not require a separate plan,
+approval, verifier call or checkpoint ceremony for every click, file read or
+ordinary reply. Lifecycle updates are small local transactions and derived
+projections, with no additional model call. Replanning happens when a meaningful
+scope change or conflicting evidence needs it; unrelated questions and harmless
+exploration do not freeze the run until the model rewrites a plan.
+
+Enforce concrete invariants: current ownership/revision, an actual recorded
+effect versus an attempted action, and explicit user constraints. Unknown
+semantic progress remains honest without becoming a blanket execution ban.
+Do not make all useful work depend on proving an arbitrary goal mechanically.
+Measure checkpoint/context-building latency, requests, token use and successful
+outcomes. A material slowdown or capability drop requires investigation and an
+explicit tradeoff, not acceptance because more checks sound robust.
 
 ## Code findings and research
 
@@ -52,12 +72,24 @@ Smart permissions/MCP/skills as part of this packet.
   one failed attempt. Chat streaming currently reads `delta.content`; inspection
   did not reveal a simple double append of `message.content`. Without raw
   synthetic stream evidence, the exact origin remains unknown.
+- Compaction currently transforms the model request's in-memory history; it
+  does not delete stored `messages`. Linked input attachments are retained;
+  opportunistic cleanup is limited to unchanged, unsent/unlinked orphans.
+  `RecallMessages` searches this task with SQL LIKE, newest first, up to 50
+  matches. It returns role/kind/content/time, but no stable message ID/sequence,
+  attachment results or continuation cursor. Workers can already invoke it.
 
 [Anthropic's context-engineering guidance](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents)
 discusses selective retrieval, compaction and persistent structured notes. Our
 additional inference is that Zeus must guarantee checkpoint updates through
 runtime transactions rather than depend only on the model writing notes.
 This research supports the direction, not a universal retention guarantee.
+
+[Letta's first-party memory architecture reference](https://github.com/letta-ai/skills/blob/main/letta/agent-development/references/memory-architecture.md)
+also separates working context from database-backed conversation history that
+can be searched on demand. Its separate agent-populated archival-memory feature
+is not the mechanism selected for Zeus: retention of accepted chat messages and
+their attachment links must be automatic, not an optional model-authored note.
 
 ## First slice: automatic execution checkpoint (4A)
 
@@ -99,10 +131,84 @@ dispatch: current user revision, checkpoint, delegated scope, current accepted
 constraints, pending work, evidence/attachment references and recent exchanges.
 Raw text remains recallable by source IDs. Summaries have source coverage and
 revision; they are derived caches, not authority. Summarization failure must
-preserve the last valid checkpoint and return an explicit context error rather
-than silently dropping requirements. Do not assume a byte estimate is an exact
+preserve the last valid checkpoint. Use bounded retry or a valid fallback context
+that retains critical state and source references; return an explicit context
+error only when no valid bounded package can be assembled, rather than silently
+dropping requirements. Do not assume a byte estimate is an exact
 tokenizer or catalogue membership proves a model's context limit. Benchmark
 critical-fact recall before reducing context precision.
+
+### 4B original history and retrieval contract
+
+Compaction changes the working context sent to a model. It must not delete,
+overwrite or replace the original conversation with a summary. SQLite remains
+the canonical transcript; there is no need to create a competing text-file
+archive. Preserve accepted user/assistant messages and persisted hidden/tool/
+worker conversations, their stable IDs, sequence, timestamps and source type.
+Retain original user-uploaded image/document bytes and message links under
+existing ownership/integrity rules. Retain referenced full tool-output artifacts
+where the tool already stores them; do not claim previously truncated or missing
+external output was captured in full. Summaries, search indexes and extracted
+metadata are rebuildable derivatives, never substitutes for the originals.
+
+Acceptance-time persistence/indexing is automatic. Neither the actor remembering
+to call `update_memory` nor compaction succeeding can be a prerequisite for
+retaining an original. Restart must preserve the same discoverable history.
+Compaction/age alone must not prune linked chat inputs. Explicit user deletion
+or an explicitly chosen retention policy remains meaningful: remove/invalidate
+associated search entries rather than reviving deleted content through an index.
+Missing/changed/deleted bytes produce an honest unavailable result.
+
+Use two retrieval operations behind the shared task-scoped service:
+
+1. **Find history:** indexed local search and chronological browsing, with
+   source/role/kind, date or sequence range, and attachment metadata filters.
+   Return bounded relevant excerpts, stable message IDs/sequences, attachment
+   handles, result coverage and a continuation cursor. Old results must remain
+   reachable; the newest 50 matches are not the complete archive.
+2. **Read sources:** fetch a selected original message or surrounding exchange
+   by stable ID, paging long content without changing the stored text. Resolve
+   its original image/document attachments through the existing validated
+   reader/visual route when needed. Keep old `recall_messages` calls compatible
+   through an adapter; do not add parallel authorities or default cross-chat
+   access. Solo and task-owned workers share the same retrieval service.
+
+Start with a local full-text index, useful filters and source browsing; evaluate
+paraphrased queries before declaring recall solved. If measured relevance gaps
+justify semantic or hybrid search, add it as a replaceable index with explicit
+cost/latency, never as the only surviving copy. Attachment search initially uses
+original filenames, dates, surrounding user text and validated extracted text
+for supported formats. Prior image observations can be indexed as model-derived
+clues linked to the original. Pixel contents require actual image inspection;
+do not claim filenames or embedding similarity prove what an image depicts.
+No universal document parser or native preview UI is implied by storing files.
+
+Give the actor a compact archive-availability/coverage cue, so it can search when
+the user references old information or the current goal needs it. Do not replay
+the full archive, auto-analyze every image, or scan every old message on every
+turn. Retrieval results retain provenance and remain subject to normal policy;
+an old instruction is not automatically the latest instruction.
+
+Required retention/retrieval scenarios:
+
+- A friend's name mentioned near the start, absent from the compacted summary,
+  is found for a later birthday-message request. Include a paraphrased
+  relationship reference, not only an exact name/keyword query.
+- An old image is found and inspected after repeated compactions and restart,
+  without reattachment; two images with the same filename remain distinct.
+- An early document or user correction is found after many newer matching
+  messages; pagination/ranking cannot silently hide it behind the newest 50.
+- The actor distinguishes an original statement, a later correction and a
+  worker/tool claim. Untrusted recalled text does not gain system authority.
+- Explicit deletion, stale indexes, missing bytes and interrupted summarization
+  are handled without fabricated memory or silent source loss.
+
+The target is preserved information plus measured recall/goal continuity over
+long runs. Storage and deterministic state can be guaranteed within their stated
+contracts; perfect model understanding or zero capability degradation cannot be
+promised. Compare retention accuracy, successful outcomes, requests, token use
+and latency before/after forced compaction, across multiple compactions and
+restart. Do not accept a smaller context merely because it costs fewer tokens.
 
 **4C: completion evidence.** Add structured completion claims for actionable
 work, linked to known criteria/artifacts/observations and check outcomes.
@@ -126,7 +232,8 @@ ambiguous directives merely because that makes the benchmark pass.
    rollback and repeated notifications. SQLite/bridge ownership stays unchanged.
 2. Force compaction with later-line corrections, conflicting stale plans,
    hidden tool text pretending to be user instructions, historical images and
-   earlier verified effects. Test raw-source recovery and checkpoint revisions.
+   earlier verified effects. Test raw-source recovery, archive indexing/paging,
+   attachment retention and checkpoint revisions, including the scenarios above.
 3. Add M01/M02 reference and negative controls before claiming long-task memory
    coverage. A long transcript alone does not prove compaction happened.
 4. Run the existing regression suite and compare unchanged D01/B01/V01 settings
@@ -140,3 +247,9 @@ Recommend implementing **4A first**, following a small response-format diagnosti
 for the observed failure. Review 4B/4C contracts separately. Native document
 previews, conversation portability, classifier auto-approval, autonomous MCP,
 skills and full Team supervision stay in their existing later workstreams.
+
+After Phase 4, complete the full 12-core-mission Benchmark v1 milestone before
+Phase 5. Add the memory/recovery missions during this phase and use the existing
+three-mission reference for interim comparisons. The full benchmark evaluates
+the then-current Solo/Team configurations and reports actual role use; it does
+not wait for the Phase 6 Team redesign or require Team to outperform Solo.
