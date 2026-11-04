@@ -7,6 +7,7 @@ import { gradeMission } from './mission_graders/outcomes.js';
 import { resolveBenchmarkConfig, taskSettings, assertEffectiveSettings, fingerprint } from './benchmark_config.js';
 import { appendScore, atomicWrite } from './score_recorder.js';
 import { runTrial } from './trial_runner.js';
+import { agentDuration, browserMeasurements } from './mission_measurements.js';
 
 const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
 export const hashBytes = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -73,7 +74,21 @@ export async function sendWithApprovals(page,taskId,prompt,{signal,decide=async(
   return final.result;
 }
 
-export async function runMissionTrial({id, page, appWorkspace, output, experimentId, build, models={},
+export function missionConfiguration({architecture='solo',models={},executionProfile='reference-offline',
+  supervisionPolicy='external-review',evaluationLimits,timeoutMs=60000}={}) {
+  return resolveBenchmarkConfig({suite:{architecture,master_model:models.master??'phase1-mock',
+    worker_model:models.worker??models.master??'None',verifier_model:models.verifier??models.master??'None',watcher_model:'None',
+    worker_effort:models.workerEffort??models.effort??'default',verifier_effort:models.verifierEffort??models.effort??'default',
+    worker_protocol:models.workerProtocol??models.masterProtocol??'auto',verifier_protocol:models.verifierProtocol??models.masterProtocol??'auto',
+    worker_image_input:models.masterImageInput??'unknown',verifier_image_input:models.masterImageInput??'unknown',
+    vision_model:models.vision??'None',vision_image_input:models.visionImageInput??'unknown',master_image_input:models.masterImageInput??'unknown',
+    master_protocol:models.masterProtocol??'auto',vision_protocol:models.visionProtocol??'auto',vision_effort:models.visionEffort??'default',
+    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,browser_service:models.browserService??'managed-v1',budget_credits:1000000,
+    permission_policy:'normal-approvals-fixture-v1',execution_profile:executionProfile,evaluation_limits:evaluationLimits,
+    prompt_timeout_ms:timeoutMs,turn_timeout_ms:timeoutMs}});
+}
+
+export async function runMissionTrial({id, page, appWorkspace, output, experimentId, build, models={},architecture='solo',
   evaluationKind='scripted_runtime', executionProfile='reference-offline', scriptedFiles={},
   beforeSend=async()=>{}, decide, stopActor=async()=>{}, portal=null, browserObservation=null, timeoutMs=60000,
   evaluationLimits=null,expectedProviderOrigin=null,supervisionPolicy='external-review',afterExecute=async()=>{}}) {
@@ -82,17 +97,12 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
   if(!['scripted_runtime','capability'].includes(evaluationKind))throw new Error('Invalid evaluation kind');
   if(evaluationKind==='capability'&&executionProfile!=='native-supervised')throw new Error('This driver currently supports native supervised diagnostics only');
   if(evaluationKind!=='scripted_runtime'&&Object.keys(scriptedFiles).length)throw new Error('Reference execution trust cannot be attached to a live trial');
-  const configuration=resolveBenchmarkConfig({suite:{architecture:'solo',master_model:models.master??'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',
-    vision_model:models.vision??'None',vision_image_input:models.visionImageInput??'unknown',master_image_input:models.masterImageInput??'unknown',
-    master_protocol:models.masterProtocol??'auto',vision_protocol:models.visionProtocol??'auto',vision_effort:models.visionEffort??'default',
-    image_delivery:models.delivery??'auto',master_effort:models.effort??'default',supervision_policy:supervisionPolicy,browser_service:models.browserService??'managed-v1',budget_credits:1000000,
-    permission_policy:'normal-approvals-fixture-v1',execution_profile:executionProfile,evaluation_limits:evaluationLimits,
-    prompt_timeout_ms:timeoutMs,turn_timeout_ms:timeoutMs}});
+  const configuration=missionConfiguration({architecture,models,executionProfile,supervisionPolicy,evaluationLimits,timeoutMs});
   const artifactsDir=path.join(output,'artifacts',trial);
   let outcome=null,runId=null,usage=null,limits=null,messages=[],stopped=false;
   const row=await runTrial({suiteTitle:'Zeus mission diagnostics',suiteDir:dir,promptSpec:{...task,name:task.name},timeoutMs,
     runMeta:{trial_id:trial,experiment_id:experimentId,build,configuration,configuration_fingerprint:configuration.configuration_fingerprint,
-      model_set:Object.fromEntries(Object.entries(configuration.roles).map(([role,value])=>[role,value.model])),architecture:'solo',suite_id:'zeus-missions-v1',suite_version:'1.0.0',
+      model_set:Object.fromEntries(Object.entries(configuration.roles).map(([role,value])=>[role,value.model])),architecture,suite_id:'zeus-missions-v1',suite_version:'1.0.0',
       evaluation_kind:evaluationKind,execution_profile:executionProfile},
     setup:async context=>{
       context.task=await page.evaluate(name=>window.__ZEUS_BRIDGE__.createTask(name),`Mission ${id}`);
@@ -141,8 +151,9 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
         if(body&&body.status!=='pending'&&!interventions.some(value=>value.message_id===intervention.message_id&&value.decision===body.status))
           interventions.push({message_id:intervention.message_id,decision:body.status,source:'external-ui',note:body.note??null});
       }
+      const measurements={agent_duration_seconds:agentDuration(state),browser:null};
       context.observation={unitsUsed:usage?.unknown_requests===0?spend.spent_credits:null,messageCount:messages.length,
-        runMeta:{task_id:tid,run_id:runId,usage,evaluation_limits:limits,interventions}};
+        runMeta:{task_id:tid,run_id:runId,usage,evaluation_limits:limits,interventions,measurements}};
       const browserEvidence=typeof browserObservation==='function'?await browserObservation():browserObservation;
       const browserSessions=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),tid);
       if(browserSessions.length){
@@ -189,6 +200,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
             context.artifacts.push({path:path.relative(output,destination),sha256:artifact.sha256});
           }catch(error){action.artifact_export_error=String(error.message);}
         }
+        measurements.browser=browserMeasurements(browserActions,truncated);
         const destination=path.join(artifactsDir,'browser-journal.json');
         atomicWrite(destination,JSON.stringify({sessions:browserSessions,actions:browserActions,recordings,coverage:{truncated,max_actions:1000,max_images:10,images,max_recording_images:200}},null,2));
         context.artifacts.push({path:path.relative(output,destination),sha256:hashBytes(fs.readFileSync(destination))});
@@ -227,7 +239,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
         modelsUsed:[...new Set(messages.map(m=>m.model).filter(Boolean))],
         runMeta:{task_id:tid,run_id:runId,fixture_hash:context.manifest.fixture_hash,mission_assessment:outcome,
           model_set:{...Object.fromEntries(Object.entries(configuration.roles).map(([role,value])=>[role,value.model])),models_used:[...new Set(messages.map(m=>m.model).filter(Boolean))]},
-          evaluation_limits:limits,usage,interventions,authorization_coverage:{scope:'fixture-observations',status:'partial',unobserved:['arbitrary_native_effects']}}};
+          evaluation_limits:limits,usage,interventions,measurements,authorization_coverage:{scope:'fixture-observations',status:'partial',unobserved:['arbitrary_native_effects']}}};
     },
     cleanup:async()=>{if(!stopped)await stopActor();},persist:record=>appendScore(output,record),
   });

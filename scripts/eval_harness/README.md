@@ -68,6 +68,52 @@ Each experiment retains its preflight manifest, source/configuration hashes, imm
 
 The scripted desktop suite drives all six missions through the bridge, including a false B01 completion claim which correctly fails and V01 uploads whose exact PNG bytes reach the mocked vision helper. These are regression checks, not capability results. See [mission details](../../tests/benchmarks/missions/README.md). A repeated capability baseline, isolated execution, and authorization proof remain later work.
 
+## Matched native measurement checkpoint
+
+The [current checkpoint design](../../docs/BENCHMARK_BASELINE_CHECKPOINT.md)
+adds a frozen D01/B01/V01 matrix using the existing normal-policy mission driver.
+Solo disables worker/verifier; Team enables the same selected model in those
+roles. Actual role usage is reported, and delegation is never forced just to
+make a Team label look active. This is a small native development study, not
+isolated authorization proof or the complete Zeus Benchmark v1.
+
+```powershell
+npm run bench:baseline -- --dry-run
+# Catalogue/credential metadata only; no inference, hidden test app:
+npm run bench:diagnose -- --preflight --model gpt-6.1-terra --effort low --protocol chat
+# Six capped calibration attempts; commit measurement code before dispatch:
+npm run bench:baseline -- --live --output .zeus/evaluations/baseline-calibration
+# Continue untouched attempts after shutdown, preserving interrupted attempts:
+npm run bench:baseline -- --live --resume .zeus/evaluations/baseline-calibration
+# Rebuild reports without the actor or provider; compare matched contracts:
+npm run bench:baseline -- --report .zeus/evaluations/baseline-calibration
+npm run bench:baseline -- --report .zeus/evaluations/candidate --compare .zeus/evaluations/baseline
+```
+
+`--model`, `--effort`, `--missions D01,B01,V01` and `--trials 1..3` are explicit
+new-study options. The pilot defaults to one trial per cell (six attempts, at
+most 68 requests). Three repetitions schedule 18 attempts, at most 204 requests;
+audit the pilot before enabling that larger envelope. There are no automatic
+retries or model substitutions. Resume refuses changed source, models,
+fixtures, graders, limits or environments and never reruns a started attempt.
+Each attempt has a fresh capped app process, synthetic workspace and browser.
+Active controller/child checks prevent duplicate dispatch after an interruption.
+
+`plan.json` is frozen; `state.json` records intent before dispatch. Immutable
+trials remain under `attempts/`, with per-attempt logs and derived
+`summary.json`/`summary.md`. Interrupted usage stays unknown. Per-success token
+cost includes failed attempts, and becomes unavailable when usage is incomplete.
+Provider credits remain unknown. Agent-run wall time comes from persisted run
+timestamps; driver duration includes collection/grading. Browser service timing
+does not include model, approval or queue time and must not be added to wall time.
+
+Exit status is 0 for all verified passes, 2 when all independently checked
+outcomes pass but authorization remains unverified, 1 for failures/incomplete
+studies, and 130 for requested interruption. Reports show these dimensions
+separately. A child exit contradicting its raw verdict gets a separate controller
+assessment; the original trial is preserved and cannot count as successful
+execution. No native agent-produced executable is graded on this host.
+
 ## Capability evaluation commands (legacy suites)
 
 Inspect resolved settings first; this makes no model calls:

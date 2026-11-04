@@ -2,6 +2,19 @@
 
 Reviewed: 2026-10-28. Primary hosted connection remains **Abacus ChatLLM/RouteLLM**. This is a diagnostic selection policy, not the later automatic role-routing feature.
 
+4 November checkpoint: the current AA leaderboard still supports evaluating
+modern economical models rather than returning to old 4.x/nano defaults. A
+metadata-only real Abacus preflight confirmed exact `gpt-6.1-terra`, `gpt-6-luna`,
+`gpt-6.1-sol` and `mimo-v2.6-pro`; no MiMo-V2.6-Flash ID was listed. Evidence:
+`.zeus/evaluations/native-diagnostic-a19642c2-a59a-4ece-a696-4e1f2435ce70`.
+It sent zero inference requests. The bounded matched pilot selects Terra/low,
+explicit Chat, after AA listed that setting at index 29, average $0.07/task and
+one minute/task. Those are AA's own workload/API observations, not Abacus credits
+or Zeus task performance. [Dated selection and limits](BENCHMARK_BASELINE_CHECKPOINT.md),
+[primary leaderboard](https://artificialanalysis.ai/leaderboards/models).
+Actual protocol/image behavior remains a calibration outcome; no hidden fallback
+or user model-setting change is permitted. Retained Luna failures remain valid.
+
 ## Decisions
 
 - Replace familiar old-model defaults with a dated, task-specific shortlist checked against current benchmark evidence and the actual Abacus catalogue.

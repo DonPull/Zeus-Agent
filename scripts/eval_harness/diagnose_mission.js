@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {mission} from '../../tests/benchmarks/mission_kit.js';
-import {runMissionTrial,sendWithApprovals} from '../../tests/benchmarks/mission_runtime.js';
+import {runMissionTrial,sendWithApprovals,missionConfiguration} from '../../tests/benchmarks/mission_runtime.js';
 import {launchTauri,stopTauri} from '../../tests/e2e/testUtils.js';
 import {atomicWrite,writeDashboard,appendScore,buildScoreRecord,loadScores} from '../../tests/benchmarks/score_recorder.js';
 import {repoRoot,sourceBuild} from './runner.js';
@@ -13,17 +13,19 @@ import {createSyntheticSupervisor} from './synthetic_supervisor.js';
 import {startTicketPortal} from '../../tests/benchmarks/mission_graders/ticket_portal.js';
 import {watchTicketBrowser} from '../../tests/benchmarks/browser_observer.js';
 
-const args=process.argv.slice(2);let live=false,model='gpt-6-luna',id='D01',delivery='direct',visionModel=null,supervision='synthetic',effort='medium',protocol='responses',approvalControl=false,followups=false;
+const args=process.argv.slice(2);let live=false,preflightOnly=false,model='gpt-6-luna',id='D01',delivery='direct',visionModel=null,supervision='synthetic',effort='medium',protocol='responses',approvalControl=false,followups=false,architecture='solo',outputPath=null;
 for(let index=0;index<args.length;index++){
   if(args[index]==='--live')live=true;
   else if(args[index]==='--dry-run')live=false;
+  else if(args[index]==='--preflight')preflightOnly=true;
   else if(args[index]==='--approval-control')approvalControl=true;
   else if(args[index]==='--followups')followups=true;
   else if(args[index]==='--managed-browser')continue;
-  else if(['--model','--mission','--delivery','--vision-model','--supervision','--effort','--protocol'].includes(args[index])){
+  else if(['--model','--mission','--delivery','--vision-model','--supervision','--effort','--protocol','--arch','--output'].includes(args[index])){
     const key=args[index],value=args[++index];if(!value||value.startsWith('--'))throw new Error(`Missing value for ${key}`);
     if(key==='--model')model=value;else if(key==='--mission')id=value;else if(key==='--delivery')delivery=value;else if(key==='--vision-model')visionModel=value;
-    else if(key==='--supervision')supervision=value;else if(key==='--effort')effort=value;else protocol=value;
+    else if(key==='--supervision')supervision=value;else if(key==='--effort')effort=value;else if(key==='--protocol')protocol=value;
+    else if(key==='--arch')architecture=value;else outputPath=value;
   }else throw new Error(`Unknown argument: ${args[index]}`);
 }
 // Executable submissions require a later isolated grader; this first diagnostic
@@ -33,19 +35,25 @@ if(id==='B01'&&approvalControl)throw new Error('B01 has no artifact approval-con
 if(!['direct','helper'].includes(delivery))throw new Error('Delivery must be direct or helper');
 if(!['synthetic','manual'].includes(supervision)||!['low','medium','high'].includes(effort)||!['auto','chat','responses'].includes(protocol))throw new Error('Invalid supervision, effort or protocol');
 if(followups&&id!=='V01')throw new Error('Follow-up diagnostic is defined only for V01');
+if(!['solo','team'].includes(architecture))throw new Error('Architecture must be solo or team');
 const helper=id==='V01'&&delivery==='helper'?(visionModel??model):null;
 // The combined V01 variant contains the artifact mission plus two separate
 // reinspection turns; the original 12-request allowance ended before its last
 // answer. Keep that capped result, and label this larger operating envelope.
 const limits={max_requests:followups?18:id==='B01'?16:id==='V01'?8:10,max_tokens:1000000,max_in_flight:1,max_output_tokens:8192,max_directives:24,wall_time_ms:300000};
-const experiment=`native-diagnostic-${crypto.randomUUID()}`,output=path.join(repoRoot,'.zeus/evaluations',experiment);
+const frozenModels={master:model,vision:helper??'None',delivery:helper?'helper':'auto',effort,visionEffort:effort,
+  masterProtocol:protocol,visionProtocol:protocol,masterImageInput:['V01','B01'].includes(id)?'supported':'unknown',visionImageInput:helper?'supported':'unknown',browserService:'managed-v1'};
+const supervisionPolicy=(supervision==='synthetic'?'external-synthetic-supervisor-v1':'external-review')+(approvalControl?'+ask-artifact':'')+(followups?'+image-followups-v1':'');
+const configuration=missionConfiguration({architecture,models:frozenModels,executionProfile:'native-supervised',supervisionPolicy,evaluationLimits:limits,timeoutMs:limits.wall_time_ms});
+const experiment=`native-diagnostic-${crypto.randomUUID()}`,output=outputPath?path.resolve(outputPath):path.join(repoRoot,'.zeus/evaluations',experiment);
 const manifest={experiment_id:experiment,mission:id,task_version:mission(id).task.version,model,provider:'abacus-routellm',
   image_delivery:id==='V01'?delivery:null,vision_model:helper,
-  supervision,effort,protocol,approval_control:approvalControl,followups,window_visible:supervision==='manual',
+  supervision,effort,protocol,architecture,approval_control:approvalControl,followups,window_visible:supervision==='manual',
   browser_service:'managed-v1',diagnostic_envelope:id==='B01'?'phase3c-smoke-v1':null,
   execution_profile:'native-supervised',permission_policy:'normal-approvals-fixture-v1',limits,
   trial_retries:0,attempts:1,provider_credits:null,warning:'Native host permissions; independently graded outcome, partial authorization coverage. Not an isolated baseline.'};
-if(!live){console.log(JSON.stringify({dry_run:true,...manifest},null,2));process.exit(0);}
+if(!live&&!preflightOnly){console.log(JSON.stringify({dry_run:true,...manifest},null,2));process.exit(0);}
+if(fs.existsSync(output))throw new Error('Diagnostic output must be a fresh directory; previous attempts are never overwritten');
 if(process.env.ZEUS_OFFLINE_TEST==='1')throw new Error('Live diagnostics cannot run inside offline regression mode');
 
 let frontend=null,portal=null,browserObserver=null;
@@ -71,7 +79,8 @@ try{
   await app.page.locator('#app-container').waitFor({state:'visible',timeout:15000});
   const runtimePython=path.join(repoRoot,'.zeus/browser-runtime/venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
   if(!fs.existsSync(runtimePython))throw new Error('Prepare the pinned browser runtime explicitly before live diagnostics');
-  await app.page.evaluate(async python=>{const settings=await window.__ZEUS_BRIDGE__.getSettings();await window.__ZEUS_BRIDGE__.saveSettings({...settings,browser_python_path:python});},runtimePython);
+  await app.page.evaluate(async python=>{const settings=await window.__ZEUS_BRIDGE__.getSettings();await window.__ZEUS_BRIDGE__.saveSettings({...settings,browser_python_path:python,browser_block_ads:true,browser_agent_audio:false});},runtimePython);
+  manifest.browser_setup=await app.page.evaluate(()=>window.__ZEUS_BRIDGE__.getManagedBrowserStatus());
   // Query the supported catalogue through the app; never read/print API keys.
   const preflight=await app.page.evaluate(()=>Promise.race([
     (async()=>({key:await window.__ZEUS_BRIDGE__.hasApiKey(),
@@ -83,15 +92,16 @@ try{
   if(catalogue?.status!=='available')throw new Error('Abacus model catalogue is unavailable');
   for(const selected of [model,helper].filter(Boolean))if(!catalogue.models.includes(selected))throw new Error(`Requested model is absent from the Abacus catalogue: ${selected}`);
   manifest.catalogue_checked_at=new Date().toISOString();
+  manifest.available_candidates=catalogue.models.filter(name=>/gpt-6|mimo|haiku/i.test(name));
   atomicWrite(path.join(output,'experiment.json'),JSON.stringify(manifest,null,2));
+  if(preflightOnly){console.log(JSON.stringify({preflight:true,model,available_candidates:manifest.available_candidates,output,inference_requests:0},null,2));process.exitCode=0;}
+  else {
   console.log(JSON.stringify({diagnostic_started:experiment,output,model,cdp:app.cdpUrl,limits},null,2));
   let supervisor;
   if(id==='B01')portal=await startTicketPortal();
-  const result=await runMissionTrial({id,page:app.page,appWorkspace:app.workspace,output,experimentId:experiment,build:manifest.build,
+  const result=await runMissionTrial({id,page:app.page,appWorkspace:app.workspace,output,experimentId:experiment,build:manifest.build,architecture,
     portal,browserObservation:async()=>browserObserver?await browserObserver.finish():null,
-    models:{master:model,vision:helper??'None',delivery:helper?'helper':'auto',effort,visionEffort:effort,
-      masterProtocol:protocol,visionProtocol:protocol,masterImageInput:['V01','B01'].includes(id)?'supported':'unknown',visionImageInput:helper?'supported':'unknown',browserService:'managed-v1'},
-    supervisionPolicy:(supervision==='synthetic'?'external-synthetic-supervisor-v1':'external-review')+(approvalControl?'+ask-artifact':'')+(followups?'+image-followups-v1':''),
+    models:frozenModels,supervisionPolicy,
     beforeSend:async context=>{supervisor=createSyntheticSupervisor({taskId:context.task.id,workspace:context.workspace,
       files:[...fs.readdirSync(path.join(mission(id).dir,'inputs')),...mission(id).task.artifacts]});
       if(portal)browserObserver=watchTicketBrowser({page:app.page,taskId:context.task.id,portal,signal:context.signal});
@@ -131,11 +141,13 @@ try{
   console.log(JSON.stringify({report:report.out,execution:result.row.execution_status,outcome:result.row.outcome_status,
     authorization:result.row.authorization_status,usage:result.row.usage,interventions:result.interventions,error:result.row.error},null,2));
   process.exitCode=result.row.passed?0:result.row.outcome_passed?2:1;
+  }
 }catch(error){
   console.error(error.message);process.exitCode=1;
   if(!loadScores(output).runs.length){
     appendScore(output,buildScoreRecord({suiteTitle:'Zeus mission diagnostics',suiteDir:'zeus-missions-v1',promptSpec:mission(id).task,
-      runMeta:{experiment_id:experiment,evaluation_kind:'capability',execution_profile:'native-supervised',configuration:manifest,
+      runMeta:{experiment_id:experiment,evaluation_kind:'capability',execution_profile:'native-supervised',architecture,
+        configuration,configuration_fingerprint:configuration.configuration_fingerprint,
         build:manifest.build,execution_status:'infrastructure_error',error:{name:error.name,message:error.message}}}));
     writeDashboard([output],path.join(output,'index.html'));
   }

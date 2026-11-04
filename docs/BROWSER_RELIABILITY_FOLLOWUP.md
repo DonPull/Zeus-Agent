@@ -1,7 +1,7 @@
 # Browser reliability follow-up — 1 November 2026
 
-Status, 4 November 2026: implemented and validated; committed locally on
-`wip/browser-reliability-20261101`. This is a stabilization increment before
+Status, 4 November 2026: implemented and validated; merged and pushed to main
+through `423ad89`. The temporary delivery branch is deleted. This is a stabilization increment before
 the canonical benchmark/state-management
 checkpoints, not a Wordle-specific solver or a completed intelligence baseline.
 

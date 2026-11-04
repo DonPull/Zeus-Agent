@@ -4,6 +4,15 @@ Status: **Phase 3D and its browser reliability follow-up approved and implemente
 
 Current checkpoint (2026-11-04): Phase 3D and the [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) are implemented. [The execution/delivery contract](PHASE_3D_EXECUTION_DESIGN.md) records same-process native handoff, optional action annotations, human page observations and verified browser transfers. The follow-up adds prepared ad blocking, handoff-aware audio, a larger viewport, clearer overlays, Windows input evidence and bounded live handoff checks. Next is the bounded canonical benchmark baseline checkpoint before the focused Phase 4 design. [The alignment notes](PHASE_3D_ALIGNMENT_NOTES.md) retain the broader Smart-permissions and canonical Solo/Team/build-comparison requirements; those later systems are not implemented by this patch.
 
+The user authorized this next work on 4 November. The completed browser commits
+are merged/pushed to main and their temporary branch is deleted. The active
+[benchmark baseline checkpoint](BENCHMARK_BASELINE_CHECKPOINT.md) defines the
+small matched native-supervised pilot, repeat/resume/comparison tooling and its
+limits. Browser-agent speed and efficiency remain an explicit follow-up using
+these measurements; current browser behavior is not considered fully optimized.
+The user is actively using the PC: notify them before tests that expose windows
+or need focus, while routine checks remain hidden.
+
 Further [capability/handoff research](CAPABILITY_AND_HANDOFF_RESEARCH.md) records agent-requested intervention, rejection of browser passthrough as the selected design, background-window rendering constraints, autonomous MCP/app setup, reusable/self-created skills, and revised uncertain-low-impact/rationale handling. Proposed capability/skills workstreams 5B/5C depend on the relevant state/authorization foundation and require their own aligned designs.
 
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).
@@ -515,5 +524,5 @@ of an animated onboarding button. This is not a measured speed/cost baseline
 or a universal browser-isolation guarantee. Final optimized acceptance passed
 18/18; frontend and ordinary app builds pass. An initial intermittent preview
 cadence failure is retained rather than hidden by the final pass. The completed
-patch is committed locally on `wip/browser-reliability-20261101`; the follow-up
-packet records the evidence and limits.
+patch is merged and pushed to main through `423ad89`; its temporary branch is
+deleted. The follow-up packet records the evidence and limits.

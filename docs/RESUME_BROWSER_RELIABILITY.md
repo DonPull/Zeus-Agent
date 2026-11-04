@@ -7,7 +7,7 @@ after restart: **18/18 passed**. The patch is complete; the commit containing
 this document is the delivery checkpoint. Do not restart the investigation or
 repeat paid trials simply because the session reset.
 
-Branch: `wip/browser-reliability-20261101`.
+Delivery branch: `wip/browser-reliability-20261101` (now merged and deleted).
 Starting stable commit: `85da77099a31f6652ba51bf38bee7ece07c08707`.
 Existing checkpoints: `1ea1691` and `a4f571d`.
 Working directory: `D:\Hristian projects\Zeus-Agent` (PowerShell).
@@ -130,6 +130,9 @@ autonomous MCP and skills keep their separate alignment/design gates.
 
 All source, prepared assets and ignored evaluation reports are on disk and
 survive shutdown. Running process/session IDs do not. No credentials were copied
-into these notes. The completed patch is committed locally on the branch above;
-main remains unchanged and no push is part of this checkpoint. Do not relabel
-retained failures or treat a shutdown as authorization for the next major design.
+into these notes. On 4 November the user requested Git integration: main was
+fast-forwarded through `423ad89`, pushed to origin/main, and the merged temporary
+local branch was deleted. Its commits and all evidence remain available. The
+user then authorized continuing the roadmap; the next active work is recorded
+in [the benchmark checkpoint](BENCHMARK_BASELINE_CHECKPOINT.md). Do not relabel
+retained failures or treat a shutdown as a reason to restart paid experiments.

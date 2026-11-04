@@ -65,3 +65,24 @@ test.describe('Real mission bridge with controlled replies, not agent capability
     }finally{await stopTauri();await portal?.close();await stopMockServer();}
   });
 });
+
+test('a Team mission enables actual delegation and verification and retains all-role usage',async()=>{
+  await startMockServer();
+  try{
+    const app=await launchTauri(false,{evaluationLimits:limits});await expect(app.page.locator('#app-container')).toBeVisible();
+    const content=await withScratch(root=>{deployMission('D01',root);python(path.join(mission('D01').dir,'reference/reconcile.py'),[root],{trustedExecution:true});return fs.readFileSync(path.join(root,'reconciliation.json'),'utf8');});
+    const result=await runMissionTrial({id:'D01',architecture:'team',page:app.page,appWorkspace:app.workspace,output,
+      experimentId:experiment,build:JSON.parse(process.env.ZEUS_BENCH_BUILD??'null'),models:{master:'phase1-mock'},
+      stopActor:stopTauri,evaluationLimits:limits,decide:async()=>null,beforeSend:async()=>{
+        queueMockResponse(response(directive({type:'delegate_task',delegate:{name:'Reconciler',objective:'Create reconciliation.json from the supplied inputs.',success_criteria:'Exact required reconciliation artifact exists.'}})));
+        queueMockResponse(response(directive({type:'write_file',path:'reconciliation.json',content})));
+        queueMockResponse(response(directive({type:'final_answer',final_answer:{summary:'Wrote the reconciliation artifact.'}})));
+        queueMockResponse({model:'phase1-mock',usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10},choices:[{message:{content:JSON.stringify({passed:true,feedback:'Controlled verifier response.'})}}]});
+        queueMockResponse(response(directive({type:'final_answer',final_answer:{summary:'The reconciliation is complete.'}})));
+      }});
+    expect(result.row.execution_status,JSON.stringify(result.row)).toBe('succeeded');expect(result.row.outcome_status).toBe('passed');
+    expect(result.row.architecture).toBe('team');expect(result.row.configuration.roles.worker.enabled).toBe(true);
+    expect(result.row.usage.requests_by_role).toEqual({master:2,worker:2,verifier:1});
+    expect(result.row.measurements.agent_duration_seconds).toBeGreaterThan(0);expect(result.row.passed).toBe(false);
+  }finally{await stopTauri();await stopMockServer();}
+});

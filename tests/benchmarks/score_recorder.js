@@ -84,6 +84,7 @@ export function buildScoreRecord({ suiteTitle, suiteDir, promptSpec, runMeta = {
     units_used: unitsUsed, unit_kind: 'legacy_token_equivalent', provider_credits: runMeta.provider_credits ?? null,
     estimated_provider_credits: runMeta.estimated_provider_credits ?? null,
     usage: runMeta.usage ?? null, message_count: messageCount, duration_seconds: durationSeconds,
+    measurements: runMeta.measurements ?? null,
     tool_errors: toolErrors, gatekeeper_blocks: gatekeeperBlocks, circular_loop_hints: circularLoopHints,
     artifacts: runMeta.artifacts ?? [], started_at: runMeta.started_at ?? null, timestamp: new Date().toISOString(),
   };
