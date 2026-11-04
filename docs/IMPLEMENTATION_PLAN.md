@@ -1,8 +1,8 @@
 # Zeus Agent: stabilization and development plan
 
-Status: **Roadmap through Phase 3C approved in conversation. Phase 3C implemented and locally accepted on 2026-10-31: the shared browser is now the sole ordinary executor with Live View/Replay. See its delivery record for the passing controls and both live outcomes. Subsequent major phases require focused aligned designs; this is not stable-v1 certification.**
+Status: **Phase 3D and its browser reliability follow-up approved and implemented. The full 293-check follow-up regression passed; final delivery is recorded below. Subsequent major phases require focused aligned designs; this is not stable-v1 certification.**
 
-Current checkpoint (2026-11-01): the user approved Phase 3D implementation. [The execution/delivery contract](PHASE_3D_EXECUTION_DESIGN.md) records same-process native handoff, optional action annotations, human page observations, verified browser transfers, Windows experiments and validation. [The alignment notes](PHASE_3D_ALIGNMENT_NOTES.md) retain the broader Smart-permissions and canonical Solo/Team/build-comparison benchmark requirements; those later systems are not implemented by this patch.
+Current checkpoint (2026-11-04): Phase 3D and the [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) are implemented. [The execution/delivery contract](PHASE_3D_EXECUTION_DESIGN.md) records same-process native handoff, optional action annotations, human page observations and verified browser transfers. The follow-up adds prepared ad blocking, handoff-aware audio, a larger viewport, clearer overlays, Windows input evidence and bounded live handoff checks. Next is the bounded canonical benchmark baseline checkpoint before the focused Phase 4 design. [The alignment notes](PHASE_3D_ALIGNMENT_NOTES.md) retain the broader Smart-permissions and canonical Solo/Team/build-comparison requirements; those later systems are not implemented by this patch.
 
 Further [capability/handoff research](CAPABILITY_AND_HANDOFF_RESEARCH.md) records agent-requested intervention, rejection of browser passthrough as the selected design, background-window rendering constraints, autonomous MCP/app setup, reusable/self-created skills, and revised uncertain-low-impact/rationale handling. Proposed capability/skills workstreams 5B/5C depend on the relevant state/authorization foundation and require their own aligned designs.
 
@@ -506,6 +506,14 @@ diagnostic, ad/audio disruption, a small viewport and hard-to-read overlays.
 The [focused follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) records tangible changes,
 old/new decisions, read-only timing analysis, expanded Windows experiments,
 concurrent physical-input evidence and bounded live handoff diagnostics. This
-increment precedes the canonical baseline checkpoint above. Validation is in
-progress; no new speed/cost baseline or universal browser-isolation guarantee
-has been established.
+increment precedes the canonical baseline checkpoint above. The full regression
+passed **293 checks**, with its saved exit-code receipt of 0 verified after
+restart. Four live Sol handoff scenarios passed; Luna protocol/continuation
+failures remain retained. The original site compatibility smoke now confirms
+real resolved feedback with blocking enabled after normal keyboard activation
+of an animated onboarding button. This is not a measured speed/cost baseline
+or a universal browser-isolation guarantee. Final optimized acceptance passed
+18/18; frontend and ordinary app builds pass. An initial intermittent preview
+cadence failure is retained rather than hidden by the final pass. The completed
+patch is committed locally on `wip/browser-reliability-20261101`; the follow-up
+packet records the evidence and limits.

@@ -1,8 +1,9 @@
 # Browser reliability follow-up — 1 November 2026
 
-Status: implementation and validation in progress. This is a stabilization
-increment before the canonical benchmark/state-management checkpoints, not a
-Wordle-specific solver or a completed intelligence baseline.
+Status, 4 November 2026: implemented and validated; committed locally on
+`wip/browser-reliability-20261101`. This is a stabilization increment before
+the canonical benchmark/state-management
+checkpoints, not a Wordle-specific solver or a completed intelligence baseline.
 
 ## Tangible changes and decisions
 
@@ -14,7 +15,7 @@ Wordle-specific solver or a completed intelligence baseline.
 | Replay targets | Thin outline → thicker contrasting outline, halo and translucent fill. Geometry remains bound to the displayed capture. |
 | Action captions | One rapidly replaced caption → up to four recent displayed interactions, newest at the bottom, with bounded lifetimes based on playback speed. Backward/nonadjacent manual seeks reset the feed. Old target boxes never appear on newer frames. |
 | Live annotations | Every inspection cleared the preceding annotation → read-only inspection preserves its existing short lifetime. No action is delayed to make an overlay visible. |
-| Browser work | Initial screenshot encouraged even when text sufficed → text/semantics first, visual calls when needed, explicit keyboard targets, coherent scripts with outcome checks, short timeouts for speculative optional controls. Long waits remain available for actual loading/countdowns. |
+| Browser work | Initial screenshot encouraged even when text sufficed → text/semantics first, visual calls when needed, explicit keyboard targets, coherent scripts with outcome checks, short timeouts for speculative optional controls. An animated native button may use ordinary keyboard activation with outcome verification. Long waits remain available for actual loading/countdowns. |
 | Handoff checks | Scripted integration tests only → opt-in, bounded live-model diagnostics with independent synthetic server outcomes; successful help, unchanged Resume, cancellation and idle cancellation. All failed attempts remain retained. |
 
 The live preview remains fixed at an 8 FPS target and JPEG quality 80 while
@@ -78,13 +79,16 @@ The broad visibility matrix's foreground log is not a focus-isolation proof:
 foreground can persist from a preceding mode. The separate concurrent-input
 test establishes that distinction.
 
-In that test, offscreen, offscreen with nonactivation styles, and transparent
-with nonactivation styles each passed **20 real human keystrokes concurrent
-with 20 agent typing operations**, with exact text separation and no browser
-foreground takeover during the measured phase. The guard sent no physical
-input in two earlier attempts that could not acquire the sentinel's focus;
-those attempts are inconclusive and retained. The final run required one
-manual focus click. No personal window received test input.
+The final test exercised offscreen, offscreen with nonactivation styles, and
+transparent with nonactivation styles. Each passed **20 agent clicks and 20
+agent typing operations**, concurrent with **22/20/20 OS input keystrokes**
+respectively, sent by the test driver into its synthetic foreground entry after
+the user's focus click. Text stayed in its intended destination and the
+browser did not take foreground during the measured phase. The earlier
+typing-only test also passed. Guards sent no physical input in earlier attempts
+that could not acquire the sentinel's focus; those attempts are inconclusive
+and retained. The final run required one manual focus click. No personal window
+received test input.
 
 Keep offscreen production behavior for now: it provides physical separation
 from the user's pointer coordinates with fewer additional native-window
@@ -98,7 +102,28 @@ dialog, application, or future desktop-automation tool using physical input.
 Retained local evidence:
 `.zeus/evaluations/hidden-rendering-private`, `hidden-rendering-active`,
 `concurrent-input-active`, `concurrent-input-active-2`,
-`concurrent-input-manual-focus`.
+`concurrent-input-manual-focus`, `concurrent-clicks-and-input-focused`.
+
+## Public-site compatibility
+
+The trusted Wordle smoke initially skipped onboarding and failed with and
+without the ad blocker. The homepage's continuously animated native Play button
+kept an ordinary mouse click waiting for stability. Enter on that visible button
+activated it without force-clicking or disabling animation. The smoke then
+selected Unlimited, clicked the visible keyboard, submitted CRANE and waited
+for all five resolved feedback classes rather than accepting input alone.
+
+The final check passed using the production offscreen mode, stock prepared
+uBO Lite, muted agent sound and 1600×900 viewport. Its report and screenshot are
+under `.zeus/evaluations/wordle-verified-feedback`. This uses zero model calls,
+reads no hidden answers, and establishes compatibility for that interaction,
+not five wins or reduced agent cost. A local animated-button regression verifies
+exactly one effect with a checked outcome while its animation remains running.
+
+An isolated copied-extension experiment also tried upstream Complete filtering
+with broader host access. It did not resolve the missing onboarding. The
+experiment remains diagnostic code/evidence only; its modified manifest and
+permission grant are not part of production setup.
 
 ## Automated and manual handoff checks
 
@@ -112,7 +137,7 @@ the test host, and this is not an injection-resistance benchmark.
 # Dry-run prints the model and operational envelope; no model calls.
 .zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_live_handoff.py
 # Explicit paid diagnostic; native windows remain on a private desktop.
-.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_live_handoff.py --live
+.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_live_handoff.py --live --chat --model gpt-6.1-sol
 ```
 
 The cases check:
@@ -135,9 +160,26 @@ whose login or bot protection happens to block the model that day.
 
 ## Validation and remaining work
 
-Final full validation remains pending. The first four
-Luna/Responses attempts failed before handoff; a chat-protocol control also
-failed before handoff. A clarified text-transport control navigated once but
+The final full regression completed on 1 November before shutdown: **293
+checks passed** (48 JS, 37 mission/grader, 88 Rust, 23 real Python browser
+service, 94 desktop, 3 private native handoff). Its saved runner exit code is
+**0** at `.zeus/evaluations/browser-followup-review/full-final-exit.txt`, with
+the complete log beside it. Final optimized acceptance passed **18/18** on
+4 November (15 desktop and 3 private native handoff checks), as did frontend
+production and ordinary app builds and `git diff --check`.
+
+The first optimized run after restart failed one preview cadence assertion:
+seven rendered updates in two seconds, below its unchanged minimum of eight.
+The targeted control then delivered 16, and final full acceptance delivered nine.
+Only capture-duration logging changed; no product change or lowered threshold
+explains the difference. Keep this timing variation as an unresolved performance
+limitation. The fixed 8 FPS target is not guaranteed displayed throughput.
+The failed attempt and final summary remain in
+`.zeus/evaluations/browser-followup-review/optimized-20261104-initial.json`,
+`optimized-20261104-failure`, and `optimized-20261104-final.json`.
+
+The first four Luna/Responses attempts failed before handoff; a chat-protocol
+control also failed before handoff. A clarified text-transport control navigated once but
 then returned narration instead of the next tool action. These are retained
 capability/protocol-compliance failures, not passes and not proof that handoff
 itself failed. Do not silently switch the user's saved models or erase those
@@ -150,13 +192,14 @@ All paid diagnostics together used 30 requests and 59,288 provider-reported
 tokens, with no missing usage records and unknown provider subscription
 credits. Individual build/configuration fingerprints remain in the reports.
 
-The recent-action feed now has a four-second minimum readable lifetime,
-bounded to four entries, with longer lifetimes at slow playback rates. The
-unchanged real autoplay assertion and four browser-view unit tests pass, and
-the three-caption screenshot was inspected. Sequential capture/replay checks
-also pass (3/3). An overlapping full/release run invalidated broader results
-through its shared development server; final suites must run sequentially.
-The exact unfinished work is in [the durable checkpoint](RESUME_BROWSER_RELIABILITY.md).
+Recent-action captions now expire after at least four seconds, with longer
+expiry at slow playback rates; the four-entry bound can evict an older entry
+sooner. The unchanged real autoplay assertion and four browser-view unit tests pass, and
+the three-caption screenshot was inspected. Earlier overlapping full/release
+runs invalidated their results through a shared development server. The final
+full suite ran sequentially and passed; desktop suites must remain sequential.
+[The durable checkpoint](RESUME_BROWSER_RELIABILITY.md) records retained
+evidence and the next roadmap steps.
 
 The larger work on deterministic completion/state, context/compaction, native
 tool interfaces, cost normalization and the repeated Solo/Team benchmark still

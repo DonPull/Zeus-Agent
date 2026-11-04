@@ -35,6 +35,14 @@ async def check(directory, adblock=True, offscreen=False):
         page.on('response',lambda response:report['http_errors'].append({'status':response.status,'host':urlsplit(response.url).hostname,'path':urlsplit(response.url).path[:250]}) if response.status>=400 and len(report['http_errors'])<20 else None)
         page.on('requestfailed',lambda request:blocked.update([urlsplit(request.url).hostname]) if 'BLOCKED_BY_CLIENT' in (request.failure or '') else None)
         await call('navigate',url='https://wordlegame.org/',timeout_ms=15000)
+        await page.wait_for_load_state('load',timeout=15000)
+        play=page.get_by_role('button',name='Play',exact=True)
+        report['onboarding_play_visible']=await play.count()>0 and await play.first.is_visible()
+        if report['onboarding_play_visible']:
+            # Native keyboard activation handles a continuously animated button
+            # without forcing a mouse click or bypassing a pointer obstruction.
+            report['onboarding_activation']='Enter on visible Play button'
+            await call('press',target={'role':'button','name':'Play'},key='Enter',timeout_ms=5000)
         await call('click',target={'role':'link','name':'Unlimited'},timeout_ms=5000)
         await page.locator('.game_rows .Row-letter').first.wait_for(state='visible',timeout=5000)
         # Use visible controls and verify that the first key has taken effect;
@@ -44,6 +52,7 @@ async def check(directory, adblock=True, offscreen=False):
             await page.wait_for_function('(expected)=>document.querySelector(".game_rows .Row")?.innerText.replace(/\\s/g,"").toLowerCase()===expected',arg='crane'[:index+1],timeout=15000)
         await call('click',target={'css':'.Game-keyboard-button:text-is("Enter")'},timeout_ms=5000)
         await page.locator('.game_rows .Row-locked-in').first.wait_for(timeout=5000)
+        await page.wait_for_function("() => {const tiles=[...document.querySelectorAll('.game_rows .Row-locked-in .Row-letter')].slice(0,5);return tiles.length===5&&tiles.every(e=>/(?:^|\\s)letter-(?:correct|elsewhere|present|absent)(?:\\s|$)/.test(e.className));}",timeout=5000)
         report['feedback']=await page.locator('.game_rows .Row-locked-in .Row-letter').evaluate_all("els=>els.slice(0,5).map(e=>({letter:e.innerText,classes:e.className}))")
         report['url']=page.url;report['blocked_request_hosts']=dict(blocked)
         report['image']=await service.screenshot(page,'compatibility.jpg')
@@ -55,6 +64,7 @@ async def check(directory, adblock=True, offscreen=False):
             report['failure_observation']={key:observation.get(key) for key in ('url','title','text','semantic')}
             report['image']=await service.screenshot(service.pages[service.selected],'failure.jpg')
             report['active_element']=await service.pages[service.selected].evaluate('({tag:document.activeElement?.tagName,id:document.activeElement?.id})')
+            report['bootstrap']=await service.pages[service.selected].evaluate("({scripts:[...document.scripts].filter(s=>s.src).slice(0,20).map(s=>({src:s.src,type:s.type})),hydratedRoot:Object.keys(document.querySelector('#root')||{}).some(k=>k.startsWith('__react')),firstRow:document.querySelector('.game_rows .Row')?.innerText})")
             report['blocked_request_hosts']=dict(blocked)
         except Exception as diagnostic_error:report['collection_error']=str(diagnostic_error)
     finally:

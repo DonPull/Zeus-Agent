@@ -79,6 +79,26 @@ node scripts/run_regression.js --ui-files browser_handoff
 
 Full setup, regression and bounded live commands: [evaluation guide](../eval_harness/README.md).
 
+Bounded live-model handoff diagnostics use a fresh synthetic page and independent
+server outcomes for successful help, unchanged Resume, cancellation and idle
+cancellation. Run the envelope preview first; explicit `--live` permits paid
+calls. Limits apply per fresh app process/scenario. The validated Sol/chat
+control is explicit below; retained Luna attempts had protocol/continuation
+failures. These are native supervised diagnostics, not an isolated benchmark.
+
+```powershell
+.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_live_handoff.py --chat --model gpt-6.1-sol
+.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_live_handoff.py --live --chat --model gpt-6.1-sol
+# Optional public-site compatibility smoke: no model calls or hidden answers.
+.zeus/browser-runtime/venv/Scripts/python.exe tests/browser_service/probe_wordle_compatibility.py --live-site --offscreen
+```
+
+For an enabled native button whose continuous animation prevents a mouse click
+from becoming stable, ordinary `press` with Enter is an available alternative.
+Confirm the intended result; keyboard dispatch alone is not a success check.
+Do not use force-clicks or universal animation suppression as a substitute for
+checking readiness and outcomes.
+
 Maintainer-only recording snapshot (no browser or inference):
 
 ```powershell

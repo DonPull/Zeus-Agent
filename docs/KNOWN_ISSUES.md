@@ -1,6 +1,6 @@
 # Reliability issues and manual-test findings
 
-Updated: 2026-10-31. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3B](PHASE_3B_WORK_LOG.md) and [current Phase 3C delivery](PHASE_3C_WORK_LOG.md) preserve repairs and live failures. Live/replay and the sole ordinary browser engine are delivered; goal completion, handoff/compatibility and diagnostic/UI improvements remain open.
+Updated: 2026-11-04. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3C](PHASE_3C_WORK_LOG.md), [Phase 3D](PHASE_3D_EXECUTION_DESIGN.md) and [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) preserve repairs and live failures. Shared browsing, live/replay, native handoff and verified transfers are delivered; general goal completion, arbitrary-site recovery, benchmark coverage and broader UI improvements remain open.
 
 ## ZA-001 — Native stack overflow during stored-image follow-up
 
@@ -103,13 +103,30 @@ The second B01 run parsed and executed an inline `update_action_plan` directive,
 
 ## ZA-009 — Shared browser, Live View and Replay delivered; compatibility remains
 
-**Priority: high for remaining 3D compatibility. Status: ownership/live/replay/ordinary rollout locally accepted in 3C; handoff, login and transfers pending.**
+**Priority: high for arbitrary-site reliability. Status: 3C ownership/live/replay and 3D native handoff/transfers delivered; broader compatibility and completion remain open.**
+
+The browser reliability follow-up adds default prepared ad blocking, browser-level
+audio policy, a 1600×900 viewport and clearer action annotations. Its final full
+regression passed 293 checks. Four bounded live Sol handoff scenarios passed,
+while Luna initiation/continuation failures remain under ZA-005. The public-site
+reference smoke now verifies one submitted Wordle guess with actual feedback
+after normal keyboard activation of an animated onboarding button. None of this
+establishes a repeated five-game speed/cost improvement; the canonical benchmark
+checkpoint must measure that separately.
+
+The first optimized follow-up run after restart displayed seven live updates
+in a two-second window against a minimum of eight. A targeted control displayed
+16 and final full optimized acceptance displayed nine, without product changes
+or reducing the assertion. Capture duration was 23 ms in the controls; the
+cause of the cadence variation remains unestablished. The 8 FPS setting is a
+target, not a guaranteed rendered rate. Keep the retained failing timing record
+when evaluating preview performance; do not represent a rerun pass as a repair.
 
 Phase 3C replaces the executable old launcher/recorder with the sole shared owner. Independent real pixels feed large Fit/zoom/full-screen viewers; paged history retains actual outcomes and available before/after images, coverage gaps, export and explicit image deletion. Runtime setup persists without engine flags. Root completion now waits for browser cleanup, fixing a repeat-run ordering failure. Final validation passed 257 offline checks and seven optimized native checks. Two fixed-build live Luna B01 attempts retained an initiation failure and a completed independently checked workflow/final summary: one session, 13 exported images, zero owned processes remaining. The latter meets this rollout gate, not general task reliability or isolated authorization certification. [Decisions and evidence](PHASE_3C_WORK_LOG.md).
 
 Phase 3B implements one session per task/root run across Solo/Team/scripts, lazy acquisition, readiness validation, normal policy binding, durable actual-action journaling, stable status projection, root cleanup and restart uncertainty. Seven real-browser probes, 17 new desktop checks, relevant existing regressions and three release cases passed. The second bounded live B01 attempt confirmed one session and graceful cleanup with zero owned descendants. These checks establish their cases, not universal browser competence or a completed goal.
 
-Historical 3B boundary: `ZEUS_MANAGED_BROWSER=1` was development opt-in; that build intentionally kept the old ordinary route until a usable viewer existed. 3C has now removed that execution branch and retained bounded read-only older-recording adapters. 3D must design actual supervised handoff/login and transfers in the Zeus-owned profile. Personal-browser access remains unapproved. [Historical 3B evidence](PHASE_3B_WORK_LOG.md).
+Historical 3B boundary: `ZEUS_MANAGED_BROWSER=1` was development opt-in; that build intentionally kept the old ordinary route until a usable viewer existed. 3C removed that execution branch and retained bounded read-only older-recording adapters. 3D delivered supervised native handoff and transfers in the Zeus-owned profile. Personal-browser access remains unapproved. [Historical 3B evidence](PHASE_3B_WORK_LOG.md).
 
 The subsequent manual Wordle diagnostic used the **legacy route**, with a stored CDP worker prompt and no managed sessions. Its four `sess_*` lifecycles are script recordings; the supplied log has only one explicit process spawn. The worker then downloaded every `.js` URL in the page resource inventory, including unrelated advertising integrations. This explains the Python network cards; it is not proof of prompt injection or a reason to auto-allow those domains. Hidden-control targeting, unknown feedback treated as absent, five-games/five-wins objective drift and the “at any cost” recovery instruction remain general execution/supervision work. One legacy approval remained pending after cancellation; general run-bound approval expiry remains open. [Investigation and scoped repairs](PHASE_3B_MANUAL_FOLLOWUP.md). Debug exports now explicitly label the current exporting process's route even with no managed sessions.
 

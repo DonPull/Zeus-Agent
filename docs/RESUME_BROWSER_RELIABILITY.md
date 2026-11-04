@@ -1,140 +1,135 @@
-# Durable work checkpoint — 1 November 2026
+# Browser reliability checkpoint — 4 November 2026
 
-**UNFINISHED. Do not describe this patch as fully validated or push it as a
-stable release.** The user requested a shutdown-safe checkpoint because the
-Codex weekly allowance is nearly exhausted. Continue from these files after
-the PC/allowance restarts; do not restart the investigation from scratch.
+The PC restart preserved the source and all retained reports. The final full
+regression completed before shutdown on 1 November: **293 checks passed**, with
+an explicit runner exit-code receipt of **0**. Optimized acceptance completed
+after restart: **18/18 passed**. The patch is complete; the commit containing
+this document is the delivery checkpoint. Do not restart the investigation or
+repeat paid trials simply because the session reset.
 
-Stable starting commit: `85da77099a31f6652ba51bf38bee7ece07c08707`.
+Branch: `wip/browser-reliability-20261101`.
+Starting stable commit: `85da77099a31f6652ba51bf38bee7ece07c08707`.
+Existing checkpoints: `1ea1691` and `a4f571d`.
 Working directory: `D:\Hristian projects\Zeus-Agent` (PowerShell).
-Detailed design/findings: [BROWSER_RELIABILITY_FOLLOWUP.md](BROWSER_RELIABILITY_FOLLOWUP.md).
+Delivery record: [BROWSER_RELIABILITY_FOLLOWUP.md](BROWSER_RELIABILITY_FOLLOWUP.md).
 
-## Implemented on disk
+## Delivered behavior
 
-- Pinned official uBO Lite setup (`--extensions`), SHA-256 verification, default
-  ad blocking and compatibility toggle. Package already prepared locally under
-  `.zeus/browser-runtime/extensions/ubol-2026.1026.1812`.
-- Browser-level audio extension: muted during agent operation, unmuted during
-  opened human handoff, remuted on Resume; optional agent-audio setting.
-- 1600×900 viewport, DPR/scale 1, 1640×1000 native window; capture validation
-  updated. Visual delivery now reads actual encoded dimensions rather than
-  inventing 1280×720 dimensions. Older images remain supported.
-- Stronger action target outline and recent-action feed. Read-only inspection
-  keeps a short existing annotation; navigation clears old target geometry.
-- General text-directive/keyboard/batching/readiness guidance, no Wordle solver.
-- Read-only selected-run analysis, Windows rendering/input probes, opt-in live
-  handoff diagnostics, and opt-in public-site compatibility smoke.
+- Prepared, pinned official uBO Lite, enabled by default with a compatibility
+  toggle. No automatic extension downloads or upstream-manifest changes.
+- Browser-level sound blocking during agent control; sound enabled in an opened
+  human handoff and restored to the agent preference on Resume.
+- 1600×900 CSS viewport, scale/DPR 1, 1640×1000 native window. Image validation
+  uses actual encoded dimensions and still accepts older recordings.
+- Stronger replay target highlights and up to four recent-action captions,
+  newest at the bottom, with expiry of at least four seconds and a four-entry bound.
+- Text/semantics first, bounded waits, coherent scripts and outcome verification.
+  Ordinary keyboard activation is a documented fallback for an animated native
+  button; no force-click, automatic mutation retry or site-specific solver.
+- Read-only run analysis, Windows/input experiments and opt-in live handoff
+  diagnostics. Four live handoff scenarios passed; failed trials remain retained.
 
-## Evidence already obtained — do not repeat paid calls unnecessarily
+## Verified results and evidence
 
-Latest user-authorized Wordle task `b8493c79-6497-4b69-947c-ca5f1f0b6d58`:
-641.613 seconds, 102 model requests (84 worker), four failed clicks cost
-121.349 seconds. Read-only report:
-`.zeus/evaluations/wordle-20261101-analysis`. Raw provider cache counts sometimes
-exceed reported input counts; do not invent normalized totals or credits.
+### Software checks
 
-Windows rendering: `.zeus/evaluations/hidden-rendering-private` and
-`hidden-rendering-active`. Offscreen/transparent ~15–16 ms screenshot; hidden
-SDK ~2016 ms; hidden direct CDP ~1016 ms. Virtual focus did not fix it. Keep
-offscreen for now; transparency is viable but not proven preferable.
+- Final full suite: 48 JS + 37 mission/grader + 88 Rust + 23 real Python browser
+  service + 94 desktop + 3 private native handoff checks = **293 passed**.
+  Log: `.zeus/evaluations/browser-followup-review/full-final.log`.
+  Exit receipt: `full-final-exit.txt` in the same directory contains `0`.
+- Final optimized acceptance passed **18/18** on 4 November (15 desktop plus
+  3 private native handoff). Native report:
+  `.zeus/evaluations/native-handoff-195c7058508a41f39c1a81f5f3df0a91`.
+  Summary: `.zeus/evaluations/browser-followup-review/optimized-20261104-final.json`.
+- Frontend production build and ordinary `zeus-agent` debug build passed again
+  on 4 November, along with `git diff --check`.
+- The recent-action stack and target outline were visually inspected. Images:
+  `.zeus/evaluations/browser-followup-review/replay-recent-actions.png` and
+  `replay-action-overlay.png`.
 
-**Actual concurrent input passed:**
-`.zeus/evaluations/concurrent-clicks-and-input-focused/report.json`.
-Each of three modes performed 20 browser clicks and 20 browser typing
-operations, with 22/20/20 real human keystrokes staying exclusively in the
-owned foreground test entry; no browser foreground takeover. An earlier
-typing-only run also passed. Failed focus-acquisition attempts sent no keys
-and remain inconclusive. User coordinated the manual focus clicks. No further
-foreground test is currently required; future visible checks need coordination.
+Earlier overlapping full/release runners shared Vite/test output and invalidated
+those attempts. The final full suite ran sequentially and passed. Do not count
+the invalid attempts as product failures or run two desktop suites together.
 
-Live handoff evidence:
+The first optimized run after restart had one real timing failure: seven
+rendered updates in two seconds against the unchanged minimum of eight. The
+targeted control then delivered 16, and final acceptance delivered nine. No
+product change or threshold reduction occurred between these runs; only
+last-capture-duration logging was added. Root cause is unestablished. Keep this
+preview cadence variation visible; target 8 FPS is not guaranteed throughput.
+Retained failure: `optimized-20261104-initial.json` and
+`optimized-20261104-failure` beside the final summary.
 
-- `live-handoff-sol-20261101`: successful help and unchanged Done/Resume passed
-  with GPT-6.1 Sol/chat. Cancellation cases hit a shared-process 12-request cap.
-- Harness repaired to use a fresh app process with the same cap for each case.
-- `live-handoff-sol-cancel-20261101`: cancel and idle-cancel both passed (3
-  requests each). No model polling while paused; one cancellation notice;
-  owned processes cleaned up. Four scenarios passed across the retained runs.
-- Luna failures are retained in `live-handoff-20261101`,
-  `live-handoff-chat-control-20261101`, `live-handoff-text-transport-20261101`.
-  Mostly narration/false tool-unavailability, not completed handoff attempts.
-  This repeats known ZA-005; do not silently upgrade their grades or change
-  the user's saved models. The clarified text transport only partly helped.
-- Combined records: `.zeus/evaluations/browser-followup-review/live-results.json`.
-  All live trials so far: **30 requests, 59,288 provider-reported tokens, zero
-  unknown-usage requests, provider subscription credits unknown**. Native
-  supervised diagnostics are not an isolated capability/authorization baseline.
+### Wordle compatibility — resolved
 
-## Unresolved checks — immediate next work
+The initial reference smoke skipped onboarding. The visible, continuously
+animated Play button did not stabilize for a mouse click. Activating that native
+button with Enter, then selecting Unlimited and using visible keyboard controls,
+produced real resolved feedback with the stock prepared ad blocker enabled.
 
-1. **Recent-action feed repaired after checkpoint:** the same real autoplay
-   assertion now passes with a minimum readable caption lifetime of four
-   seconds (still four entries maximum, longer at slow playback rates).
-   The prior one-second lifetime at 4 steps/s expired during slower actual
-   rendering. `node --test tests/unit/browser_view.test.js` passes 4/4;
-   standalone replay UI passes 1/1. Inspect `replay-recent-actions.png` and
-   include this fix in final sequential validation. No assertion was weakened.
-2. **Actual Wordle compatibility:**
-   `.zeus/evaluations/wordle-adblock-compatibility/report.json` failed waiting
-   for a locked-in first guess. This smoke navigated Unlimited and typed before
-   confirming all game readiness/overlays; collect screenshot/text/feedback on
-   failure, distinguish late hydration/focus from blocker compatibility. The
-   smoke now uses visible keyboard controls and captures screenshot/text/
-   page errors on failure. Both headless controls failed (with and without
-   blocking), as did the private-desktop production-mode blocked case.
-   A matching production-mode no-blocker control is running/retained under
-   `.zeus/evaluations/wordle-production-no-adblock`. Inspect its report first.
-   Other recent reports: `wordle-adblock-diagnostic`,
-   `wordle-visible-controls-adblock`, `wordle-visible-controls-no-adblock`,
-   `wordle-production-compatibility`. This uses no model calls and does not
-   inspect game answers. Do not claim blocker compatibility until checked.
-3. **Validation runner interference:** full and release runs were mistakenly
-   started together and shared Vite on port 1420 and `test-results/offline`.
-   Release exiting shut down the shared server; later full-run desktop tests
-   fail at startup (~16 sec each). These are invalid infrastructure results.
-   Run UI groups **sequentially**, never together. The user cancelled the
-   pending cleanup tool approval, so the full runner may still be alive.
-   The overlapping full run (session `20442`) has now ended unsuccessfully;
-   no cleanup kill is needed for it. Its private native handoff checks passed
-   again. Never stop the user's `zeus-agent.exe` or unrelated Node.
+Passing report: `.zeus/evaluations/wordle-verified-feedback/report.json`.
+It confirms production offscreen mode, 1600×900, agent audio disabled, blocking
+enabled, an actual submitted CRANE row with all five resolved feedback classes,
+and no page exceptions. This is a trusted reference compatibility check with
+**zero model calls**, not a five-game agent speed or intelligence result.
 
-## Validation status (accurate, not a green full-suite claim)
+Failed controls with/without blocking and the isolated Complete-filtering
+experiment remain in `.zeus/evaluations`. Increasing extension host permissions
+did not fix the missing onboarding; that experimental manifest was **not**
+promoted into product setup. The new local animated-button regression verifies
+one real keyboard effect while the animation remains running.
 
-- Frontend production build passed.
-- 48 JS tests, 37 mission/grader tests, 88 Rust tests passed.
-- 22 real Python browser-service checks passed, including sound transitions,
-  real ad-script blocking and normal page controls.
-- Earlier full run: 88/94 regular UI checks passed; six size-related failures
-  were fixed. Affected recording/visual-delivery/replay rerun: **8/8 passed**
-  before the new feed-history assertion was added.
-- Private native handoff UI checks: **3/3 passed**.
-- Latest optimized run: **13/15 passed**; capture freshness and new caption
-  assertion failed. Freshness was run while the other suite was starting and
-  needs sequential confirmation. The caption assertion needs investigation.
-- Latest full run is invalid due to the shared-server interference above;
-  do not sum those failures into a product-regression count.
-- Later sequential capture/replay check passed 3/3. Optimized acceptance is
-  rerunning sequentially (last session `70196`); inspect its completion, then
-  run the full suite separately. Public-site control was session `70306`.
-  Session IDs expire after shutdown; all completed probe reports remain on disk.
-- No measured claim of two-minute Wordle completion or lower credit spend.
+### Windows and foreground input — completed
 
-After fixing the unresolved checks, run sequentially:
+Reports: `.zeus/evaluations/hidden-rendering-private`, `hidden-rendering-active`,
+`concurrent-input-manual-focus`, `concurrent-clicks-and-input-focused`.
 
-```powershell
-node scripts/run_regression.js --ui-files replay_polish,browser_capture,browser_visuals,browser_recordings
-node scripts/run_regression.js
-node scripts/run_regression.js --release
-npm.cmd run build
-git diff --check
-```
+Offscreen/transparent captures took about 15–16 ms; hidden/minimized SDK captures
+about 2016 ms, hidden direct CDP about 1016 ms. Virtual focus did not repair the
+slow hidden rendering. Transparency worked but demonstrated no clear advantage;
+keep the simpler offscreen production behavior.
 
-Inspect resulting screenshots with the image tool. Update the delivery record,
-KNOWN_ISSUES/ZA-005 and implementation-plan status. Commit a completed patch
-only after appropriate checks pass; a WIP checkpoint must remain clearly
-labelled. Do not push unfinished work. Do not start the next major phase here.
+The final active-desktop input test passed in three modes (ordinary offscreen,
+offscreen/nonactivating, transparent/nonactivating): **20 browser clicks and 20
+browser typing operations per mode**, alongside 22/20/20 OS input keystrokes
+sent by the test driver into its synthetic foreground entry after a user focus click.
+Text stayed in its intended destination and the browser did not take foreground.
+Failed focus-acquisition attempts sent no keys and remain inconclusive. No more
+foreground experiments or user focus clicks are needed for this patch.
 
-All source, notes, prepared assets and ignored `.zeus/evaluations` evidence are
-on disk and survive normal shutdown. Running processes and provider streams
-do not; rerun only the interrupted necessary checks. No API keys were copied
-into these documents or reports.
+### Paid handoff diagnostics — completed, retain every trial
+
+- Sol/chat: success and unchanged Done/Resume passed in
+  `live-handoff-sol-20261101`. The cancellation cases initially hit the shared
+  process request cap; the driver now starts a fresh capped process per case.
+- Cancel and idle-cancel passed in `live-handoff-sol-cancel-20261101`, three
+  requests each. No inference polling while paused, one Stop notice and joined
+  owned-process cleanup. Four scenarios passed across these Sol runs.
+- Luna failures: `live-handoff-20261101`, `live-handoff-chat-control-20261101`,
+  `live-handoff-text-transport-20261101`. Narration/false tool-unavailability
+  remains known ZA-005. Transport clarification helped navigation once but did
+  not establish reliable continuation. The user's saved models were not changed.
+- Combined: `.zeus/evaluations/browser-followup-review/live-results.json`.
+  **30 requests, 59,288 provider-reported tokens, no missing usage records**;
+  provider subscription credits unknown. Native supervised diagnostics are not
+  an isolated authorization/capability benchmark.
+
+## Remaining roadmap work
+
+The selected original Wordle task `b8493c79-6497-4b69-947c-ca5f1f0b6d58` took
+641.613 seconds and 102 model requests; four failed clicks consumed 121.349
+journal seconds. Analysis: `.zeus/evaluations/wordle-20261101-analysis`.
+Provider cached-token fields sometimes exceed reported input counts. Preserve
+the raw fields; do not invent normalized context size or subscription credits.
+
+This patch has **not measured a repeated speed/cost improvement**. Next is the
+bounded canonical benchmark baseline checkpoint, then a focused aligned Phase 4
+design for deterministic task state/completion, plans, memory and compaction.
+See [the roadmap](IMPLEMENTATION_PLAN.md). Smart permissions, classifiers,
+autonomous MCP and skills keep their separate alignment/design gates.
+
+All source, prepared assets and ignored evaluation reports are on disk and
+survive shutdown. Running process/session IDs do not. No credentials were copied
+into these notes. The completed patch is committed locally on the branch above;
+main remains unchanged and no push is part of this checkpoint. Do not relabel
+retained failures or treat a shutdown as authorization for the next major design.

@@ -84,7 +84,7 @@ test('production collector and live viewer recover changing pixels across close 
     const rateBefore=await capture();
     await app.page.waitForTimeout(2000);
     const imageCount=await app.page.evaluate(()=>{window.__VIEWED_IMAGE_OBSERVER__.disconnect();return window.__VIEWED_IMAGES__;});
-    const rateAfter=await capture();console.log(JSON.stringify({native_preview_measurement:{source_frames:rateAfter.capture.frame.seq-rateBefore.capture.frame.seq,collector_publications:rateAfter.capture.revision-rateBefore.capture.revision,displayed_images:imageCount,source_metrics:rateAfter.capture.metrics}}));
+    const rateAfter=await capture();console.log(JSON.stringify({native_preview_measurement:{source_frames:rateAfter.capture.frame.seq-rateBefore.capture.frame.seq,collector_publications:rateAfter.capture.revision-rateBefore.capture.revision,displayed_images:imageCount,source_metrics:rateAfter.capture.metrics,last_capture_ms:rateAfter.capture.frame.ended_ms-rateAfter.capture.frame.started_ms}}));
     expect(imageCount,'Rendered preview should advance faster than the former 2 FPS target').toBeGreaterThanOrEqual(8);
     const source=await app.page.locator('#live-viewport-img').getAttribute('src');
     await expect.poll(()=>app.page.locator('#live-viewport-img').getAttribute('src')).not.toBe(source);

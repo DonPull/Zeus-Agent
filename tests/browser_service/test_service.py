@@ -564,6 +564,13 @@ class HandoffServiceTests(unittest.IsolatedAsyncioTestCase):
         metrics=await self.page.evaluate('({width:innerWidth,height:innerHeight,scale:visualViewport.scale,dpr:devicePixelRatio})')
         self.assertEqual(metrics,{'width':1600,'height':900,'scale':1,'dpr':1})
 
+    async def test_keyboard_activation_preserves_animation_and_verifies_exactly_one_effect(self):
+        await self.page.set_content('<style>@keyframes move{to{transform:translateX(400px)}}button{animation:move 1s linear infinite}</style><button id="moving" onclick="window.effects=(window.effects||0)+1;document.querySelector(\'#result\').textContent=\'Saved\'">Start</button><p id="result">Ready</p>')
+        response=await self.call('press',{'target':{'role':'button','name':'Start'},'key':'Enter','expect':{'target':{'css':'#result'},'condition':{'kind':'text','value':'Saved','match':'equals'}}})
+        self.assertTrue(response['ok'],response)
+        self.assertEqual(await self.page.evaluate('window.effects'),1)
+        self.assertEqual(await self.page.locator('#moving').evaluate('e=>e.getAnimations()[0].playState'),'running')
+
     async def test_pinned_adblocker_blocks_fixture_ad_without_breaking_the_page(self):
         import asyncio
         package=ROOT/'.zeus/browser-runtime/extensions/ubol-2026.1026.1812'
