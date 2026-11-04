@@ -103,6 +103,8 @@ Active controller/child checks prevent duplicate dispatch after an interruption.
 trials remain under `attempts/`, with per-attempt logs and derived
 `summary.json`/`summary.md`. Interrupted usage stays unknown. Per-success token
 cost includes failed attempts, and becomes unavailable when usage is incomplete.
+The Markdown report shows actual role requests; raw cache/reasoning fields stay
+separate in JSON because gateway cached counts may exceed reported input.
 Provider credits remain unknown. Agent-run wall time comes from persisted run
 timestamps; driver duration includes collection/grading. Browser service timing
 does not include model, approval or queue time and must not be added to wall time.
@@ -113,6 +115,10 @@ studies, and 130 for requested interruption. Reports show these dimensions
 separately. A child exit contradicting its raw verdict gets a separate controller
 assessment; the original trial is preserved and cannot count as successful
 execution. No native agent-produced executable is graded on this host.
+
+The [4 November reference](../../docs/benchmarks/native-baseline-20261104.md)
+retains six pilot outcomes and the separate 17/18 repeated result on `b40f032`,
+including the format-recovery failure and the absence of live delegation.
 
 ## Capability evaluation commands (legacy suites)
 

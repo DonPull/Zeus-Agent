@@ -40,6 +40,10 @@ test('cost includes failed attempts and never treats interrupted or pending usag
   let s=summarizeBaseline(p,rows);assert.equal(s.cells['D01/solo'].tokens_per_successful_outcome,40);
   assert.equal(s.cells['D01/solo'].outcome_success_rate,.5);assert.equal(s.cells['D01/solo'].verified_passes,0);
   rows[p.attempts[2].id].usage=null;s=summarizeBaseline(p,rows);assert.equal(s.cells['D01/team'].tokens_per_successful_outcome,null);
+  rows[p.attempts[0].id].usage={...rows[p.attempts[0].id].usage,input_tokens:2,cached_tokens:20,reasoning_tokens:3};
+  s=summarizeBaseline(p,rows);assert.equal(s.cells['D01/solo'].reported_usage.cached_tokens.known_sum,20);
+  assert.equal(s.cells['D01/solo'].cache_exceeds_reported_input_trials,1);
+  assert.equal(s.cells['D01/solo'].known_tokens,40);
   delete rows[p.attempts[0].id];s=summarizeBaseline(p,rows);assert.equal(s.cells['D01/solo'].usage_complete,false);
 });
 test('matched build comparisons reject config drift and incomplete studies',()=>{

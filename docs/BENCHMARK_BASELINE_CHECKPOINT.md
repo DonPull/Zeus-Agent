@@ -1,8 +1,9 @@
 # Canonical measurement checkpoint — 4 November 2026
 
-Status: measurement tools implemented; 302 full regression checks and the
-frontend build pass. Six-attempt live calibration is next under the user's instruction to continue the
-approved roadmap. This is the bounded measurement slice before Phase 4, not the
+Status: implemented and measured. The six-attempt pilot passed all outcomes;
+the separate repeated reference passed 17/18 outcomes. 302 full regression
+checks and the frontend build pass. See [the reference report](benchmarks/native-baseline-20261104.md).
+This is the bounded measurement slice before Phase 4, not the
 complete 12-mission Zeus Benchmark v1 or an isolated safety certification.
 
 ## Tangible effect and decisions
@@ -133,3 +134,19 @@ speculative waits and recovery strategy individually. Preserve postcondition
 checks and successful state continuity; no blanket shorter timeouts or disabled
 verification. A faster replay or preview is not a faster agent. Revisit this
 before claiming browser performance is optimized.
+
+## Delivery and next design
+
+Measurement code was committed/pushed as `b40f032` before live dispatch and
+kept clean throughout both studies. The pilot used 32 requests/57,056 reported
+token units; the 18-attempt repeated reference used 110/156,550, with no missing
+usage. Every failed attempt remains retained. Native authorization remains
+unverified; subscription credits remain unknown. Team roles were enabled but
+not used by these live runs. The final derived report explicitly shows role
+requests and raw cache/reasoning fields; this did not change any raw trial.
+
+The next [focused Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md) proposes a
+response-format diagnostic and then automatic durable task checkpoints before
+separate memory/compaction/completion changes. It is for alignment, not an
+unreviewed runtime rewrite. Broader v1 missions, executable grading isolation,
+held-out coverage and genuine collaboration measurements remain unfinished.

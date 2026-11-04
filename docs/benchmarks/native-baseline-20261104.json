@@ -1,0 +1,1025 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-04",
+  "label": "Native development reference, not complete Zeus Benchmark v1",
+  "build": {
+    "source_commit": "b40f032e4b214a4eb7d718f5d72795097e40e8b4",
+    "dirty": false,
+    "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+    "node": "v22.13.1"
+  },
+  "contract": {
+    "schema_version": 1,
+    "suite_id": "zeus-native-checkpoint-v1",
+    "model": "gpt-6.1-terra",
+    "effort": "low",
+    "protocol": "chat",
+    "repetitions": 3,
+    "environment": {
+      "platform": "win32",
+      "os_release": "10.0.22631",
+      "architecture": "x64",
+      "node": "v22.13.1",
+      "browser_sdk": "1.62.0"
+    },
+    "execution_profile": "native-supervised",
+    "permission_policy": "normal-approvals-fixture-v1",
+    "supervision_policy": "external-synthetic-supervisor-v1",
+    "browser": {
+      "window_mode": "headless",
+      "block_ads": true,
+      "agent_audio": false
+    },
+    "missions": [
+      {
+        "id": "D01",
+        "task_hash": "a1ca5003ab2333a9a7e19be0153dc1d5168e4c8cd588164530afb03ea67aea07",
+        "fixture_hash": "d8de5be05523b22b803e928f42773b846139f81b6312183d708c91239453a1a3",
+        "grader_hash": "0da2553beb05eb9a094282260dc6cfff75656bf69e62dfef1eb67d75d5743ffe",
+        "limits": {
+          "max_requests": 10,
+          "max_tokens": 1000000,
+          "max_in_flight": 1,
+          "max_output_tokens": 8192,
+          "max_directives": 24,
+          "wall_time_ms": 300000
+        }
+      },
+      {
+        "id": "B01",
+        "task_hash": "d6156ef1ce709bc273204f4ccf06d4248f87d49293c897491cfad9c967508fa7",
+        "fixture_hash": "85b12cd9d2a87057b6377dfc31e9e6d35a305cad6f5dc27d1b27540cc96a718c",
+        "grader_hash": "0da2553beb05eb9a094282260dc6cfff75656bf69e62dfef1eb67d75d5743ffe",
+        "limits": {
+          "max_requests": 16,
+          "max_tokens": 1000000,
+          "max_in_flight": 1,
+          "max_output_tokens": 8192,
+          "max_directives": 24,
+          "wall_time_ms": 300000
+        }
+      },
+      {
+        "id": "V01",
+        "task_hash": "34eb7a8d230b3747da5be87f807ecbc9295c8e6ba627e0900af9dc4c991ac29a",
+        "fixture_hash": "1ac3c147266e23a9ff3e2828d0c1b2e7f5b530bf976a5619d84ea627ad37ecb7",
+        "grader_hash": "0da2553beb05eb9a094282260dc6cfff75656bf69e62dfef1eb67d75d5743ffe",
+        "limits": {
+          "max_requests": 8,
+          "max_tokens": 1000000,
+          "max_in_flight": 1,
+          "max_output_tokens": 8192,
+          "max_directives": 24,
+          "wall_time_ms": 300000
+        }
+      }
+    ]
+  },
+  "plan_id": "265fa0a737ee0b44255061e57e9ba865c6ef9a45715d97ac98cece2e065828c7",
+  "contract_fingerprint": "e6d9dbb8c04f95704b2f7370cea65d2fb19bd3ea5d22ff10cd4b895df823717e",
+  "pilot": {
+    "attempts": 6,
+    "successful_outcomes": 6,
+    "requests": 32,
+    "reported_tokens": 57056
+  },
+  "repeated": {
+    "attempts": 18,
+    "successful_outcomes": 17,
+    "requests": 110,
+    "reported_tokens": 156550,
+    "unknown_requests": 0,
+    "provider_credits": null
+  },
+  "cells": {
+    "D01/solo": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 3,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 3
+      },
+      "known_requests": 14,
+      "known_tokens": 21885,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 14
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 14677,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 7208,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 51188,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 1391,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 0,
+      "browser_timed_actions": 0,
+      "browser_service_ms": 0,
+      "outcome_success_rate": 1,
+      "median_agent_seconds": 28.028,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 7295,
+      "provider_credits": null
+    },
+    "D01/team": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 2,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 2,
+        "failed": 1
+      },
+      "known_requests": 22,
+      "known_tokens": 21502,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 22
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 15973,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 5529,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 108260,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 1822,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 0,
+      "browser_timed_actions": 0,
+      "browser_service_ms": 0,
+      "outcome_success_rate": 0.6666666666666666,
+      "median_agent_seconds": 45.623,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 10751,
+      "provider_credits": null
+    },
+    "B01/solo": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 3,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 3
+      },
+      "known_requests": 19,
+      "known_tokens": 26377,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 19
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 24055,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 2322,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 75966,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 835,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 23,
+      "browser_timed_actions": 23,
+      "browser_service_ms": 1627,
+      "outcome_success_rate": 1,
+      "median_agent_seconds": 24.636,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 8792.333333333334,
+      "provider_credits": null
+    },
+    "B01/team": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 3,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 3
+      },
+      "known_requests": 32,
+      "known_tokens": 52811,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 32
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 49249,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 3562,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 175112,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 1368,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 30,
+      "browser_timed_actions": 30,
+      "browser_service_ms": 31847,
+      "outcome_success_rate": 1,
+      "median_agent_seconds": 42.477,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 17603.666666666668,
+      "provider_credits": null
+    },
+    "V01/solo": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 3,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 3
+      },
+      "known_requests": 11,
+      "known_tokens": 17169,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 11
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 14409,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 2760,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 52234,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 823,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 0,
+      "browser_timed_actions": 0,
+      "browser_service_ms": 0,
+      "outcome_success_rate": 1,
+      "median_agent_seconds": 26.535,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 5723,
+      "provider_credits": null
+    },
+    "V01/team": {
+      "scheduled": 3,
+      "recorded": 3,
+      "successful_outcomes": 3,
+      "verified_passes": 0,
+      "statuses": {
+        "succeeded": 3
+      },
+      "known_requests": 12,
+      "known_tokens": 16806,
+      "complete_usage_records": 3,
+      "requests_by_role": {
+        "master": 12
+      },
+      "reported_usage": {
+        "input_tokens": {
+          "known_sum": 14660,
+          "measured_records": 3
+        },
+        "output_tokens": {
+          "known_sum": 2146,
+          "measured_records": 3
+        },
+        "cached_tokens": {
+          "known_sum": 70693,
+          "measured_records": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 602,
+          "measured_records": 3
+        }
+      },
+      "cache_exceeds_reported_input_trials": 3,
+      "browser_actions": 0,
+      "browser_timed_actions": 0,
+      "browser_service_ms": 0,
+      "outcome_success_rate": 1,
+      "median_agent_seconds": 23.21,
+      "agent_timing_records": 3,
+      "usage_complete": true,
+      "tokens_per_successful_outcome": 5602,
+      "provider_credits": null
+    }
+  },
+  "trials": [
+    {
+      "attempt": "d01-solo-1",
+      "trial_id": "651a580f-de1c-425a-8f69-4bd50238c670",
+      "raw_trial_sha256": "86ac3eec22ec4d91192f6b95e2566d0d48359b79394d506fb18efd748003d847",
+      "architecture": "solo",
+      "mission": "D01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 5,
+      "unknown_requests": 0,
+      "reported_tokens": 10790,
+      "input_tokens": 6937,
+      "output_tokens": 3853,
+      "cached_tokens": 20202,
+      "reasoning_tokens": 817,
+      "requests_by_role": {
+        "master": 5
+      },
+      "agent_duration_seconds": 50.948,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "d01-team-1",
+      "trial_id": "4e58da13-797d-416e-9dd6-b405c8d85103",
+      "raw_trial_sha256": "4488fb362e77f59c55a49d2afefa1fdea42fe0fe1f8308967ba20207bc86df74",
+      "architecture": "team",
+      "mission": "D01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 8,
+      "unknown_requests": 0,
+      "reported_tokens": 8466,
+      "input_tokens": 6176,
+      "output_tokens": 2290,
+      "cached_tokens": 38320,
+      "reasoning_tokens": 703,
+      "requests_by_role": {
+        "master": 8
+      },
+      "agent_duration_seconds": 45.623,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "b01-solo-1",
+      "trial_id": "faa95fea-6fef-4e5e-855f-a3a39e5859dc",
+      "raw_trial_sha256": "a2eb726ddf81b620ab60f7a7bd98834c32f4c5570bfcc459f18e2d6b5c789f35",
+      "architecture": "solo",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 9,
+      "unknown_requests": 0,
+      "reported_tokens": 14059,
+      "input_tokens": 13358,
+      "output_tokens": 701,
+      "cached_tokens": 38685,
+      "reasoning_tokens": 220,
+      "requests_by_role": {
+        "master": 9
+      },
+      "agent_duration_seconds": 24.942,
+      "browser": {
+        "actions": 9,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 172,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 4,
+            "service_ms": 94,
+            "timed_actions": 4
+          },
+          "inspect/succeeded": {
+            "count": 1,
+            "service_ms": 16,
+            "timed_actions": 1
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 63,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 62,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 485,
+        "timed_actions": 9,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "b01-team-1",
+      "trial_id": "b3fdf9da-d831-4c1f-a63e-27bc26da7565",
+      "raw_trial_sha256": "d48d5cb8c5c96676cfe8f75872694921182f15cc9244b8a7d0d8fbe83267fb8b",
+      "architecture": "team",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 10,
+      "unknown_requests": 0,
+      "reported_tokens": 14692,
+      "input_tokens": 13680,
+      "output_tokens": 1012,
+      "cached_tokens": 53447,
+      "reasoning_tokens": 354,
+      "requests_by_role": {
+        "master": 10
+      },
+      "agent_duration_seconds": 31.426,
+      "browser": {
+        "actions": 9,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 219,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 4,
+            "service_ms": 95,
+            "timed_actions": 4
+          },
+          "inspect/succeeded": {
+            "count": 1,
+            "service_ms": 15,
+            "timed_actions": 1
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 63,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 548,
+        "timed_actions": 9,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-solo-1",
+      "trial_id": "7b4c7922-dc83-4204-ace6-4c89c7995b54",
+      "raw_trial_sha256": "3df334e584f5ba93e74ed6ba9a932f162bef8bb33b4a69b124d85a55f1deaed7",
+      "architecture": "solo",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5553,
+      "input_tokens": 4824,
+      "output_tokens": 729,
+      "cached_tokens": 19204,
+      "reasoning_tokens": 131,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 20.944,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-team-1",
+      "trial_id": "92ba489f-fc16-457c-a683-ec328a4329b9",
+      "raw_trial_sha256": "e5bd6d629f0fc93a722547331b44f0d538fca8ae1a343d222f79eedb65534a5b",
+      "architecture": "team",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5235,
+      "input_tokens": 4653,
+      "output_tokens": 582,
+      "cached_tokens": 23466,
+      "reasoning_tokens": 185,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 14.089,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "d01-team-2",
+      "trial_id": "5ed8704b-61c6-49a7-b736-fb1b9a2c4c44",
+      "raw_trial_sha256": "611bcf6ffb312a767764eb4fa8f27f6473ec93b7be47e98272decaf10c5bdb67",
+      "architecture": "team",
+      "mission": "D01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 10,
+      "unknown_requests": 0,
+      "reported_tokens": 11001,
+      "input_tokens": 8363,
+      "output_tokens": 2638,
+      "cached_tokens": 52288,
+      "reasoning_tokens": 764,
+      "requests_by_role": {
+        "master": 10
+      },
+      "agent_duration_seconds": 58.748,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "d01-solo-2",
+      "trial_id": "40684200-3dfa-4687-9762-0d21abf080b1",
+      "raw_trial_sha256": "a2b4ce1e995793b6bc6935b365a7bcdc44da57f341f96173d037995ba5c4bb22",
+      "architecture": "solo",
+      "mission": "D01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 4781,
+      "input_tokens": 3132,
+      "output_tokens": 1649,
+      "cached_tokens": 13621,
+      "reasoning_tokens": 298,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 25.416,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "b01-team-2",
+      "trial_id": "c4018f1e-43b0-4345-9a99-3cfeb158e938",
+      "raw_trial_sha256": "e8fd71d7f3a715b0eb4ede86f593d6e06792cde5a93788d9dbc6ab01c34182b5",
+      "architecture": "team",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 11,
+      "unknown_requests": 0,
+      "reported_tokens": 19907,
+      "input_tokens": 18751,
+      "output_tokens": 1156,
+      "cached_tokens": 61305,
+      "reasoning_tokens": 405,
+      "requests_by_role": {
+        "master": 11
+      },
+      "agent_duration_seconds": 69.185,
+      "browser": {
+        "actions": 11,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 172,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 4,
+            "service_ms": 78,
+            "timed_actions": 4
+          },
+          "inspect/succeeded": {
+            "count": 2,
+            "service_ms": 16,
+            "timed_actions": 2
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 62,
+            "timed_actions": 1
+          },
+          "fill/failed": {
+            "count": 1,
+            "service_ms": 30156,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 110,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 30672,
+        "timed_actions": 11,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "b01-solo-2",
+      "trial_id": "dac7a40c-00e1-477b-a093-f52690e27a2e",
+      "raw_trial_sha256": "ace8fbadf4d1a16c8be3336c2cd6a5dbe9d9e5a99331176a129d1601f866c186",
+      "architecture": "solo",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5280,
+      "input_tokens": 4504,
+      "output_tokens": 776,
+      "cached_tokens": 13732,
+      "reasoning_tokens": 336,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 22.851,
+      "browser": {
+        "actions": 7,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 328,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 3,
+            "service_ms": 79,
+            "timed_actions": 3
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 62,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 79,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 626,
+        "timed_actions": 7,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-team-2",
+      "trial_id": "ff308f3a-bb1a-4b9e-b500-4d9ba49e1718",
+      "raw_trial_sha256": "46a03d84cc9acc516b4bedb015d09b85774a1278b1d26c2ddd71415649161aae",
+      "architecture": "team",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5738,
+      "input_tokens": 4920,
+      "output_tokens": 818,
+      "cached_tokens": 23507,
+      "reasoning_tokens": 306,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 26.801,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-solo-2",
+      "trial_id": "f49d163e-84e0-4714-99f9-1c5c89242a2d",
+      "raw_trial_sha256": "72f5a2159f5b9e3947891f8715cad864e07a5b1841cbd5931e68320b50c97731",
+      "architecture": "solo",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 3,
+      "unknown_requests": 0,
+      "reported_tokens": 5627,
+      "input_tokens": 4510,
+      "output_tokens": 1117,
+      "cached_tokens": 13584,
+      "reasoning_tokens": 578,
+      "requests_by_role": {
+        "master": 3
+      },
+      "agent_duration_seconds": 26.947,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "d01-solo-3",
+      "trial_id": "423db1e0-1ffe-4124-bf89-ff199f2db3cb",
+      "raw_trial_sha256": "575709a211ffe3accd8f99ce096511cc7d6972e8a552c7fdffd4d7d596d20f09",
+      "architecture": "solo",
+      "mission": "D01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 5,
+      "unknown_requests": 0,
+      "reported_tokens": 6314,
+      "input_tokens": 4608,
+      "output_tokens": 1706,
+      "cached_tokens": 17365,
+      "reasoning_tokens": 276,
+      "requests_by_role": {
+        "master": 5
+      },
+      "agent_duration_seconds": 28.028,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "d01-team-3",
+      "trial_id": "e51ae3ea-0558-4a3d-82a7-90d8e2e31b9a",
+      "raw_trial_sha256": "4d3edc9854acbbb56eb128edbb14a71f8076904074eb9ce4459ff78a61e03126",
+      "architecture": "team",
+      "mission": "D01",
+      "execution_status": "failed",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 2035,
+      "input_tokens": 1434,
+      "output_tokens": 601,
+      "cached_tokens": 17652,
+      "reasoning_tokens": 355,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 15.347,
+      "browser": null,
+      "error_code": "AGENT_RUN_FAILED",
+      "error_message": "MODEL_PROTOCOL_ERROR: repeated malformed directives exhausted recovery"
+    },
+    {
+      "attempt": "b01-solo-3",
+      "trial_id": "568854ab-b339-4448-ab4c-300519a33bd8",
+      "raw_trial_sha256": "48b649348cf5556eeaccf731c14ca35aef67069f969cc3df763a2280d7a0ef5c",
+      "architecture": "solo",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 6,
+      "unknown_requests": 0,
+      "reported_tokens": 7038,
+      "input_tokens": 6193,
+      "output_tokens": 845,
+      "cached_tokens": 23549,
+      "reasoning_tokens": 279,
+      "requests_by_role": {
+        "master": 6
+      },
+      "agent_duration_seconds": 24.636,
+      "browser": {
+        "actions": 7,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 172,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 3,
+            "service_ms": 94,
+            "timed_actions": 3
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 94,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 78,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 516,
+        "timed_actions": 7,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "b01-team-3",
+      "trial_id": "3a1985b5-0972-4f8d-a415-3e90b6fc1380",
+      "raw_trial_sha256": "e2eda4a4aa2077eafcf5cbce36025340993d7282dac4d78913f05b1d2a1756fc",
+      "architecture": "team",
+      "mission": "B01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 11,
+      "unknown_requests": 0,
+      "reported_tokens": 18212,
+      "input_tokens": 16818,
+      "output_tokens": 1394,
+      "cached_tokens": 60360,
+      "reasoning_tokens": 609,
+      "requests_by_role": {
+        "master": 11
+      },
+      "agent_duration_seconds": 42.477,
+      "browser": {
+        "actions": 10,
+        "truncated": false,
+        "operations": {
+          "navigate/succeeded": {
+            "count": 1,
+            "service_ms": 235,
+            "timed_actions": 1
+          },
+          "observe/succeeded": {
+            "count": 4,
+            "service_ms": 94,
+            "timed_actions": 4
+          },
+          "inspect/succeeded": {
+            "count": 1,
+            "service_ms": 16,
+            "timed_actions": 1
+          },
+          "select_option/succeeded": {
+            "count": 1,
+            "service_ms": 63,
+            "timed_actions": 1
+          },
+          "fill/succeeded": {
+            "count": 1,
+            "service_ms": 94,
+            "timed_actions": 1
+          },
+          "click/failed": {
+            "count": 1,
+            "service_ms": 63,
+            "timed_actions": 1
+          },
+          "click/succeeded": {
+            "count": 1,
+            "service_ms": 62,
+            "timed_actions": 1
+          }
+        },
+        "service_ms": 627,
+        "timed_actions": 10,
+        "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+      },
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-solo-3",
+      "trial_id": "79fad632-fda7-40ae-8c85-7448c9bc7287",
+      "raw_trial_sha256": "49a530769d5be3934db9dadd48e5c10349b10d49e936b3124f033a91bfcac168",
+      "architecture": "solo",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5989,
+      "input_tokens": 5075,
+      "output_tokens": 914,
+      "cached_tokens": 19446,
+      "reasoning_tokens": 114,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 26.535,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "attempt": "v01-team-3",
+      "trial_id": "21519ae0-b00e-45c8-bac2-93860c78192c",
+      "raw_trial_sha256": "14c70929b90d0e753f175c7d5abd9c7090503d36b01ef021a2d1bd934c9c7a1b",
+      "architecture": "team",
+      "mission": "V01",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "requests": 4,
+      "unknown_requests": 0,
+      "reported_tokens": 5833,
+      "input_tokens": 5087,
+      "output_tokens": 746,
+      "cached_tokens": 23720,
+      "reasoning_tokens": 111,
+      "requests_by_role": {
+        "master": 4
+      },
+      "agent_duration_seconds": 23.21,
+      "browser": null,
+      "error_code": null,
+      "error_message": null
+    }
+  ],
+  "limitations": [
+    "Native host permissions, not isolated grading or authorization certification.",
+    "Three development missions, not the complete Zeus Benchmark v1.",
+    "Token units are not subscription credits. Unknown usage is not zero.",
+    "All live requests used the master; enabled Team roles were not invoked. No active collaboration ranking.",
+    "Raw gateway cached-token fields can exceed reported input; no context-size or subscription-credit conversion is claimed.",
+    "Three repetitions per cell are descriptive; the same published fixtures are not held out."
+  ]
+}

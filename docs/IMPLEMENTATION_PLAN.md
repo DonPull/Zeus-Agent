@@ -13,6 +13,15 @@ these measurements; current browser behavior is not considered fully optimized.
 The user is actively using the PC: notify them before tests that expose windows
 or need focus, while routine checks remain hidden.
 
+The [native reference checkpoint](benchmarks/native-baseline-20261104.md) is now
+recorded on clean source `b40f032`: six calibration outcomes passed, followed
+by 17/18 repeated outcomes. The tooling supports frozen/resumable matched
+configurations and build comparison; this three-mission native slice does not
+complete Benchmark v1 or demonstrate active Team collaboration. One retained
+protocol failure and browser recovery overhead inform the next
+[Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md), prepared for alignment before
+runtime implementation. Browser efficiency remains an explicit measurement track.
+
 Further [capability/handoff research](CAPABILITY_AND_HANDOFF_RESEARCH.md) records agent-requested intervention, rejection of browser passthrough as the selected design, background-window rendering constraints, autonomous MCP/app setup, reusable/self-created skills, and revised uncertain-low-impact/rationale handling. Proposed capability/skills workstreams 5B/5C depend on the relevant state/authorization foundation and require their own aligned designs.
 
 Prepared: 2026-10-27. Baseline: `3b43f38` (`chore: checkpoint existing documentation and benchmark work`).

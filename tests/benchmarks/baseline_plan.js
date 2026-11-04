@@ -71,7 +71,8 @@ export function summarizeBaseline(plan,records) {
   for(const attempt of plan.attempts){
     const key=`${attempt.mission}/${attempt.architecture}`;
     const cell=cells[key]??={scheduled:0,recorded:0,successful_outcomes:0,verified_passes:0,statuses:{},known_requests:0,
-      known_tokens:0,complete_usage_records:0,requests_by_role:{},agent_seconds:[],browser_actions:0,browser_timed_actions:0,browser_service_ms:0};
+      known_tokens:0,complete_usage_records:0,requests_by_role:{},reported_usage:{},cache_exceeds_reported_input_trials:0,
+      agent_seconds:[],browser_actions:0,browser_timed_actions:0,browser_service_ms:0};
     cell.scheduled++;const row=records[attempt.id];if(!row)continue;assertTrial(plan,attempt,row);
     cell.recorded++;cell.successful_outcomes+=Number(row.outcome_passed===true);cell.verified_passes+=Number(row.passed===true);
     const status=row.execution_status??'unknown';cell.statuses[status]=(cell.statuses[status]??0)+1;
@@ -79,6 +80,11 @@ export function summarizeBaseline(plan,records) {
     if(finite(u?.requests))cell.known_requests+=u.requests;
     if(finite(u?.known_tokens))cell.known_tokens+=u.known_tokens;
     if(u?.unknown_requests===0&&finite(u?.known_tokens)&&finite(u?.requests))cell.complete_usage_records++;
+    for(const field of ['input_tokens','output_tokens','cached_tokens','reasoning_tokens']){
+      const detail=cell.reported_usage[field]??={known_sum:0,measured_records:0};
+      if(finite(u?.[field])){detail.known_sum+=u[field];detail.measured_records++;}
+    }
+    if(finite(u?.cached_tokens)&&finite(u?.input_tokens)&&u.cached_tokens>u.input_tokens)cell.cache_exceeds_reported_input_trials++;
     for(const [role,count] of Object.entries(u?.requests_by_role??{}))if(finite(count))cell.requests_by_role[role]=(cell.requests_by_role[role]??0)+count;
     if(finite(row.measurements?.agent_duration_seconds))cell.agent_seconds.push(row.measurements.agent_duration_seconds);
     const browser=row.measurements?.browser;
@@ -92,7 +98,8 @@ export function summarizeBaseline(plan,records) {
     cell.provider_credits=null;
   }
   return {schema_version:1,plan_id:plan.plan_id,contract_fingerprint:plan.contract_fingerprint,build:plan.build,
-    scheduled:plan.attempts.length,recorded:Object.keys(records).length,cells,limitations:plan.limitations};
+    scheduled:plan.attempts.length,recorded:Object.keys(records).length,cells,limitations:plan.limitations,
+    token_note:'Runtime-reported token units are not provider credits or a context-length estimate. Raw cache/reasoning fields are preserved separately, not added to the total; gateway cache semantics may differ.'};
 }
 
 export function compareBaselines(left,right) {

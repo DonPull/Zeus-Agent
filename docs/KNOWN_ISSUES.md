@@ -69,6 +69,16 @@ All failures remain retained; this is not a general Solo/Team or model-ranking
 baseline. See [the follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) and its
 [durable work checkpoint](RESUME_BROWSER_RELIABILITY.md).
 
+The 4 November repeated native reference on `b40f032`, exact Terra/low/Chat,
+passed 17/18 independent outcomes. D01 with Team enabled failed on repetition
+3 after four requests with `MODEL_PROTOCOL_ERROR: repeated malformed directives
+exhausted recovery`; no artifact passed. Repetition 2 recovered after three
+rejected duplicate-directive replies. No raw SSE trace is retained, so generated
+syntax versus upstream transport duplication remains unknown. All live requests
+in both configurations used only the master. These are measured continuation/
+format and collaboration-usage gaps, not a native crash or evidence to erase by
+upgrading models. [Reference and exact limitations](benchmarks/native-baseline-20261104.md).
+
 Phase 3B's two fixed-build Luna B01 browser attempts reproduce the broader orchestration gap. One falsely claimed browser tools were unavailable despite receiving the managed-tool contract; no tool was invoked. The other made the correct update through one real browser, recovered from a wrong locator, and independently passed all five outcome criteria, but exhausted its 12-request allowance before final-answer completion. Planning/narration/protocol-repair turns contributed overhead. Both failures remain retained; this does not prove an insufficiently intelligent model or a broken browser service. Deterministic initiation/completion and accurate tool availability are still required. See [exact records and usage](PHASE_3B_WORK_LOG.md#two-fixed-build-live-diagnostics).
 
 The seven stabilization diagnostics retain both passes and failures. Direct Luna V01 and D01 generated correct artifacts, and one helper run wrote the correct file after an immediate real supervisor approval. That helper run still failed its combined follow-up execution at a request cap; other helper runs stopped with prose, protocol problems or provider output exhaustion. Three of seven artifact outcomes passed; no fully verified authorization passes are claimed. See the stabilization packet for exact configurations and the combined report. General deterministic task state/completion is still required; upgrading the model or relaxing the grader is not the repair.
