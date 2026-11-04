@@ -20,5 +20,5 @@ export function readActionPlan(content){
     const legacy=!data.steps_source&&stored.length===parsed.length&&stored.every((s,i)=>s.status==='pending'&&identity(s.title)===identity(parsed[i].title));
     const steps=(!stored.length||data.steps_source==='markdown'||legacy?parsed:stored).map((s,i)=>({...s,id:s.id||`step-${i+1}`,status:statuses[s.status]||s.status||'pending'}));
     const notes=markdown.split('\n').filter(line=>!planLine(line)&&!steps.some(step=>identity(line.replace(/^[-*+]\s*/,''))===identity(step.title))).join('\n').trim();
-    return {steps,notes:notes.replace(/^#+\s+[^\n]+\s*$/,'').trim()};
+    return {steps,notes:notes.replace(/^#+\s+[^\n]+\s*$/,'').trim(),checkpoint:data.checkpoint||null};
 }

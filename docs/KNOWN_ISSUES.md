@@ -1,6 +1,6 @@
 # Reliability issues and manual-test findings
 
-Updated: 2026-11-04. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3C](PHASE_3C_WORK_LOG.md), [Phase 3D](PHASE_3D_EXECUTION_DESIGN.md) and [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) preserve repairs and live failures. Shared browsing, live/replay, native handoff and verified transfers are delivered; general goal completion, arbitrary-site recovery, benchmark coverage and broader UI improvements remain open.
+Updated: 2026-11-05. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3C](PHASE_3C_WORK_LOG.md), [Phase 3D](PHASE_3D_EXECUTION_DESIGN.md) and [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) preserve repairs and live failures. Shared browsing, live/replay, native handoff and verified transfers are delivered; general goal completion, arbitrary-site recovery, benchmark coverage and broader UI improvements remain open.
 
 ## ZA-001 — Native stack overflow during stored-image follow-up
 
@@ -159,6 +159,22 @@ The frontend build and full **236-check** regression passed (41 Node, 37 mission
 The same feedback clarified that **execution engines** are separate from browser **profiles**. Accepted 3C now retires old execution and preserves only historical readers; there is no permanent engine selector. Zeus-owned profiles remain the scope, with personal-browser access undecided. The new shared viewer adds explicit zoom/full-screen controls and independent capture; see ZA-009 for final validation.
 
 ## Next stabilization checkpoint
+
+5 November: [Phase 4A](PHASE_4A_WORK_LOG.md) adds durable SQLite checkpoint/source
+events and a versioned execution/plan projection. This is partial durable
+diagnostic coverage, not replacement of the volatile general backend logger.
+Stopped/failed/interrupted work and pauses no longer depend on another model
+plan update; model milestone reports remain separate from verification.
+Searchable original history and reliable compaction remain Phase 4B.
+
+The 4 November repeated reference also retains a real
+`MODEL_PROTOCOL_ERROR` from repeated directive blocks. The original raw provider
+stream was not recorded, so generation versus upstream transport origin is
+unresolved. The bounded 4A diagnostic repairs a separate Unicode chunk-decoding
+defect in both protocols and proves synthetic delta/final payloads are not
+appended twice. It does not establish the cause of those repeated directives.
+Ambiguous multi-action output continues to execute no action; a structured-tool
+transport remains a separate measured decision.
 
 The subsequent [browser UX follow-up](BROWSER_UX_FOLLOWUP.md) addresses relative file links unloading chat, active-session Replay affordances, freshness/status presentation, centered replay jumps/playback and generic readiness/input overhead. It removes the normal recording-export button while retaining a separate maintainer CLI. Fixed viewed capture targets 8 FPS/quality 80, with no load-based throttling and no corresponding increase in archive frequency. Native document rendering, compression, conversation transfer, comprehensive UI polish and browser hydration on arbitrary sites remain outside this patch. The work log retains the exact validation and limits; these controls alone do not establish faster or more reliable live-model task completion.
 

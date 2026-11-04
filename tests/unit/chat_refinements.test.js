@@ -14,6 +14,15 @@ test('legacy Done plans repair matching pending steps and remove duplicate notes
 test('title metadata stays out of streaming content without truncating normal answers',()=>{
     assert.equal(titleFreeText('[[chat_t'),'');assert.equal(titleFreeText('[[chat_title: Browser research]]\nAnswer'),'Answer');assert.equal(titleFreeText('A normal response.'),'A normal response.');
 });
+
+test('runtime plan projection wins over markdown and remains distinct from model claims',()=>{
+    const plan=readActionPlan({markdown:'- [Done] Deliver report',steps_source:'checkpoint',
+        checkpoint:{state:'interrupted',version:9},steps:[{id:'deliver',title:'Deliver report',status:'interrupted',reported_status:'in_progress'}]});
+    assert.equal(plan.steps[0].status,'interrupted');
+    assert.equal(plan.steps[0].reported_status,'in_progress');
+    assert.equal(plan.checkpoint.state,'interrupted');
+    assert.equal(plan.notes,'');
+});
 test('image navigation counts usable actions and exact strip selection remains separate',()=>{
     const rows=[{seq:1,has_image:true},{seq:2,has_image:false},{seq:3,has_image:true},{seq:4,has_image:false},{seq:5,has_image:true}];
     assert.equal(imageStep(rows,1,1),3);assert.equal(imageStep(rows,1,2),5);assert.equal(imageStep(rows,5,-1),3);assert.equal(imageStep(rows,4,-1),3);assert.equal(imageStep(rows,5,1),5);

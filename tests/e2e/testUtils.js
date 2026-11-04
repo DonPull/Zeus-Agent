@@ -49,13 +49,25 @@ export async function startMockServer({tls=false,freshConnections=false}={}) {
       if (!queued) { response.writeHead(503, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ error: { message: 'No mock response queued' } })); return; }
       const send = () => {
         if (response.destroyed) return;
-        const { _http_status = 200, _delay_ms, _responses_event = 'response.completed', ...next } = queued;
+        const { _http_status = 200, _delay_ms, _responses_event = 'response.completed', _wire_chunks, ...next } = queued;
         if(parsed.stream&&next.choices?.[0]?.message&&!next.choices[0].delta)next.choices=next.choices.map(choice=>({...choice,delta:{content:choice.message.content}}));
         if (_http_status !== 200 || !parsed.stream) {
           response.writeHead(_http_status, { 'Content-Type': 'application/json' });
           response.end(JSON.stringify(next)); return;
         }
         response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        if (_wire_chunks) {
+          // Synthetic response-only diagnostics: retain the exact bytes in the
+          // test artifact, and force a network boundary inside Unicode text.
+          let position=0;
+          const write=()=>{
+            if(response.destroyed)return;
+            if(position===_wire_chunks.length){response.end();return;}
+            response.write(Buffer.from(_wire_chunks[position++]));
+            setTimeout(write,10);
+          };
+          write();return;
+        }
         if (request.url.endsWith('/responses')) {
           const content = next.choices?.[0]?.delta?.content ?? '';
           response.write(`event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', delta: content })}\n\n`);

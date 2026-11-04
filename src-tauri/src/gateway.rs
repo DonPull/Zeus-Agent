@@ -174,10 +174,6 @@ fn responses_unsupported() -> &'static Mutex<HashSet<String>> {
 }
 
 /// True when a string is valid UTF-8. Used to ignore binary decode failures.
-fn valid_utf8(bytes: &[u8]) -> bool {
-    std::str::from_utf8(bytes).is_ok()
-}
-
 pub fn compute_units(
     input_tokens: i64,
     output_tokens: i64,
@@ -747,7 +743,7 @@ where
 
     use futures_util::StreamExt;
     let mut byte_stream = response.bytes_stream();
-    let mut buffer = String::new();
+    let mut buffer = crate::sse::Lines::default();
 
     loop {
         let chunk_res = tokio::time::timeout(
@@ -755,17 +751,16 @@ where
             byte_stream.next(),
         ).await;
 
-        let chunk = match chunk_res {
-            Ok(Some(Ok(c))) => c,
+        let (chunk, eof) = match chunk_res {
+            Ok(Some(Ok(c))) => (c, false),
             Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
-            Ok(None) => break,
+            Ok(None) => (Default::default(), true),
             Err(_) => return Err("LLM stream timed out after 180 seconds of inactivity.".into()),
         };
 
-        buffer.push_str(&String::from_utf8_lossy(&chunk));
+        buffer.push(&chunk);
 
-        while let Some(newline_pos) = buffer.find('\n') {
-            let line: String = buffer.drain(..=newline_pos).collect();
+        while let Some(line) = buffer.next(eof)? {
             let line = line.trim();
             if !line.starts_with("data:") {
                 continue;
@@ -820,6 +815,7 @@ where
                 }
             }
         }
+        if eof { break; }
     }
 
     crate::accounting::complete(&mut request, &mut usage)?;
@@ -950,7 +946,7 @@ where
 
     use futures_util::StreamExt;
     let mut byte_stream = response.bytes_stream();
-    let mut buffer = String::new();
+    let mut buffer = crate::sse::Lines::default();
     let mut current_event_type = String::new();
 
     loop {
@@ -959,20 +955,16 @@ where
             byte_stream.next(),
         ).await;
 
-        let chunk = match chunk_res {
-            Ok(Some(Ok(c))) => c,
+        let (chunk, eof) = match chunk_res {
+            Ok(Some(Ok(c))) => (c, false),
             Ok(Some(Err(e))) => return Err(format!("API stream read failed: {}", e)),
-            Ok(None) => break,
+            Ok(None) => (Default::default(), true),
             Err(_) => return Err("LLM stream timed out after 180 seconds of inactivity.".into()),
         };
 
-        if !valid_utf8(&chunk) {
-            continue;
-        }
-        buffer.push_str(&String::from_utf8_lossy(&chunk));
+        buffer.push(&chunk);
 
-        while let Some(newline_pos) = buffer.find('\n') {
-            let line: String = buffer.drain(..=newline_pos).collect();
+        while let Some(line) = buffer.next(eof)? {
             let line = line.trim_end_matches('\r').to_string();
             let line = line.trim();
             if line.is_empty() {
@@ -1096,6 +1088,7 @@ where
             }
             current_event_type.clear();
         }
+        if eof { break; }
     }
 
     crate::accounting::complete(&mut request, &mut usage)?;

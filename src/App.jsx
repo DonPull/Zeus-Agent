@@ -741,9 +741,10 @@ function playNotificationChime(type = "complete") {
 
     // P0: the backend owns visibility. Hidden pipeline messages still arrive
     // via events (for the debug log) but are filtered by the DB flag alone.
-    const visibleMessages = messages.filter((m) => m.visible !== false && m.kind !== "action_plan");
-    const actionPlanMessage = messages.filter((m) => m.kind === "action_plan").pop();
+    const visibleMessages = messages.filter((m) => m.visible !== false && !["action_plan","task_checkpoint"].includes(m.kind));
+    const actionPlanMessage = messages.find((m) => m.kind === "task_checkpoint") || messages.filter((m) => m.kind === "action_plan").pop();
     const actionPlanMarkdown = actionPlanMessage ? actionPlanMessage.content : "";
+    const waitingForHuman = (()=>{try{return JSON.parse(actionPlanMarkdown).checkpoint?.state==='awaiting_user';}catch{return false;}})();
 
     return (
         <main id="app-container">
@@ -865,7 +866,7 @@ function playNotificationChime(type = "complete") {
                                     onOpenLiveView={handleOpenLiveView}
                                 />
                             ))}
-                            {activeTaskIsSending && !awaitingBrowser && (
+                            {activeTaskIsSending && !awaitingBrowser && !waitingForHuman && (
                                 <div className="chat-message assistant">
                                     <div className="chat-bubble column">
                                         <label className="chat-bubble-author">Zeus</label>

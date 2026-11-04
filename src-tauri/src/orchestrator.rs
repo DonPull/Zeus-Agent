@@ -52,6 +52,8 @@ pub enum Directive {
     UpdateActionPlan {
         action_plan: String,
         #[serde(default)]
+        base_input_revision: Option<i64>,
+        #[serde(default)]
         steps: Option<Vec<ActionPlanStep>>,
         #[serde(default)]
         request_approval: bool,

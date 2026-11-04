@@ -12,9 +12,11 @@ three missions, six pilot attempts, then 18 repeated attempts with 17 successful
 outcomes. It is an early measurement foundation, not the full benchmark suite.
 The [Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md) has been reviewed positively,
 with the user's lightweight-check and lossless-history requirements incorporated.
-Runtime Phase 4 implementation has not started. Next: the bounded response-format
-diagnostic, 4A automatic task state, 4B context plus searchable originals, and 4C
-completion evidence, with focused review before each substantial slice.
+Phase 4A automatic task state and the bounded response-format diagnostic are
+implemented with 320 offline checks passing; the bounded live follow-up is
+pending. See the [4A work log](PHASE_4A_WORK_LOG.md).
+4B context plus searchable originals and 4C completion evidence remain next,
+with focused review before each substantial slice. Phase 4 is not yet complete.
 
 The completed browser and benchmark commits are merged/pushed to main and the
 temporary browser branch is deleted. The delivered
@@ -31,8 +33,8 @@ by 17/18 repeated outcomes. The tooling supports frozen/resumable matched
 configurations and build comparison; this three-mission native slice does not
 complete Benchmark v1 or demonstrate active Team collaboration. One retained
 protocol failure and browser recovery overhead inform the next
-[Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md), prepared for alignment before
-runtime implementation. Browser efficiency remains an explicit measurement track.
+[Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md), now being delivered in small
+slices. Browser efficiency remains an explicit measurement track.
 **Full 12-core-mission Benchmark v1 completion is scheduled immediately after
 Phase 4, before Phase 5**, as the explicit return to Phase 2D/2E. Do not postpone
 it until the Team redesign, automatic routing or self-improvement phases. See
@@ -88,12 +90,12 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 302 checks |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 320 checks |
 | 2A — mission contracts/graders | Initial six delivered | B01, C01, C02, D01, D02, V01 references and negative controls; these are grader tests, not six live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
 | 2C — small matched reference checkpoint | Delivered for three native missions | Six pilot plus 18 repeated D01/B01/V01 attempts; 17/18 repeated outcomes, retained protocol failure, actual role use and unknown provider credits |
-| 4 — state, memory and context | Current next phase; direction reviewed, slices below | Response-format diagnosis → 4A automatic task checkpoint/plan → 4B compaction plus searchable originals → 4C honest completion evidence |
+| 4 — state, memory and context | In progress; 4A offline validated, live check pending | Response-format diagnostic and automatic checkpoint/plan implemented; next 4B compaction plus searchable originals, then 4C completion evidence |
 | 2D/2E — complete Benchmark v1 | **Immediately after Phase 4, before Phase 5** | All 12 core mission contracts/graders/runtime paths, validated benchmark isolation/coverage, repeated matched current Solo/Team baseline, versioned comparison report |
 | Browser speed/efficiency track | Explicit follow-up alongside 4 and v1 completion | Profile controlled multi-step browser work, isolate format/observation/wait/batching overhead and verify outcomes before accepting an optimization |
 | 5 — permissions and Smart mode | Planned after state and full v1 baseline | Scoped files/commands/scripts/browser policy, goal-alignment and consequences checks, prompt-injection tests and calibrated shadow classifier |

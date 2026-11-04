@@ -371,7 +371,7 @@ pub async fn run_worker(
                     let mut hidden_directive = new_message_for_conversation(
                         task_id, &conversation, "assistant", "directive", raw.clone(), None, Some(actual_model.clone()), false
                     );
-                    persist_and_emit(state, app_handle, task_id, &mut hidden_directive)?;
+                    crate::chat::persist_directive(state, app_handle, task_id, run_id, &mut hidden_directive,&directive)?;
                     history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: raw });
 
                     match directive {

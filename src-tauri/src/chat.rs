@@ -103,6 +103,8 @@ pub struct MessageDto {
 /// and DB state cannot diverge.
 #[derive(Serialize)]
 pub struct SendResultDto {
+    #[serde(skip)]
+    terminal_status: &'static str,
     pub spent_credits: f64,
     pub budget_credits: i64,
 }
@@ -117,6 +119,8 @@ pub struct SpendDto {
 
 #[derive(Serialize, Clone)]
 pub struct RunStateDto {
+    #[serde(skip)]
+    checkpoint: Option<MessageDto>,
     pub id: String,
     pub request_id: String,
     pub task_id: String,
@@ -141,6 +145,7 @@ struct ExistingRun {
 
 fn row_to_run_state(row: &rusqlite::Row) -> rusqlite::Result<RunStateDto> {
     Ok(RunStateDto {
+        checkpoint: None,
         id: row.get(0)?,
         request_id: row.get(1)?,
         task_id: row.get(2)?,
@@ -163,6 +168,9 @@ pub(crate) fn emit_run_state(app_handle: &tauri::AppHandle, run: &RunStateDto) {
             run: run.clone(),
         },
     );
+    if let Some(message) = &run.checkpoint {
+        emit_message(app_handle, &run.task_id, message);
+    }
 }
 
 fn load_run_state(connection: &Connection, run_id: &str) -> Result<RunStateDto, String> {
@@ -257,6 +265,9 @@ pub(crate) fn finish_durable_run(
     error: Option<&str>,
 ) -> Result<RunStateDto, String> {
     let now = now_iso();
+    let transaction = if connection.is_autocommit() {
+        Some(connection.unchecked_transaction().map_err(|e|e.to_string())?)
+    } else { None };
 
     connection
         .execute(
@@ -279,7 +290,10 @@ pub(crate) fn finish_durable_run(
         )
         .map_err(|e| format!("Failed to release task run state: {}", e))?;
 
-    load_run_state(connection, run_id)
+    let mut run=load_run_state(connection, run_id)?;
+    run.checkpoint=crate::task_state::sync_projection(connection,task_id)?;
+    if let Some(transaction)=transaction {transaction.commit().map_err(|e|e.to_string())?;}
+    Ok(run)
 }
 
 // Only the root send boundary finalizes cancellation. Persist the terminal
@@ -314,61 +328,6 @@ fn persist_cancelled_run(
     cancellation_message.id = format!("run-cancelled:{run_id}");
     insert_message(&transaction, &mut cancellation_message)?;
     messages.push(cancellation_message);
-
-    // If an action plan has an active in_progress step, mark it interrupted
-    let latest_plan = transaction.query_row(
-            "SELECT content FROM messages WHERE task_id = ?1 AND kind = 'action_plan' ORDER BY rowid DESC LIMIT 1",
-            params![task_id],
-            |row| row.get::<_, String>(0),
-        ).optional().map_err(|e| e.to_string())?;
-    if let Some(plan_raw) = latest_plan {
-        let mut updated = false;
-        let mut new_payload = plan_raw.clone();
-
-        if plan_raw.trim_start().starts_with('{') {
-            if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&plan_raw) {
-                if let Some(steps_val) = val.get_mut("steps").and_then(|s| s.as_array_mut()) {
-                    for step in steps_val.iter_mut() {
-                        if step.get("status").and_then(|s| s.as_str()) == Some("in_progress") {
-                            step["status"] = serde_json::json!("interrupted");
-                            updated = true;
-                        }
-                    }
-                }
-                if updated {
-                    new_payload = val.to_string();
-                }
-            }
-        } else {
-            let mut steps = orchestrator::parse_markdown_steps(&plan_raw);
-            for s in steps.iter_mut() {
-                if s.status == "in_progress" {
-                    s.status = "interrupted".to_string();
-                    updated = true;
-                }
-            }
-            if updated {
-                new_payload = serde_json::json!({
-                    "markdown": plan_raw,
-                    "steps": steps,
-                }).to_string();
-            }
-        }
-
-        if updated {
-            let mut msg = new_message(
-                task_id,
-                "assistant",
-                "action_plan",
-                new_payload,
-                None,
-                None,
-                true,
-            );
-            insert_message(&transaction, &mut msg)?;
-            messages.push(msg);
-        }
-    }
 
     transaction.execute("UPDATE attachment_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='dispatched'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
     transaction.execute("UPDATE browser_visual_deliveries SET state='cancelled',error='RUN_CANCELLED',updated_at=?1 WHERE run_id=?2 AND state='prepared'",params![now_iso(),run_id]).map_err(|e|e.to_string())?;
@@ -425,7 +384,11 @@ const MESSAGE_COLUMNS: &str =
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
     let kind:String=row.get(4)?;let content:String=row.get(5)?;
-    let projection_version=if kind=="managed_browser_session"{serde_json::from_str::<serde_json::Value>(&content).ok().and_then(|value|value["version"].as_i64())}else{None};
+    let projection_version=if matches!(kind.as_str(),"managed_browser_session"|"task_checkpoint"){serde_json::from_str::<serde_json::Value>(&content).ok().and_then(|value|match kind.as_str(){
+        "managed_browser_session"=>value["version"].as_i64(),
+        "task_checkpoint"=>value["checkpoint"]["version"].as_i64(),
+        _=>None,
+    })}else{None};
     Ok(MessageDto {
         projection_version,
         attachments: vec![],
@@ -548,17 +511,34 @@ pub(crate) fn persist_and_emit(
     task_id: &str,
     message: &mut MessageDto,
 ) -> Result<(), String> {
-    {
+    let projection = {
         let connection = state
             .db
             .lock()
             .map_err(|e| format!("Database lock error: {}", e))?;
-        insert_message(&connection, message)?;
-    }
+        let transaction=connection.unchecked_transaction().map_err(|e|e.to_string())?;
+        insert_message(&transaction, message)?;
+        let projection=crate::task_state::sync_projection(&transaction,task_id)?;
+        transaction.commit().map_err(|e|e.to_string())?;
+        projection
+    };
     // Hidden pipeline messages are still emitted: the reducer stores them and
     // the debug log sees them live, but the UI renders only visible ones.
     emit_message(app_handle, task_id, message);
+    if let Some(projection)=projection {emit_message(app_handle,task_id,&projection);}
     Ok(())
+}
+
+pub(crate) fn persist_directive(
+    state:&State<'_,AppState>,app:&tauri::AppHandle,task:&str,run:&str,
+    message:&mut MessageDto,directive:&Directive,
+) -> Result<(),String> {
+    {
+        let connection=state.db.lock().map_err(|e|e.to_string())?;
+        crate::task_state::insert_directive(&connection,message,run,directive)?;
+    }
+    emit_message(app,task,message);
+    crate::task_state::emit(state,app,task)
 }
 
 /// Compacts conversation history when it grows long to preserve token budget and
@@ -805,6 +785,7 @@ pub async fn get_task_messages(
         .db
         .lock()
         .map_err(|e| format!("Database lock error: {}", e))?;
+    crate::task_state::sync_projection(&connection,&task_id)?;
     let mut statement = connection
         .prepare(&format!(
             "SELECT {} FROM messages
@@ -1089,7 +1070,9 @@ async fn cancel_task_run_bound(state:State<'_,AppState>,app_handle:tauri::AppHan
             )
             .map_err(|e| format!("Failed to mark task as stopping: {}", e))?;
 
-        load_run_state(&connection, &latest_run_id)?
+        let mut run=load_run_state(&connection, &latest_run_id)?;
+        run.checkpoint=crate::task_state::sync_projection(&connection,&task_id)?;
+        run
     };
 
     emit_run_state(&app_handle, &run);
@@ -1145,11 +1128,12 @@ pub async fn send_user_message(
         if !files.is_empty(){let actor=task.model_bindings.get("master").cloned().map(crate::model_routes::ModelRef::resolved).ok_or("MODEL_ROUTE: no acting model binding")?;gateway::validate_model_ready(&actor)?;}
         if let Some((binding,_))=crate::attachments::route(&connection,&task_id,&files)?{gateway::validate_model_ready(&binding)?;}
         let transaction=connection.unchecked_transaction().map_err(|e|e.to_string())?;
-        let run=begin_durable_run(&transaction,&task_id,&request_id)?;
+        let mut run=begin_durable_run(&transaction,&task_id,&request_id)?;
         let mut message=new_message(&task_id,"user","chat",content.clone(),None,None,true);
         message.attachments=files;insert_message(&transaction,&mut message)?;
         crate::attachments::link(&transaction,&message.id,&message.attachments)?;
         attach_user_message_to_run(&transaction,&run.id,&message.id)?;
+        run.checkpoint=crate::task_state::sync_projection(&transaction,&task_id)?;
         transaction.commit().map_err(|e|e.to_string())?;
         (run,message)
     };
@@ -1167,7 +1151,7 @@ pub async fn send_user_message(
             // A completed root must include joined browser cleanup. Rehydrating
             // clients must not observe completion while the owner is still alive.
             let connection=state.db.lock().map_err(|e|e.to_string())?;
-            let completed=finish_durable_run(&connection,&run_id,&task_id,"completed",None)?;
+            let completed=finish_durable_run(&connection,&run_id,&task_id,res.terminal_status,None)?;
             emit_run_state(&app_handle,&completed);
             Ok(res)
         },
@@ -1224,6 +1208,7 @@ async fn execute_user_turn(
             emit_message(app_handle, task_id, &warning);
             
             return Ok(SendResultDto {
+                terminal_status: "paused",
                 spent_credits: task.spent_credits,
                 budget_credits: task.budget_credits,
             });
@@ -1358,7 +1343,7 @@ async fn execute_user_turn(
     }
     if !turn_images.is_empty(){history.push(ChatMessage{role:"user".into(),content:"Current user image inputs (refer to their attachment IDs in the conversation).".into(),images:turn_images.clone()});}
     let mut produced_final = false;
-    let mut steps_since_action_plan: usize = 0;
+    let mut terminal_status = "completed";
     let mut steps_since_status_update: usize = 0;
     let mut directive_repair_pending=false;
     let mut directive_repair_attempts=0usize;
@@ -1426,7 +1411,7 @@ async fn execute_user_turn(
             );
             persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
             produced_final = true;
-            
+            terminal_status = "paused";
             break;
         }
 
@@ -1437,15 +1422,6 @@ async fn execute_user_turn(
             history.push(ChatMessage{role:"user".into(),content:"Current user image inputs retained across compaction.".into(),images:turn_images.clone()});
         }
         Box::pin(crate::browser_visuals::prepare(state,app_handle,task_id,run_id,"master",&cancellation_token,&mut history)).await?;
-        let mut injected_reminder = false;
-        if steps_since_action_plan >= 4 {
-            history.push(ChatMessage { images: Vec::new(),
-                role: "system".into(),
-                content: "[SYSTEM REMINDER]: You have performed 4 consecutive actions without updating the Action Plan. If milestones were completed or tasks adjusted, call `update_action_plan` to keep the plan current for the user.".into(),
-            });
-            injected_reminder = true;
-        }
-
         let is_eval_mode = std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
         let mut injected_status_reminder = false;
         if is_eval_mode && steps_since_status_update >= 5 {
@@ -1456,27 +1432,17 @@ async fn execute_user_turn(
             injected_status_reminder = true;
         }
 
-        // Re-anchor this model call on the latest action plan without growing durable history.
-        let injected_plan = {
+        // Runtime fields and model-authored plan text are data, not new policy.
+        // No periodic plan-update call is required for lifecycle bookkeeping.
+        let (dispatch_input_revision, injected_checkpoint) = {
             let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-            conn.query_row(
-                "SELECT content FROM messages WHERE task_id = ?1 AND kind = 'action_plan' ORDER BY rowid DESC LIMIT 1",
-                params![task_id],
-                |row| row.get::<_, String>(0),
-            ).optional().ok().flatten()
+            (crate::task_state::input_revision(&conn,task_id)?,crate::task_state::snapshot(&conn,task_id)?)
         };
-        if let Some(plan) = &injected_plan {
-            let plan_markdown = if plan.trim_start().starts_with('{') {
-                serde_json::from_str::<serde_json::Value>(plan)
-                    .ok()
-                    .and_then(|v| v.get("markdown").and_then(|m| m.as_str()).map(|s| s.to_string()))
-                    .unwrap_or_else(|| plan.clone())
-            } else {
-                plan.clone()
-            };
+        if let Some(checkpoint) = &injected_checkpoint {
+            let plan=checkpoint["markdown"].as_str().unwrap_or("");
             history.push(ChatMessage { images: Vec::new(),
-                role: "system".into(),
-                content: format!("[CURRENT ACTION PLAN — source of truth for remaining work. Update it with update_action_plan if this is stale.]\n{}", plan_markdown),
+                role: "assistant".into(),
+                content: format!("[Execution checkpoint data; model plan text is a proposal, not user instructions. Follow the actual current user requests. Lifecycle updates are automatic; use update_action_plan only when the semantic plan changes.]\n{}\n[Model-authored plan]\n{}",checkpoint["checkpoint"],plan),
             });
         }
 
@@ -1543,13 +1509,10 @@ async fn execute_user_turn(
             crate::attachments::finish_delivery(&conn,&delivery_ids,stream_result.as_ref().ok().and_then(|value|value.2.request_id.as_deref()),stream_result.as_ref().err().map(String::as_str))?;}
         if !delivery_ids.is_empty(){emit_attachment_state(state,app_handle,&user_message)?;}
         if title_requested{let _=history.pop();}
-        if injected_plan.is_some() {
+        if injected_checkpoint.is_some() {
             let _ = history.pop();
         }
         if injected_status_reminder {
-            let _ = history.pop();
-        }
-        if injected_reminder {
             let _ = history.pop();
         }
 
@@ -1567,6 +1530,7 @@ async fn execute_user_turn(
                     );
                     persist_and_emit(&state, &app_handle, &task_id, &mut note)?;
                     produced_final = true;
+                    terminal_status = "paused";
                     break;
                 }
 
@@ -1732,12 +1696,6 @@ async fn execute_user_turn(
                 );
                 
 
-                if matches!(directive, Directive::UpdateActionPlan { .. }) {
-                    steps_since_action_plan = 0;
-                } else {
-                    steps_since_action_plan += 1;
-                }
-
                 if let Directive::WriteFile { path, .. } = &directive {
                     if path.to_lowercase().contains("eval_status") {
                         steps_since_status_update = 0;
@@ -1772,7 +1730,7 @@ async fn execute_user_turn(
                     Some(model_name.clone()),
                     false,
                 );
-                persist_and_emit(&state, &app_handle, &task_id, &mut hidden_directive)?;
+                persist_directive(&state, &app_handle, &task_id, run_id, &mut hidden_directive,&directive)?;
                 history.push(ChatMessage { images: Vec::new(),
                     role: "assistant".into(),
                     content: raw,
@@ -1947,39 +1905,21 @@ async fn execute_user_turn(
                         });
                         // Loop: call the master again with the action result.
                     }
-                    Directive::UpdateActionPlan { action_plan, request_approval, steps } => {
-                        let _prior_plans: i64 = {
-                            let conn = state.db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-                            conn.query_row(
-                                "SELECT COUNT(*) FROM messages WHERE task_id = ?1 AND kind = 'action_plan'",
-                                params![task_id],
-                                |row| row.get(0),
-                            ).unwrap_or(0)
+                    Directive::UpdateActionPlan { action_plan, request_approval, steps, base_input_revision } => {
+                        let (msg,accepted)={
+                            let conn=state.db.lock().map_err(|e|e.to_string())?;
+                            crate::task_state::save_plan(&conn,task_id,run_id,base_input_revision.unwrap_or(dispatch_input_revision),&action_plan,steps)?
                         };
-
-                        let steps_source=if steps.as_ref().is_some_and(|s|!s.is_empty()){"explicit"}else{"markdown"};
-                        let parsed_steps = match steps {
-                            Some(s) if !s.is_empty() => s,
-                            _ => orchestrator::parse_markdown_steps(&action_plan),
-                        };
-
-                        let stored_payload = serde_json::json!({
-                            "markdown": action_plan,
-                            "steps": parsed_steps,
-                            "steps_source":steps_source,
-                        }).to_string();
-
-                        let mut msg = new_message(
-                            &task_id, "assistant", "action_plan",
-                            stored_payload,
-                            None, None, true,
-                        );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut msg)?;
+                        emit_message(app_handle,task_id,&msg);
+                        crate::task_state::emit(state,app_handle,task_id)?;
 
                         let is_eval_or_local = task.model_bindings.get("master").is_some_and(|binding|binding.clone().resolved().connection=="local")
                             || std::env::var("ZEUS_EVAL_MODE").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
-                        let is_alignment_plan = request_approval && !is_eval_or_local;
-                        let result_json = if is_alignment_plan {
+                        let is_alignment_plan = accepted && request_approval && !is_eval_or_local;
+                        let result_json = if !accepted {
+                            let current={let conn=state.db.lock().map_err(|e|e.to_string())?;crate::task_state::input_revision(&conn,task_id)?};
+                            serde_json::json!({"update_action_plan_result":"Stale plan proposal retained for history; the current plan was not replaced. Review the latest user input and checkpoint before revising it.","accepted":false,"current_input_revision":current})
+                        } else if is_alignment_plan {
                             serde_json::json!({ "update_action_plan_result": "Action Plan saved and shown to the user. Waiting for user review." })
                         } else {
                             serde_json::json!({ "update_action_plan_result": "Action Plan updated. Continue the current work." })
@@ -1997,6 +1937,7 @@ async fn execute_user_turn(
                             );
                             persist_and_emit(&state, &app_handle, &task_id, &mut pause)?;
                             produced_final = true;
+                            terminal_status = "paused";
                             break;
                         }
                     }
@@ -2594,6 +2535,7 @@ async fn execute_user_turn(
 
     // 3) Fallback if the iteration cap was hit without a final reply.
     if !produced_final {
+        terminal_status = "paused";
         let mut fallback = new_message(
             &task_id, "assistant", "chat",
             "I reached the maximum number of orchestration steps for this turn. Tell me to continue and I'll pick up from here.".into(),
@@ -2604,6 +2546,7 @@ async fn execute_user_turn(
 
     current_spend = crate::accounting::task_spend(&*state.db.lock().map_err(|e| e.to_string())?, task_id)?;
     Ok(SendResultDto {
+        terminal_status,
         spent_credits: current_spend,
         budget_credits: budget_units,
     })
@@ -2693,6 +2636,7 @@ pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle
         .transaction()
         .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
+    crate::task_state::delete(&tx,&task_id)?;
     tx.execute("DELETE FROM browser_visual_deliveries WHERE run_id IN (SELECT id FROM runs WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     for table in ["managed_browser_capture_state","managed_browser_frames","managed_browser_coverage"] {
         tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)"),[&task_id]).map_err(|e|e.to_string())?;
@@ -3084,10 +3028,12 @@ mod tests {
         let (connection, run_id) = cancellation_fixture();
         let (run, messages) = persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap();
         assert_eq!(run.status, "cancelled");
-        assert_eq!(messages.len(), 2);
+        assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].kind, "chat");
         assert!(messages[0].seq > 0);
-        assert_eq!(serde_json::from_str::<serde_json::Value>(&messages[1].content).unwrap()["steps"][0]["status"], "interrupted");
+        let projection=run.checkpoint.as_ref().unwrap();
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&projection.content).unwrap()["steps"][0]["status"], "interrupted");
+        assert_eq!(projection.kind,"task_checkpoint");
         let (repeated, emitted) = persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap();
         assert!(emitted.is_empty());
         assert_eq!(repeated.completed_at, run.completed_at);
@@ -3112,7 +3058,9 @@ mod tests {
         let count: i64 = connection.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0)).unwrap();
         assert_eq!(count, 1, "failed finalization must not leave a notice or interrupted plan");
         connection.execute_batch("DROP TRIGGER fail_cancel;").unwrap();
-        assert_eq!(persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap().1.len(), 2);
+        let (run,notices)=persist_cancelled_run(&connection, "cancel-task", &run_id).unwrap();
+        assert_eq!(notices.len(),1);
+        assert!(run.checkpoint.is_some());
     }
 
     #[test]
