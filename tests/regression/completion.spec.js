@@ -94,6 +94,9 @@ test('optional model review cites original requirements and has a smaller output
   expect(report.review.state).toBe('supported');expect(report.goal_status).toBe('model_supported');
   expect(stored.projection_version).toBe(2);expect(getMockRequests()).toHaveLength(3);
   expect(getMockRequests()[2].body.max_tokens).toBe(2048);
+  const packet=JSON.parse(getMockRequests()[2].body.messages.at(-1).content);
+  expect(packet.execution_receipt.coverage).toBe('all recorded dispatches in this run');
+  expect(packet.execution_receipt.tool_attempts.map(a=>[a.operation,a.status])).toEqual([['write_file','returned']]);
   const usage=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskSpend(id),task.id);
   expect(usage.usage.requests_by_role).toEqual({master:2,verifier:1});
   await app.page.reload();await expect(app.page.locator('#app-container')).toBeVisible();

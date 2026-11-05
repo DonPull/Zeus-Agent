@@ -60,6 +60,24 @@ not an intelligence or Solo/Team benchmark. Total hosted request ceiling is 70
 across these eight cells, without an automatic tuning sweep. Exact source,
 receipts, actual usage, failures and comparison limitations will be recorded.
 
+The first two live reviewer controls on `f1d8713` used two hosted requests and
+two explicitly scripted local replies, 1,600 reported hosted tokens, zero
+unknown usage. The contradictory USD report was rejected. The matching EUR
+report received an honest unknown: its original request also prohibited file
+modifications, while the review packet lacked the run's dispatch history.
+The strict positive control therefore failed; its expectation and original
+records remain unchanged in `.zeus/evaluations/phase4c-review-20261105`.
+
+The general repair adds actual complete bounded run dispatch metadata to the
+read-only review packet, rather than trusting actor narration or weakening that
+requirement. It includes worker, denied and uncertain operations, with explicit
+scope and overflow abstention. All 126 backend tests and 12 affected desktop
+tests then passed. Combined current coverage is **370 distinct checks**, carrying
+forward unchanged groups from the complete run above. No UI/source change outside
+the review packet was made. Two fresh reviewer controls are scheduled, adding
+at most two hosted requests: revised total ceiling **72**, with no model, prompt,
+criterion, fixture or grader tuning sweep.
+
 ## Limits and next milestone
 
 Checks establish only their declared predicates. Model-chosen criteria and

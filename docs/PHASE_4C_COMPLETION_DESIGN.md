@@ -51,6 +51,12 @@ provenance, not semantic entailment.
    supplied original human source for either conclusive judgment. Stale, failed,
    omitted or unknown declared checks skip the paid review. A human-input change
    during review makes the published report stale and whole-goal status unknown.
+   Supply the actual run's tool/browser dispatch metadata, including worker,
+   denied and uncertain attempts, separately from the actor's prose. These are
+   runtime records, not an operating-system audit of changes made externally.
+   The complete package caps at 16 human messages, 64 tool attempts, 64 browser
+   operations and 64,000 serialized bytes; overflow abstains without omitting
+   earlier requirements or actions.
    Workers use the existing delegation review rather than adding a second review.
 5. Persist the report before emitting it. Keep claim/check/review states separate.
    Review failure, cancellation or restart cannot turn a pending review into a pass.

@@ -698,6 +698,7 @@ fn publish(
 fn review_input(
     conn: &Connection,
     task: &str,
+    run: &str,
     answer: &str,
     report: &Value,
 ) -> Result<Option<Value>, String> {
@@ -717,8 +718,20 @@ fn review_input(
         .into_iter()
         .map(|(id, content)| json!({"source_id":id,"content":content}))
         .collect::<Vec<_>>();
-    let package =
-        json!({"human_sources":sources,"proposed_answer":answer,"completion_evidence":report});
+    // Include actual dispatch history, including denied/uncertain attempts.
+    // This lets a reviewer assess constraints such as preserving inputs without
+    // trusting the actor's description of what it did. Never silently omit old
+    // actions to make the review fit its budget.
+    let mut stmt=conn.prepare("SELECT id,conversation,operation,status,result_message_id FROM task_checkpoint_actions WHERE task_id=?1 AND run_id=?2 ORDER BY rowid LIMIT 65").map_err(|e|e.to_string())?;
+    let attempts=stmt.query_map(params![task,run],|r|Ok(json!({"id":r.get::<_,String>(0)?,"conversation":r.get::<_,String>(1)?,"operation":r.get::<_,String>(2)?,"status":r.get::<_,String>(3)?,"result_source_id":r.get::<_,Option<String>>(4)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT a.id,a.caller,a.op,a.status FROM managed_browser_actions a JOIN managed_browser_sessions s ON s.id=a.session_id WHERE s.task_id=?1 AND s.run_id=?2 ORDER BY a.rowid LIMIT 65").map_err(|e|e.to_string())?;
+    let browser=stmt.query_map(params![task,run],|r|Ok(json!({"id":r.get::<_,String>(0)?,"caller":r.get::<_,String>(1)?,"operation":r.get::<_,String>(2)?,"status":r.get::<_,String>(3)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    if attempts.len() > 64 || browser.len() > 64 {
+        return Ok(None);
+    }
+    let package = json!({"human_sources":sources,"proposed_answer":answer,"completion_evidence":report,
+        "execution_receipt":{"run_id":run,"coverage":"all recorded dispatches in this run","tool_attempts":attempts,"browser_operations":browser,
+        "scope":"Runtime dispatch metadata, not actor narration. Returned means a result was received, not goal success. Browser operations can also be represented in tool attempts. This is not an operating-system audit of external changes."}});
     if package.to_string().len() > 64_000 {
         Ok(None)
     } else {
@@ -862,7 +875,7 @@ pub async fn finish(
             let conn = state.db.lock().map_err(|e| e.to_string())?;
             let task_data = crate::chat::load_task(&conn, task)?;
             let used:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM completion_reports WHERE task_id=?1 AND run_id=?2 AND conversation=?3 AND json_extract(report,'$.review.attempted')=1)",params![task,run,conversation],|r|r.get(0)).map_err(|e|e.to_string())?;
-            let package = review_input(&conn, task, &answer.content, &report)?;
+            let package = review_input(&conn, task, run, &answer.content, &report)?;
             (
                 task_data.verifier_model,
                 task_data.verifier_effort,
@@ -889,7 +902,7 @@ pub async fn finish(
             } else if unsuitable {
                 "Stale, failed, omitted or unknown declared checks cannot support whole-goal review"
             } else if package.is_none() {
-                "Full original human requirements do not fit the bounded review package"
+                "Full original human requirements and execution history do not fit the bounded review package"
             } else if budget > 0 && spent >= budget as f64 {
                 "Task budget does not allow a review"
             } else {
@@ -1381,10 +1394,48 @@ mod tests {
         assert!(store(&f.conn, "t", "r", "master", "claim", &mut value, None, true).is_err());
     }
     #[test]
+    fn review_packet_keeps_actual_run_history_and_abstains_instead_of_omitting_dispatches() {
+        let f = fixture();
+        let value = draft(&f, &claim(vec![]));
+        for (id, conversation, op, status) in [
+            ("write", "master", "write_file", "returned"),
+            ("uncertain", "worker:w", "run_action", "uncertain"),
+        ] {
+            source(&f.conn, id, conversation);
+            f.conn
+                .execute(
+                    "INSERT INTO task_checkpoint_actions VALUES(?1,'t','r',?2,?3,?4,NULL,'n')",
+                    params![id, conversation, op, status],
+                )
+                .unwrap();
+        }
+        let package = review_input(&f.conn, "t", "r", "Answer", &value)
+            .unwrap()
+            .unwrap();
+        let receipt = &package["execution_receipt"];
+        assert_eq!(receipt["tool_attempts"].as_array().unwrap().len(), 2);
+        assert_eq!(receipt["tool_attempts"][0]["operation"], "write_file");
+        assert_eq!(receipt["tool_attempts"][1]["status"], "uncertain");
+        assert_eq!(
+            review_input(&f.conn, "t", "other-run", "Answer", &value)
+                .unwrap()
+                .unwrap()["execution_receipt"]["tool_attempts"],
+            json!([])
+        );
+        for index in 2..65 {
+            let id = format!("action-{index}");
+            source(&f.conn, &id, "master");
+            f.conn.execute("INSERT INTO task_checkpoint_actions VALUES(?1,'t','r','master','write_file','returned',NULL,'n')",[id]).unwrap();
+        }
+        assert!(review_input(&f.conn, "t", "r", "Answer", &value)
+            .unwrap()
+            .is_none());
+    }
+    #[test]
     fn model_review_requires_real_user_citation_and_cannot_override_failed_checks() {
         let f = fixture();
         let mut value = draft(&f, &claim(vec![]));
-        let package = review_input(&f.conn, "t", "Answer", &value)
+        let package = review_input(&f.conn, "t", "r", "Answer", &value)
             .unwrap()
             .unwrap();
         apply_review(
