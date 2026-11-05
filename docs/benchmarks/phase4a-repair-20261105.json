@@ -1,0 +1,178 @@
+{
+    "schema_version":  1,
+    "date":  "2026-11-05",
+    "description":  "Separate post-repair native Solo smoke checks; not replacements for the original failed B01 trial",
+    "receipts":  [
+                     {
+                         "mission":  "B01",
+                         "raw_directory":  ".zeus/evaluations/phase4a-repair-b01-20261105",
+                         "trial_id":  "bb2abb8a-88e2-4076-aa9b-f46945463471",
+                         "sha256":  "c95c22b092f3063cdc44cc2058b1bdaacc5e9c01e3f333ff7df42314dc3162d8",
+                         "build":  {
+                                       "source_commit":  "0dd1574de513d7ab8d8041e5d24910a2a2cc2073",
+                                       "dirty":  false,
+                                       "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                       "node":  "v22.13.1",
+                                       "runtime":  "zeus-evaluation (same production library)"
+                                   },
+                         "configuration_fingerprint":  "fbaac1cb3b5956489f076510c94517ec6e5de70becd49fd0f70553d4c15385b1",
+                         "task_hash":  "d6156ef1ce709bc273204f4ccf06d4248f87d49293c897491cfad9c967508fa7",
+                         "fixture_hash":  "85b12cd9d2a87057b6377dfc31e9e6d35a305cad6f5dc27d1b27540cc96a718c",
+                         "grader_version":  "zeus-outcomes-v2",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated",
+                         "usage":  {
+                                       "requests":  8,
+                                       "unknown_requests":  0,
+                                       "known_tokens":  23881,
+                                       "input_tokens":  23246,
+                                       "output_tokens":  635,
+                                       "reasoning_tokens":  206,
+                                       "cached_tokens":  23296,
+                                       "provider_credits":  null,
+                                       "unit_kind":  "tokens_not_provider_credits",
+                                       "requests_by_role":  {
+                                                                "master":  8
+                                                            },
+                                       "requests_by_provider":  {
+                                                                    "https://routellm.abacus.ai":  8
+                                                                },
+                                       "requests_by_connection":  {
+                                                                      "abacus":  8
+                                                                  }
+                                   },
+                         "measurements":  {
+                                              "agent_duration_seconds":  20.387,
+                                              "browser":  {
+                                                              "actions":  8,
+                                                              "truncated":  false,
+                                                              "operations":  {
+                                                                                 "navigate/succeeded":  {
+                                                                                                            "count":  1,
+                                                                                                            "service_ms":  125,
+                                                                                                            "timed_actions":  1
+                                                                                                        },
+                                                                                 "observe/succeeded":  {
+                                                                                                           "count":  4,
+                                                                                                           "service_ms":  93,
+                                                                                                           "timed_actions":  4
+                                                                                                       },
+                                                                                 "select_option/succeeded":  {
+                                                                                                                 "count":  1,
+                                                                                                                 "service_ms":  63,
+                                                                                                                 "timed_actions":  1
+                                                                                                             },
+                                                                                 "fill/succeeded":  {
+                                                                                                        "count":  1,
+                                                                                                        "service_ms":  63,
+                                                                                                        "timed_actions":  1
+                                                                                                    },
+                                                                                 "click/succeeded":  {
+                                                                                                         "count":  1,
+                                                                                                         "service_ms":  78,
+                                                                                                         "timed_actions":  1
+                                                                                                     }
+                                                                             },
+                                                              "service_ms":  422,
+                                                              "timed_actions":  8,
+                                                              "note":  "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+                                                          }
+                                          }
+                     },
+                     {
+                         "mission":  "D01",
+                         "raw_directory":  ".zeus/evaluations/phase4a-repair-d01-20261105",
+                         "trial_id":  "e5d4e7b7-3cf8-4986-bafa-d3c7e0f51a4f",
+                         "sha256":  "7f38b654023b4e7649aa053b9e3f2b0ce53df517110e3178b06545581ed2987d",
+                         "build":  {
+                                       "source_commit":  "0dd1574de513d7ab8d8041e5d24910a2a2cc2073",
+                                       "dirty":  false,
+                                       "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                       "node":  "v22.13.1",
+                                       "runtime":  "zeus-evaluation (same production library)"
+                                   },
+                         "configuration_fingerprint":  "62e35f8463b8b3663bcffcd1d6b66e9e286d908f68e740b5db0c9645b54d8548",
+                         "task_hash":  "a1ca5003ab2333a9a7e19be0153dc1d5168e4c8cd588164530afb03ea67aea07",
+                         "fixture_hash":  "d8de5be05523b22b803e928f42773b846139f81b6312183d708c91239453a1a3",
+                         "grader_version":  "zeus-outcomes-v2",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated",
+                         "usage":  {
+                                       "requests":  6,
+                                       "unknown_requests":  0,
+                                       "known_tokens":  19200,
+                                       "input_tokens":  15829,
+                                       "output_tokens":  3371,
+                                       "reasoning_tokens":  1084,
+                                       "cached_tokens":  17472,
+                                       "provider_credits":  null,
+                                       "unit_kind":  "tokens_not_provider_credits",
+                                       "requests_by_role":  {
+                                                                "master":  6
+                                                            },
+                                       "requests_by_provider":  {
+                                                                    "https://routellm.abacus.ai":  6
+                                                                },
+                                       "requests_by_connection":  {
+                                                                      "abacus":  6
+                                                                  }
+                                   },
+                         "measurements":  {
+                                              "agent_duration_seconds":  48.737,
+                                              "browser":  null
+                                          }
+                     },
+                     {
+                         "mission":  "V01",
+                         "raw_directory":  ".zeus/evaluations/phase4a-repair-v01-20261105",
+                         "trial_id":  "67e072da-72d2-422f-988c-fd7a5ebbc0a8",
+                         "sha256":  "121d0fcc50530ea623d228a2740666244cc46ee141d5cc454b8acc504eb05883",
+                         "build":  {
+                                       "source_commit":  "0dd1574de513d7ab8d8041e5d24910a2a2cc2073",
+                                       "dirty":  false,
+                                       "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                       "node":  "v22.13.1",
+                                       "runtime":  "zeus-evaluation (same production library)"
+                                   },
+                         "configuration_fingerprint":  "feb687f1c452a276430a8808f6ec102d105e7326297e184f630c7970c80577f3",
+                         "task_hash":  "34eb7a8d230b3747da5be87f807ecbc9295c8e6ba627e0900af9dc4c991ac29a",
+                         "fixture_hash":  "1ac3c147266e23a9ff3e2828d0c1b2e7f5b530bf976a5619d84ea627ad37ecb7",
+                         "grader_version":  "zeus-outcomes-v2",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated",
+                         "usage":  {
+                                       "requests":  4,
+                                       "unknown_requests":  0,
+                                       "known_tokens":  15365,
+                                       "input_tokens":  14687,
+                                       "output_tokens":  678,
+                                       "reasoning_tokens":  92,
+                                       "cached_tokens":  11648,
+                                       "provider_credits":  null,
+                                       "unit_kind":  "tokens_not_provider_credits",
+                                       "requests_by_role":  {
+                                                                "master":  4
+                                                            },
+                                       "requests_by_provider":  {
+                                                                    "https://routellm.abacus.ai":  4
+                                                                },
+                                       "requests_by_connection":  {
+                                                                      "abacus":  4
+                                                                  }
+                                   },
+                         "measurements":  {
+                                              "agent_duration_seconds":  13.538,
+                                              "browser":  null
+                                          }
+                     }
+                 ],
+    "limitations":  [
+                        "Three new Solo attempts, one per mission, not a matched six-cell repeated comparison",
+                        "Native host remains unisolated and global authorization not evaluated",
+                        "The live browser follow-up used native actions; the missing-locator recovery path is proved by controlled real-browser regression",
+                        "Reported tokens are not subscription credits; no general efficiency gain is established"
+                    ]
+}

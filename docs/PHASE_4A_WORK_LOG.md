@@ -1,8 +1,9 @@
 # Phase 4A — automatic execution checkpoints
 
-5 November 2026. Implementation and offline validation complete. Initial live
-comparison retained one browser failure; the general deadline repair is offline
-validated and its separate post-repair live follow-up is pending.
+5 November 2026. Delivered and validated. Initial live comparison retained one
+browser failure; the general deadline repair is validated offline and all three
+separate post-repair live checks passed. Implementation commits: `8c13c82` and
+`0dd1574`.
 This is the first slice of the [Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md),
 not completion of Phase 4 or the official full benchmark.
 
@@ -137,11 +138,30 @@ describes that behavior in its text-generation pipeline. This is a compatibility
 precaution, not a claim that Abacus used that pipeline or that it caused B01.
 Forty relevant desktop/protocol/limit checks passed after this final adjustment.
 
-The follow-up is three new Solo attempts, one per mission, on a newly frozen
-repaired commit. Maxima are D01 10, B01 16 and V01 8 requests: at most 34 further
-requests, keeping total dispatch within the original 68-request allowance
-(32 already used + at most 34). No automatic trial retry, model sweep or
-replacement of the failed original receipt is allowed.
+The follow-up ran three new Solo attempts, one per mission, on frozen repaired
+`0dd1574`. All outcomes passed:
+
+| Mission | Agent seconds | Requests | Reported tokens |
+|---|---|---|---|
+| B01 | 20.387 | 8 | 23,881 |
+| D01 | 48.737 | 6 | 19,200 |
+| V01 | 13.538 | 4 | 15,365 |
+
+The [post-repair receipts](benchmarks/phase4a-repair-20261105.json) retain source,
+grader/task identities, usage and immutable raw-trial hashes. Their separate
+raw directories are `.zeus/evaluations/phase4a-repair-{b01,d01,v01}-20261105/`.
+This is **3/3 outcomes**, 18 requests, 58,446 reported tokens, zero missing usage,
+and no worker/verifier requests. The successful live B01 used native browser
+actions; the specific missing-selector recovery path is proved by the controlled
+real-browser regression, not by reproducing that error in this new live trial.
+Global authorization remains not evaluated.
+
+Both rounds together used **50 requests and 111,644 reported tokens**, within
+the original 68-request ceiling. No automatic trial retries or model sweep ran;
+the failed original receipt was not replaced. The follow-up is a different
+source/Solo-only study, not a new matched six-cell comparison. Reported tokens
+and latency varied; these samples establish no general efficiency improvement.
+Provider-credit cost remains unknown.
 
 ## Remaining Phase 4 work
 

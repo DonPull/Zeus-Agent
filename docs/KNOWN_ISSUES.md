@@ -172,7 +172,9 @@ a missing-locator wait exhausting the surrounding script's equal 30-second
 deadline, ending the browser before recovery. The [general deadline repair](PHASE_4A_WORK_LOG.md#general-deadline-repair-and-follow-up)
 coordinates remaining active execution time without changing action identity,
 counting approval waits or replaying uncertain effects. Its 324-check offline
-validation passed; post-repair live follow-up remains separately recorded.
+validation passed; all three separate post-repair live Solo outcomes passed.
+The earlier failed receipt remains retained. This does not establish a general
+efficiency improvement or complete the remaining Phase 4 context/memory work.
 
 The 4 November repeated reference also retains a real
 `MODEL_PROTOCOL_ERROR` from repeated directive blocks. The original raw provider
