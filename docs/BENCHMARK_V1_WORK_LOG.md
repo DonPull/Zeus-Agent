@@ -61,6 +61,18 @@ cannot be assumed on this host.
 
 ## Next work
 
+The user confirmed availability for the administrator/UAC setup on 6 November.
+The reviewed `scripts/eval_harness/sandbox/enable_windows_sandbox.ps1` defaults
+to plan-only; its explicit enable mode uses `-NoRestart`. The first plan receipt
+is `sandbox-setup/98647486-be6e-44cc-a6d2-6edcde9450bb.json` under evaluations.
+The component enable step succeeded with status **restart_required**, exit 2,
+administrator true, before state Disabled, changed true and automatic restart
+false. Windows must be restarted manually before guest validation. Inspect the
+newest `sandbox-setup` receipt after any interruption. No automatic reboot is
+allowed. Runtime-workflow hooks are
+being added to `mission_runtime.js` / `trial_runner.js` but are not validated yet;
+the pushed validated 2D1 checkpoint is `70af36e`.
+
 Wire new contracts through the production bridge with actual later messages,
 downloads, compaction receipts and app restart. Prepare and validate bounded
 artifact transfer and the isolated executable grader. Then freeze/review a live
