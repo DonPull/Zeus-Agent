@@ -1,5 +1,6 @@
 import MessageAttachments from "./MessageAttachments";
 import ManagedBrowserSessionCard from "./ManagedBrowserSessionCard";
+import CompletionCard from './CompletionCard';
 import { useMemo, useState } from "react";
 import MessageMarkdown from './MessageMarkdown';
 import * as bridge from '../bridge';
@@ -42,7 +43,7 @@ function ActionCard({ message }) {
                 </div>
                 <div className="action-card-meta align-center gap-10 no-user-select">
                     <span className="chat-meta-pill mono">{data.interpreter}</span>
-                    {data.success_criteria && <span className="action-card-criteria" title={data.success_criteria}>✓ criteria</span>}
+                    {data.success_criteria && <span className="action-card-criteria" title={data.success_criteria}>Stated criteria</span>}
                 </div>
                 {data.stdout && <pre className="action-card-output">{data.stdout}</pre>}
                 {data.stderr && <pre className="action-card-output stderr">{data.stderr}</pre>}
@@ -532,6 +533,7 @@ function ChatMessage({
     }
 
     if (message.role === "event") {
+        if(message.kind==='completion_report')return <CompletionCard message={message}/>;
         if(message.kind==='managed_browser_session')return <ManagedBrowserSessionCard message={message} onOpenLiveView={onOpenLiveView} onOpenReplay={onOpenReplay} preview={preview}/>;
         if (message.kind === "action") return <ActionCard message={message} />;
         if (message.kind === "approval") return <ApprovalCard message={message} onDecision={onApprovalDecision} />;

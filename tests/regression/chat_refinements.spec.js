@@ -72,7 +72,8 @@ test('the persistent UI showcase is inert and contains all browser lifecycle var
     await startMockServer();const app=await launchTauri(),page=app.page;await expect(page.locator('#app-container')).toBeVisible();
     const created=JSON.parse(execFileSync(process.execPath,['scripts/diagnostics/create_ui_showcase.js','--data-dir',app.workspace],{cwd:path.resolve('.'),windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe']}));expect(created.created).toBe(true);
     await page.evaluate(()=>window.__ZEUS_REFRESH_TASKS__());await page.locator('.sidebar-task-title[title="UI showcase — card variants"]').click();
-    await expect(page.locator('.ui-showcase-example')).toHaveCount(29);await expect(page.locator('.ui-showcase-example [aria-label="Managed browser session"]')).toHaveCount(9);
+    await expect(page.locator('.ui-showcase-example')).toHaveCount(32);await expect(page.locator('.ui-showcase-example [aria-label="Managed browser session"]')).toHaveCount(9);
+    await expect(page.locator('.ui-showcase-example [aria-label="Completion evidence"]')).toHaveCount(3);
     await expect(page.locator('#chat-send-button')).toBeDisabled();await expect(page.locator('#chat-input')).toHaveAttribute('readonly','');
     await expect(page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Run this example',crypto.randomUUID()),created.task_id)).rejects.toThrow('SHOWCASE_READ_ONLY');
     expect(await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),created.task_id)).toBeNull();expect(getMockRequests()).toHaveLength(0);

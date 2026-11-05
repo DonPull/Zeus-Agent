@@ -212,3 +212,20 @@ This is a native supervised stress comparison on one build. It is not the full
 Reference/negative controls live in `tests/unit/history_missions.test.js`;
 `tests/regression/history.spec.js` proves the retrieval/attachment/worker paths
 using controlled replies. See [the work log](../../docs/PHASE_4B_WORK_LOG.md).
+
+## Phase 4C read-only reviewer controls
+
+`node scripts/eval_harness/diagnose_completion_review.js` is dry by default.
+Explicit `--live --output .zeus/evaluations/<fresh-directory>` checks a matching
+and a contradictory currency requirement through the production completion
+review path. The actor is a disclosed, hardcoded loopback control, not an LLM.
+Only the configured reviewer uses hosted inference: at most two requests total,
+one per case, 2,048 output tokens and a 30-second deadline per review. The fixed
+default is catalogue-checked Abacus `gpt-6.1-terra`, low effort, explicit Chat.
+
+The controller creates synthetic JSON fixtures; no generated command, executable
+grader, authorization bypass or model-written file mutation runs. Clean committed
+source is required. Reports retain original messages, check/review states, raw
+usage and failures. These controls test narrow reviewer behavior, not general
+agent intelligence or Solo/Team quality. See
+[the completion work log](../../docs/PHASE_4C_WORK_LOG.md).

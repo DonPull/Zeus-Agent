@@ -38,6 +38,7 @@ export default function ActionPlanPanel({ actionPlanMarkdown, onClose }) {
                 </div>}
                 {checkpoint.plan_stale&&<p className="action-plan-context-note">This plan predates your latest message. Zeus can revise it as needed.</p>}
                 {checkpoint.historical_plan&&<p className="action-plan-context-note">Earlier saved plan; its coverage of your latest request is unknown.</p>}
+                {checkpoint.completion&&<p className="action-plan-context-note">Completion evidence: {checkpoint.completion.checks?.passed||0} checks passed, {checkpoint.completion.checks?.failed||0} failed. {checkpoint.completion.goal_status==='model_supported'?'Supported by configured model review.':'Whole-goal verification remains unknown.'}</p>}
             </div>}
 
             {totalSteps > 0 && (

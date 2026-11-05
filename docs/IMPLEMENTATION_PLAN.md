@@ -22,8 +22,9 @@ usage and comparison limits.
 and **four successful live history probes**, including old-fact/image retrieval
 after repeated compaction and restart. See the [4B work log](PHASE_4B_WORK_LOG.md)
 for decisions, retained development failures, usage and limits. 4C completion
-evidence remains next, with focused review before that slice. Phase 4 is not yet
-complete.
+evidence is implemented and undergoing final acceptance; see its
+[contract](PHASE_4C_COMPLETION_DESIGN.md) and [work log](PHASE_4C_WORK_LOG.md).
+Phase 4 is not yet complete.
 
 The completed browser and benchmark commits are merged/pushed to main and the
 temporary browser branch is deleted. The delivered
@@ -97,12 +98,12 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 324 checks |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression groups report 369 checks passed |
 | 2A — mission contracts/graders | Initial six delivered | B01, C01, C02, D01, D02, V01 references and negative controls; these are grader tests, not six live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
 | 2C — small matched reference checkpoint | Delivered for three native missions | Six pilot plus 18 repeated D01/B01/V01 attempts; 17/18 repeated outcomes, retained protocol failure, actual role use and unknown provider credits |
-| 4 — state, memory and context | In progress; 4A/4B delivered | Automatic checkpoints and shared source-aware context/searchable originals validated; next 4C completion evidence |
+| 4 — state, memory and context | In progress; 4A/4B delivered, 4C in acceptance | Automatic checkpoints, source-aware context/searchable originals and scoped completion evidence; finish 4C validation |
 | 2D/2E — complete Benchmark v1 | **Immediately after Phase 4, before Phase 5** | All 12 core mission contracts/graders/runtime paths, validated benchmark isolation/coverage, repeated matched current Solo/Team baseline, versioned comparison report |
 | Browser speed/efficiency track | Explicit follow-up alongside 4 and v1 completion | Profile controlled multi-step browser work, isolate format/observation/wait/batching overhead and verify outcomes before accepting an optimization |
 | 5 — permissions and Smart mode | Planned after state and full v1 baseline | Scoped files/commands/scripts/browser policy, goal-alignment and consequences checks, prompt-injection tests and calibrated shadow classifier |

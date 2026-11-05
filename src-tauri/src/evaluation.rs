@@ -121,14 +121,27 @@ fn configured() -> Result<Option<Arc<Gate>>, String> {
         Err(error) => Err(format!("EVAL_CONFIG: {}", error)),
     }).clone()
 }
-pub fn reserve(body: &Value) -> Result<Option<Lease>, String> { configured()?.map(|gate| gate.reserve(body)).transpose() }
+struct CallEnvelope { output:u64, remaining:std::sync::atomic::AtomicU64 }
+tokio::task_local! { static CALL_ENVELOPE: CallEnvelope; }
+pub async fn bounded_call<T>(output:u64,attempts:u64,future:impl std::future::Future<Output=Result<T,String>>)->Result<T,String>{
+    if output==0||attempts==0||CALL_ENVELOPE.try_with(|_|()).is_ok(){return Err("REQUEST_LIMIT: invalid or nested read-only assessment allowance".into());}
+    CALL_ENVELOPE.scope(CallEnvelope{output,remaining:std::sync::atomic::AtomicU64::new(attempts)},future).await
+}
+pub fn reserve(body: &Value) -> Result<Option<Lease>, String> {
+    if CALL_ENVELOPE.try_with(|limit|limit.remaining.fetch_update(std::sync::atomic::Ordering::SeqCst,std::sync::atomic::Ordering::SeqCst,|v|v.checked_sub(1)).is_err()).unwrap_or(false) {
+        return Err("REQUEST_LIMIT: read-only assessment attempt allowance exhausted".into());
+    }
+    configured()?.map(|gate| gate.reserve(body)).transpose()
+}
 pub fn directive() -> Result<(), String> { if let Some(gate) = configured()? { gate.directive()?; } Ok(()) }
 pub fn snapshot() -> Result<Option<Snapshot>, String> { configured()?.map(|gate| gate.snapshot()).transpose() }
 pub fn active() -> Result<bool, String> { Ok(configured()?.is_some()) }
 pub fn output_cap(body: &mut Value, responses: bool) -> Result<(), String> {
+    let mut maximum=CALL_ENVELOPE.try_with(|v|v.output).ok();
     if let Some(gate) = configured()? {
-        body[if responses { "max_output_tokens" } else { "max_tokens" }] = gate.limits.max_output_tokens.into();
+        maximum=Some(maximum.map(|v|v.min(gate.limits.max_output_tokens)).unwrap_or(gate.limits.max_output_tokens));
     }
+    if let Some(maximum)=maximum {body[if responses { "max_output_tokens" } else { "max_tokens" }]=maximum.into();}
     Ok(())
 }
 pub async fn within_deadline<T>(future: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
@@ -141,6 +154,27 @@ pub async fn within_deadline<T>(future: impl std::future::Future<Output = Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn assessment_envelope_caps_both_protocols_and_prevents_a_paid_retry(){
+        bounded_call(2048,1,async{
+            for responses in [false,true] {
+                let mut body=serde_json::json!({});
+                output_cap(&mut body,responses)?;
+                assert_eq!(body[if responses{"max_output_tokens"}else{"max_tokens"}],2048);
+            }
+            assert!(reserve(&serde_json::json!({})).is_ok());
+            assert!(reserve(&serde_json::json!({})).err().unwrap().contains("REQUEST_LIMIT"));
+            Ok(())
+        }).await.unwrap();
+        let mut outside=serde_json::json!({});output_cap(&mut outside,false).unwrap();assert!(outside.get("max_tokens").is_none());
+    }
+    #[tokio::test]
+    async fn assessment_limits_cannot_be_empty_or_widened_by_nesting(){
+        assert!(bounded_call(0,1,async{Ok(())}).await.is_err());
+        bounded_call(100,1,async{
+            assert!(bounded_call(200,2,async{Ok(())}).await.is_err());Ok(())
+        }).await.unwrap();
+    }
     fn limits() -> Limits { Limits { max_requests: 3, max_tokens: 1000, max_in_flight: 2, max_output_tokens: 100, max_directives: 2, wall_time_ms: 10000 } }
     #[test]
     fn invalid_limits_and_unknown_fields_fail_closed() {

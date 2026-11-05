@@ -12,6 +12,7 @@ pub fn create(conn: &Connection) -> Result<Value, String> {
         )
         .map_err(|e| e.to_string())?
     {
+        refresh_completion_examples(conn)?;
         return Ok(json!({"task_id":TASK_ID,"created":false}));
     }
     let now = crate::db::now_iso();
@@ -98,6 +99,7 @@ pub fn create(conn: &Connection) -> Result<Value, String> {
         crate::chat::insert_message(conn, &mut sample)?;
         let mut plan=crate::chat::new_message(TASK_ID,"assistant","action_plan",json!({"markdown":"# Example plan\n- [Done] Gather example inputs\n- [/] Review layout\n- [ ] Finalize design\n\nDesign note: these are illustrative statuses, not an active task.","steps_source":"markdown","steps":crate::orchestrator::parse_markdown_steps("- [Done] Gather example inputs\n- [/] Review layout\n- [ ] Finalize design")}).to_string(),None,None,true);
         crate::chat::insert_message(conn, &mut plan)?;
+        refresh_completion_examples(conn)?;
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM messages WHERE task_id=?1 AND kind='ui_showcase'",
@@ -129,6 +131,24 @@ pub fn create_in_workspace() -> Result<Value, String> {
         .map_err(|e| e.to_string())?;
     create(&conn)
 }
+/// Update an existing user-requested gallery; never recreate a deleted one.
+pub fn refresh_completion_examples(conn:&Connection)->Result<(),String>{
+    let exists:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1)",[TASK_ID],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if !exists{return Ok(());}
+    for (state,passed,failed,unknown) in [("passed",2,0,0),("failed",0,1,0),("unknown",0,0,1)]{
+        let id=format!("showcase-completion-{state}");
+        if conn.query_row("SELECT EXISTS(SELECT 1 FROM messages WHERE id=?1)",[&id],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?{continue;}
+        let now=crate::db::now_iso();
+        let data=json!({"version":1,"claim_status":"completed","checks":{"passed":passed,"failed":failed,"unknown":unknown},"goal_status":"unknown",
+            "review":{"state":"unknown","attempted":false,"reason":"Illustrative evidence; no actual work was performed."},
+            "checked_at":now,"scope":"Synthetic design preview. Narrow checks do not independently verify the whole goal.",
+            "criteria":[{"id":"example","description":"Example report matches the request","grounding":"linked_human_source_not_semantic_proof",
+              "checks":[{"kind":"json_value","path":"example-report.json","state":state,"reason":"Synthetic example result"}]}]});
+        let mut message=crate::chat::new_message(TASK_ID,"event","ui_showcase",json!({"label":format!("Completion evidence — {state}"),"card":{"role":"event","kind":"completion_report","content":data.to_string(),"created_at":now}}).to_string(),None,None,true);
+        message.id=id;crate::chat::insert_message(conn,&mut message)?;
+    }
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     #[test]
@@ -137,7 +157,7 @@ mod tests {
         crate::db::init_schema(&conn).unwrap();
         assert_eq!(super::create(&conn).unwrap()["created"], true);
         assert_eq!(super::create(&conn).unwrap()["created"], false);
-        for table in ["runs", "workers", "managed_browser_sessions"] {
+        for table in ["runs", "workers", "managed_browser_sessions", "completion_reports"] {
             assert_eq!(
                 conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
                     .get::<_, i64>(0))

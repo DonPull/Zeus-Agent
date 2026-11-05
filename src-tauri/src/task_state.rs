@@ -361,6 +361,7 @@ pub fn snapshot(conn: &Connection, task: &str) -> Result<Option<Value>, String> 
         "run_id":run_id,"state":state,"plan_message_id":plan_id,"plan_input_revision":plan_revision,
         "plan_stale":plan_revision.is_some_and(|revision|revision<input_revision),
         "historical_plan":plan_id.is_some()&&plan_revision.is_none(),"pending_human_requests":waiting,"actions":actions,"updated_at":updated_at});
+    value["checkpoint"]["completion"]=match run_id.as_deref(){Some(run)=>crate::completion::summary(conn,task,run,"master")?.unwrap_or(Value::Null),None=>Value::Null};
     // Runtime only projects interruption of active steps. Completed steps are
     // model reports, never promoted to verified effects by a successful tool.
     if let Some(steps) = value["steps"].as_array_mut() {

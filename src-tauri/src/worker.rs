@@ -201,6 +201,7 @@ pub async fn run_worker(
         .replace("{host_family}", std::env::consts::FAMILY);
     if crate::managed_browser::enabled(){system_content.push_str(crate::managed_browser::PROMPT);}
     system_content.push_str(crate::history::PROMPT);
+    system_content.push_str(crate::completion::PROMPT);
 
     let mut history = vec![
         ChatMessage { images: Vec::new(),
@@ -249,6 +250,7 @@ pub async fn run_worker(
     let mut current_spend;
     let max_retries = 3;
     let mut retry_count = 0;
+    let mut completion_repairs=0usize;
 
     loop {
         // Run the worker orchestration loop
@@ -324,7 +326,7 @@ pub async fn run_worker(
                     let mut assistant_message = new_message_for_conversation(
                         task_id, &conversation, "assistant", "chat", text.clone(), Some(units), Some(actual_model), false
                     );
-                    persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
+                    Box::pin(crate::completion::finish(state,app_handle,task_id,run_id,&conversation,None,None,&mut assistant_message,false,cancellation_token)).await?;
                     history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: text.clone() });
                     break Ok(text); // Worker just replied with text, we consider it their final answer.
                 }
@@ -386,7 +388,13 @@ pub async fn run_worker(
                             let mut assistant_message = new_message_for_conversation(
                                 task_id, &conversation, "assistant", "chat", final_answer.summary.clone(), Some(units), Some(actual_model), false
                             );
-                            persist_and_emit(state, app_handle, task_id, &mut assistant_message)?;
+                            if let Some(feedback)=Box::pin(crate::completion::finish(state,app_handle,task_id,run_id,&conversation,Some(&hidden_directive.id),final_answer.completion.as_ref(),&mut assistant_message,completion_repairs<1,cancellation_token)).await?{
+                                completion_repairs+=1;
+                                let mut message=new_message_for_conversation(task_id,&conversation,"user","directive_result",feedback.clone(),None,None,false);
+                                persist_and_emit(state,app_handle,task_id,&mut message)?;
+                                history.push(ChatMessage{role:"user".into(),content:feedback,images:vec![]});
+                                continue;
+                            }
                             history.push(ChatMessage { images: Vec::new(), role: "assistant".into(), content: final_answer.summary.clone() });
                             break Ok(final_answer.summary);
                         }
@@ -490,6 +498,8 @@ pub async fn run_worker(
             }
         };
 
+        let evidence={let conn=state.db.lock().map_err(|e|e.to_string())?;crate::completion::summary(&conn,task_id,run_id,&conversation)?};
+        let final_result_text=if let Some(evidence)=evidence {format!("{final_result_text}\n[Runtime completion evidence; worker scope only]\n{evidence}")}else{final_result_text};
         if verifier_model.trim().is_empty() || verifier_model.eq_ignore_ascii_case("none") {
             set_worker_status(state,&worker_id,"completed",None,Some(&final_result_text))?;
             update_worker_event_and_emit(state,app_handle,&started_msg_id,task_id,&worker_id,delegate,"completed")?;

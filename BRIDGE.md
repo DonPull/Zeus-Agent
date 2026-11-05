@@ -46,6 +46,16 @@ Normal one-time approval APIs remain the only route used by the prepared synthet
 
 Final-answer preambles remain hidden raw history; one final summary is visible. Ordinary chat can finish without an executable directive. Malformed directives and narrowly detected short action announcements receive bounded repair rather than endless forced continuation. This does not establish semantic task completion. Recoverable render boundaries protect settings/root views; they do not catch native process aborts. Startup changes in-flight ledger rows to interrupted with unknown usage retained.
 
+Phase 4C adds an optional `final_answer.completion` contract and persisted
+`completion_report` event messages, with stable source-bound IDs, normal sequence
+ordering and `projection_version`. Master reports are visible; scoped worker
+reports remain in the complete debug history and worker result. Reports separate
+claim, narrow check and optional model-review states; they do not redefine run
+`completed` as goal success. Answer/report/checkpoint publication commits before
+emission. Pending reviews recover as unknown after restart. The bridge reader
+needs no new API; details and bounds are in the
+[completion contract](docs/PHASE_4C_COMPLETION_DESIGN.md).
+
 Cancellation is finalized only at the root send boundary after inner execution unwinds and owned managed-browser cleanup completes. Workers/tool waits propagate `RUN_CANCELLED`. The Stop notice, interrupted plan projection and terminal run/attachment state commit together; repeated finalization is idempotent per run. The UI renders that one backend-owned notice without filtering duplicate text. Permission titles explicitly allow text selection; approval policy/actions are unchanged.
 
 ## Phase 3B/3C shared browser APIs

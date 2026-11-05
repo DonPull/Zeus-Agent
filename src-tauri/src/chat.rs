@@ -384,9 +384,10 @@ const MESSAGE_COLUMNS: &str =
 
 fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<MessageDto> {
     let kind:String=row.get(4)?;let content:String=row.get(5)?;
-    let projection_version=if matches!(kind.as_str(),"managed_browser_session"|"task_checkpoint"){serde_json::from_str::<serde_json::Value>(&content).ok().and_then(|value|match kind.as_str(){
+    let projection_version=if matches!(kind.as_str(),"managed_browser_session"|"task_checkpoint"|"completion_report"){serde_json::from_str::<serde_json::Value>(&content).ok().and_then(|value|match kind.as_str(){
         "managed_browser_session"=>value["version"].as_i64(),
         "task_checkpoint"=>value["checkpoint"]["version"].as_i64(),
+        "completion_report"=>value["version"].as_i64(),
         _=>None,
     })}else{None};
     Ok(MessageDto {
@@ -571,6 +572,7 @@ pub fn load_master_history(connection: &Connection, task_id: &str, model: &str, 
     }
     if crate::managed_browser::enabled(){system_prompt.push_str(crate::managed_browser::PROMPT);}
     system_prompt.push_str(crate::history::PROMPT);
+    system_prompt.push_str(crate::completion::PROMPT);
     crate::context::load(connection, task_id, "master", system_prompt)
 }
 
@@ -1225,6 +1227,7 @@ async fn execute_user_turn(
     }
     if !turn_images.is_empty(){history.push(ChatMessage{role:"user".into(),content:"Current user image inputs (refer to their attachment IDs in the conversation).".into(),images:turn_images.clone()});}
     let mut produced_final = false;
+    let mut completion_repairs=0usize;
     let mut terminal_status = "completed";
     let mut steps_since_status_update: usize = 0;
     let mut directive_repair_pending=false;
@@ -1518,7 +1521,7 @@ async fn execute_user_turn(
                     Some(model_name.clone()),
                     true,
                 );
-                persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                Box::pin(crate::completion::finish(state,app_handle,task_id,run_id,"master",None,None,&mut assistant_message,false,&cancellation_token)).await?;
                 history.push(ChatMessage { images: Vec::new(),
                     role: "assistant".into(),
                     content: text.clone(),
@@ -1634,7 +1637,13 @@ async fn execute_user_turn(
                             Some(model_name.clone()),
                             true,
                         );
-                        persist_and_emit(&state, &app_handle, &task_id, &mut assistant_message)?;
+                        if let Some(feedback)=Box::pin(crate::completion::finish(state,app_handle,task_id,run_id,"master",Some(&hidden_directive.id),final_answer.completion.as_ref(),&mut assistant_message,completion_repairs<1,&cancellation_token)).await?{
+                            completion_repairs+=1;
+                            let mut message=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);
+                            persist_and_emit(state,app_handle,task_id,&mut message)?;
+                            history.push(ChatMessage{role:"user".into(),content:feedback,images:vec![]});
+                            continue;
+                        }
                         history.push(ChatMessage { images: Vec::new(),
                             role: "assistant".into(),
                             content: final_answer.summary,
@@ -2525,6 +2534,7 @@ pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle
 
     crate::task_state::delete(&tx,&task_id)?;
     crate::history::delete(&tx,&task_id)?;
+    crate::completion::delete(&tx,&task_id)?;
     tx.execute("DELETE FROM browser_visual_deliveries WHERE run_id IN (SELECT id FROM runs WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     for table in ["managed_browser_capture_state","managed_browser_frames","managed_browser_coverage"] {
         tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)"),[&task_id]).map_err(|e|e.to_string())?;

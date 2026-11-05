@@ -18,6 +18,7 @@ pub mod task_titles;
 pub mod task_state;
 pub mod history;
 pub mod context;
+pub mod completion;
 pub mod ui_showcase;
 pub mod managed_browser;
 pub mod process_tree;

@@ -191,6 +191,8 @@ pub struct TaskUpdateSpec {
 pub struct FinalAnswerSpec {
     #[serde(alias = "result", alias = "answer")]
     pub summary: String,
+    #[serde(default)]
+    pub completion: Option<crate::completion::Claim>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -406,10 +408,13 @@ fn parse_directive_json(json_str: &str) -> Result<Directive, String> {
                 .or_else(|| v["final_answer"].as_str())
                 .or_else(|| v["final_answer"]["summary"].as_str())
                 .or_else(|| v["final_answer"]["result"].as_str())
-                .unwrap_or("Task completed successfully.");
+                .ok_or("final_answer requires a textual summary")?;
             return Ok(Directive::FinalAnswer {
                 final_answer: FinalAnswerSpec {
                     summary: summary.to_string(),
+                    completion: v["final_answer"].get("completion").map(|raw|serde_json::from_value::<crate::completion::Claim>(raw.clone()).unwrap_or_else(|_|crate::completion::Claim{
+                        status:"unknown".into(),criteria:vec![crate::completion::Criterion{description:"Malformed completion metadata".into(),checks:vec![serde_json::json!({"kind":"invalid_completion_metadata"})],..Default::default()}],..Default::default()
+                    })),
                 },
             });
         }
@@ -886,6 +891,17 @@ mod tests {
             }
             _ => panic!("expected lenient FinalAnswer"),
         }
+    }
+    #[test]
+    fn malformed_completion_metadata_is_unknown_and_missing_summary_is_not_invented(){
+        let raw=r#"{"type":"final_answer","final_answer":{"summary":"Unverified answer","completion":"invalid"}}"#;
+        match parse_master_reply(raw) {
+            MasterReply::Directive(_,Directive::FinalAnswer{final_answer},_)=>{
+                assert_eq!(final_answer.summary,"Unverified answer");
+                assert_eq!(final_answer.completion.unwrap().status,"unknown");
+            },_=>panic!("expected preserved answer with unknown completion"),
+        }
+        assert!(matches!(parse_master_reply(r#"{"type":"final_answer"}"#),MasterReply::MalformedDirective{..}|MasterReply::Text(_)));
     }
 
     #[test]

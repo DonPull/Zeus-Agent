@@ -364,6 +364,8 @@ pub fn init_schema(connection: &Connection) -> Result<(), String> {
     // leave the task permanently locked in a running state.
     crate::task_state::init_schema(connection)?;
     crate::history::init_schema(connection)?;
+    crate::completion::init_schema(connection)?;
+    crate::ui_showcase::refresh_completion_examples(connection)?;
     let recovered_at = now_iso();
     connection.execute("UPDATE credit_events SET request_status='interrupted' WHERE request_status='in_flight'",[])
         .map_err(|error|format!("Failed to recover interrupted model requests: {error}"))?;
