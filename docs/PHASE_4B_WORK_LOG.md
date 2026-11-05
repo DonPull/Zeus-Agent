@@ -1,6 +1,6 @@
 # Phase 4B — working context and searchable originals
 
-Updated: 5 November 2026. Implementation validation in progress.
+Updated: 5 November 2026. Implemented and validated.
 This is the focused companion to the [live roadmap](IMPLEMENTATION_PLAN.md)
 and the [approved Phase 4 contract](PHASE_4_TASK_STATE_DESIGN.md).
 
@@ -86,7 +86,11 @@ All attempts and unknown usage are retained. Provider credits remain unknown.
 These are native supervised stress comparisons, not a full isolated Benchmark
 v1 or a before/after-version efficiency claim.
 
-Final offline/build/live results will be recorded here after completion.
+Final offline validation: **344 checks passed** — 63 JavaScript controls,
+37 mission/grader checks, 112 Rust tests, 23 real browser-service tests,
+106 desktop checks and three private-desktop handoff checks.
+`npm.cmd run build` also passed. Production runtime code is unchanged by the
+later diagnostic readiness fix.
 
 Development validation retained two test-assertion corrections for the new
 source wrappers and short-window preview measurements of six and seven rendered
@@ -102,6 +106,43 @@ Production browser/UI flags and the fixed 8 FPS policy are unchanged. A subseque
 focused measurement observed 15 source frames and 13 rendered images in two
 seconds. This supports the hidden-window scheduling explanation; it is not a
 general production throughput guarantee.
+
+The [validation record](benchmarks/phase4b-validation-20261105.json) retains
+earlier failed development runs and the final successful run. The initial live
+driver also hit a bridge-readiness race before any model inference. Its four
+startup-only failures remain at `.zeus/evaluations/phase4b-history-20261105`;
+commit `982a3e2` adds the normal UI-readiness wait without changing the product
+runtime.
+
+### Live history results
+
+All four separately retained probes passed on clean `982a3e2` with exact Abacus
+`gpt-6.1-terra`, low effort, explicit Chat protocol. Both compacted cases recorded
+two compactions, restarted the app, recovered the requested original information
+and preserved all original message hashes/sequences. Image inspection actually
+used the first original image in both image cases.
+
+| Probe | Outcome | Requests including warm-up/helper | Reported tokens | Entire cell time |
+|---|---|---:|---:|---:|
+| H01 corrected personal fact, short history | Passed | 1 | 6,410 | 5.979 s |
+| H01 forced compaction and restart | Passed | 4 | 21,097 | 17.669 s |
+| H02 first same-name image, short history | Passed | 3 | 8,255 | 12.963 s |
+| H02 forced compaction and restart | Passed | 7 | 30,734 | 25.910 s |
+
+Total: **15 requests, 66,496 reported tokens, zero unknown-usage requests**.
+There were 13 master and two vision requests, all on the stated model; no Team
+capability result is claimed. Input/output were 65,218/1,278 tokens; reasoning
+(334) and cached input (37,908) are separately reported subsets, not extra tokens
+to add to the total. Provider credits remain unknown.
+
+The [reviewed machine record](benchmarks/phase4b-history-20261105.json) preserves
+configuration, outcomes, source commit and SHA-256 receipt hashes. Raw synthetic
+messages, retention/compaction receipts and usage remain under
+`.zeus/evaluations/phase4b-history-ready-20261105`.
+Cell times include startup/catalogue checks and, where relevant, warm-up/restart.
+Retrieval added requests and tokens in these probes. These four successful
+one-attempt cases do not prove no long-horizon degradation, a universal speed or
+cost improvement, semantic search quality, or full benchmark completion.
 
 ## Remaining work
 

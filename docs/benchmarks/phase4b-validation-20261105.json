@@ -43,6 +43,37 @@
       "command": "node scripts/run_regression.js --ui-files browser_capture,viewer_layout",
       "change": "Test-only background timer and renderer priority switches. All original rate/layout thresholds retained; no production capture code change.",
       "preview_measurement": {"source_frames_in_two_seconds": 15, "collector_publications": 13, "displayed_images": 13}
+    },
+    {
+      "id": "final-full",
+      "status": "passed",
+      "command": "node scripts/run_regression.js",
+      "checks": {"javascript": 63, "mission_graders": 37, "rust": 112, "browser_service": 23, "desktop": 106, "private_desktop_handoff": 3},
+      "total_checks": 344,
+      "frontend_build": "npm.cmd run build passed",
+      "private_handoff_receipt": ".zeus/evaluations/native-handoff-6cfe739c78a4492e9beee195cdb386c0",
+      "note": "Diagnostic readiness fix after this run changed the live driver only, not production runtime code."
+    },
+    {
+      "id": "initial-live-driver-startup",
+      "status": "infrastructure_error",
+      "directory": ".zeus/evaluations/phase4b-history-20261105",
+      "cells": 4,
+      "inference_requests": 0,
+      "cause": "Bridge queried before app readiness. Fixed in 982a3e2; all original records retained."
+    },
+    {
+      "id": "ready-live-driver",
+      "status": "passed",
+      "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+      "directory": ".zeus/evaluations/phase4b-history-ready-20261105",
+      "successful_outcomes": 4,
+      "attempts": 4,
+      "inference_requests": 15,
+      "reported_tokens": 66496,
+      "unknown_usage_requests": 0,
+      "provider_credits": null,
+      "reviewed_receipts": "docs/benchmarks/phase4b-history-20261105.json"
     }
   ],
   "notes": [

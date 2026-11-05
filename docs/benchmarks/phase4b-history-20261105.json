@@ -1,0 +1,411 @@
+{
+  "date": "2026-11-05",
+  "kind": "reviewed-native-history-stress-v1",
+  "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+  "configuration": {
+    "kind": "native-supervised-memory-stress-v1",
+    "model": "gpt-6.1-terra",
+    "connection": "abacus",
+    "protocol": "chat",
+    "effort": "low",
+    "architecture": "solo",
+    "cells": [
+      "H01-short",
+      "H01-compacted-restart",
+      "H02-short",
+      "H02-compacted-restart"
+    ],
+    "limits_per_cell": {
+      "max_requests": 12,
+      "max_tokens": 300000,
+      "max_in_flight": 1,
+      "max_output_tokens": 4096,
+      "max_directives": 16,
+      "wall_time_ms": 240000
+    },
+    "max_requests_all_cells": 48,
+    "provider_credits": null,
+    "note": "Synthetic owned transcript; short versus forced compaction/restart on this build. Not a version regression baseline, full Benchmark v1, or isolated authorization score.",
+    "build": {
+      "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+      "dirty": false,
+      "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+      "node": "v22.13.1"
+    }
+  },
+  "outcomes": [
+    {
+      "cell": "H01-short",
+      "passed": true,
+      "grade": {
+        "passed": true,
+        "checks": {
+          "corrected_name": true,
+          "personal_activity": true,
+          "no_obsolete_name": true
+        }
+      },
+      "error": null,
+      "retained": true,
+      "compactions": 0,
+      "within_budget": true,
+      "elapsed_ms": 5979,
+      "usage": {
+        "requests": 1,
+        "unknown_requests": 0,
+        "known_tokens": 6410,
+        "input_tokens": 6379,
+        "output_tokens": 31,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 1
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 1
+        },
+        "requests_by_connection": {
+          "abacus": 1
+        }
+      },
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\759d427b-426a-4c75-bfd9-ed3ba8cb4c3b"
+    },
+    {
+      "cell": "H01-compacted-restart",
+      "passed": true,
+      "grade": {
+        "passed": true,
+        "checks": {
+          "corrected_name": true,
+          "personal_activity": true,
+          "no_obsolete_name": true
+        }
+      },
+      "error": null,
+      "retained": true,
+      "compactions": 2,
+      "within_budget": true,
+      "elapsed_ms": 17669,
+      "usage": {
+        "requests": 4,
+        "unknown_requests": 0,
+        "known_tokens": 21097,
+        "input_tokens": 20866,
+        "output_tokens": 231,
+        "reasoning_tokens": 64,
+        "cached_tokens": 12636,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 4
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 4
+        },
+        "requests_by_connection": {
+          "abacus": 4
+        }
+      },
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\0f10fc10-922e-4035-8855-d0b2765db52b"
+    },
+    {
+      "cell": "H02-short",
+      "passed": true,
+      "grade": {
+        "passed": true,
+        "checks": {
+          "order_id": true,
+          "currency": true,
+          "total": true,
+          "no_later_total": true
+        }
+      },
+      "error": null,
+      "retained": true,
+      "compactions": 0,
+      "within_budget": true,
+      "elapsed_ms": 12963,
+      "usage": {
+        "requests": 3,
+        "unknown_requests": 0,
+        "known_tokens": 8255,
+        "input_tokens": 8019,
+        "output_tokens": 236,
+        "reasoning_tokens": 60,
+        "cached_tokens": 6318,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 2,
+          "vision": 1
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 3
+        },
+        "requests_by_connection": {
+          "abacus": 3
+        }
+      },
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\0f7c1ca7-152e-43f5-aea4-9a8b4e823f85"
+    },
+    {
+      "cell": "H02-compacted-restart",
+      "passed": true,
+      "grade": {
+        "passed": true,
+        "checks": {
+          "order_id": true,
+          "currency": true,
+          "total": true,
+          "no_later_total": true
+        }
+      },
+      "error": null,
+      "retained": true,
+      "compactions": 2,
+      "within_budget": true,
+      "elapsed_ms": 25910,
+      "usage": {
+        "requests": 7,
+        "unknown_requests": 0,
+        "known_tokens": 30734,
+        "input_tokens": 29954,
+        "output_tokens": 780,
+        "reasoning_tokens": 210,
+        "cached_tokens": 18954,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 6,
+          "vision": 1
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 7
+        },
+        "requests_by_connection": {
+          "abacus": 7
+        }
+      },
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "982a3e23f16ef45ec509beef01d0bbde5ee35320",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\3727ad31-3f1f-4df3-a5dd-ff0b5d761180"
+    }
+  ],
+  "totals": {
+    "requests": 15,
+    "known_tokens": 66496,
+    "input_tokens": 65218,
+    "output_tokens": 1278,
+    "reasoning_tokens": 334,
+    "cached_tokens": 37908,
+    "unknown_requests": 0
+  },
+  "provider_credits": null,
+  "receipts": [
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/experiment.json",
+      "sha256": "d9ac876c8fc6dd8839f75ae42185e0a50e83c74a983f3f4b41367198d07d6b24"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-compacted-restart/messages.json",
+      "sha256": "c48912aad9a528771f5dc17e8e45c9cbb67cb243853ab4d607b41ff1197e7480"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-compacted-restart/result.json",
+      "sha256": "e729f58f03cd89f38c3a02096ed7533f3c02000319d4349675e120ba13bc9493"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-compacted-restart/retention.json",
+      "sha256": "312d13fb99145be698ddb18aec4e030454ef05ecaa1b42dd572685c1b9b80196"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-short/messages.json",
+      "sha256": "5f0c94d23e035a5463f3b04446a9c0ca4d49d998dad2171e55258322ba12a594"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-short/result.json",
+      "sha256": "985fb17219546e7c8966f4d5da7f2f1eb93741b8aa3f92e83b122c428a7ea9ac"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H01-short/retention.json",
+      "sha256": "0655920cea8ec4862aa8859378c0081bbb62f9f0488790e84e09cedcc9d2c131"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-compacted-restart/messages.json",
+      "sha256": "003f69cd315b7bd3a08d6cc808de8a233ae77ecf0378537d4d0c8f1a7e5942bc"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-compacted-restart/result.json",
+      "sha256": "2afeb248af33b8dc152ae53e8bea06965145fb4ed6e6df05206df66872138782"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-compacted-restart/retention.json",
+      "sha256": "89f4d2d104097ad75ba92aff3feb5ac60955d16f3e050849af4c7c6bcb0b122b"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-short/messages.json",
+      "sha256": "f52d14ecda26c667f8ce64446cc28ea4ddf6189c1818d57bdddb626c5918fb2c"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-short/result.json",
+      "sha256": "f27f1fb4218e0ed36d90e1202949ba09ce5654b01f423e9e2a27a2318ed99b8b"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/H02-short/retention.json",
+      "sha256": "cbf1a373edbeafaa748eac84a8a84de827a633d08c683726962958692a466ab9"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-ready-20261105/results.json",
+      "sha256": "cad5dbeac6a24ef9382a6237638fe501c94e2bfafe4d763534b775ca9bb19049"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/experiment.json",
+      "sha256": "f6608d5dbc0412ee5d0f7fc3fc623a5b2a21fd072bed1135a3884b494afc6ca1"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H01-compacted-restart/messages.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H01-compacted-restart/result.json",
+      "sha256": "282ab2d2813476db2fb779cdd22fc296d5d8de1a9a64f92eb99e5c449ccdeeb7"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H01-short/messages.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H01-short/result.json",
+      "sha256": "6e3ce5536e6d34f42d2fd40c02618a680c539399a22c89d1eecdbf7bb3895866"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H02-compacted-restart/messages.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H02-compacted-restart/result.json",
+      "sha256": "56bf325363040a41b42a59871cb3e6bedec5d4b4d59dd8b85c00ad0921a1e611"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H02-short/messages.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/H02-short/result.json",
+      "sha256": "99b744bd457e92c18de2afb020ebb8e9b3e32a9c54a93c412742dc98236ae961"
+    },
+    {
+      "path": ".zeus/evaluations/phase4b-history-20261105/results.json",
+      "sha256": "43954421c73c0aa2347e2077628644435f8af2da5d79a9102fae492036e0e33d"
+    }
+  ],
+  "limitations": [
+    "Four one-attempt Solo history probes on one build, not a matched version baseline or the full 12-core benchmark.",
+    "Native synthetic transcript and inputs; independent authorization isolation is not evaluated.",
+    "Elapsed cell times include startup, catalogue preflight, warm-up and restart.",
+    "The earlier startup-only driver attempt is retained separately and made no inference requests."
+  ],
+  "startup_failures": [
+    {
+      "cell": "H01-short",
+      "passed": false,
+      "grade": null,
+      "error": "page.evaluate: TypeError: Cannot read properties of undefined (reading 'hasApiKey')\n    at eval (eval at evaluate (:311:30), <anonymous>:2:54)\n    at eval (eval at evaluate (:311:30), <anonymous>:2:129)\n    at UtilityScript.evaluate (<anonymous>:313:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\diagnose_history.js:52:38",
+      "retained": false,
+      "compactions": 0,
+      "elapsed_ms": 1239,
+      "usage": null,
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "4ef008a6c787c8cc54d8fa6dab29881d7008750a",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\017534e1-7d6c-4628-8f7e-b3f48725166b"
+    },
+    {
+      "cell": "H01-compacted-restart",
+      "passed": false,
+      "grade": null,
+      "error": "page.evaluate: TypeError: Cannot read properties of undefined (reading 'hasApiKey')\n    at eval (eval at evaluate (:311:30), <anonymous>:2:54)\n    at eval (eval at evaluate (:311:30), <anonymous>:2:129)\n    at UtilityScript.evaluate (<anonymous>:313:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\diagnose_history.js:52:38",
+      "retained": false,
+      "compactions": 0,
+      "elapsed_ms": 1023,
+      "usage": null,
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "4ef008a6c787c8cc54d8fa6dab29881d7008750a",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\3ffed45c-bae6-4713-8165-6f2f2d776379"
+    },
+    {
+      "cell": "H02-short",
+      "passed": false,
+      "grade": null,
+      "error": "page.evaluate: TypeError: Cannot read properties of undefined (reading 'hasApiKey')\n    at eval (eval at evaluate (:311:30), <anonymous>:2:54)\n    at eval (eval at evaluate (:311:30), <anonymous>:2:129)\n    at UtilityScript.evaluate (<anonymous>:313:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\diagnose_history.js:52:38",
+      "retained": false,
+      "compactions": 0,
+      "elapsed_ms": 1017,
+      "usage": null,
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "4ef008a6c787c8cc54d8fa6dab29881d7008750a",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\54463d96-52f7-4109-9322-ef502129c268"
+    },
+    {
+      "cell": "H02-compacted-restart",
+      "passed": false,
+      "grade": null,
+      "error": "page.evaluate: TypeError: Cannot read properties of undefined (reading 'hasApiKey')\n    at eval (eval at evaluate (:311:30), <anonymous>:2:54)\n    at eval (eval at evaluate (:311:30), <anonymous>:2:129)\n    at UtilityScript.evaluate (<anonymous>:313:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at D:\\Hristian projects\\Zeus-Agent\\scripts\\eval_harness\\diagnose_history.js:52:38",
+      "retained": false,
+      "compactions": 0,
+      "elapsed_ms": 1034,
+      "usage": null,
+      "provider_credits": null,
+      "source_build": {
+        "source_commit": "4ef008a6c787c8cc54d8fa6dab29881d7008750a",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1"
+      },
+      "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\8c1d4e2f-4376-4f17-bfdd-3b5a82ac7980"
+    }
+  ],
+  "startup_failure_inference_requests": 0
+}

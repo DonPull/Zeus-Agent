@@ -10,6 +10,13 @@ current Solo/Team measurements. [The initial reference](benchmarks/native-baseli
 does not certify isolation or active collaboration. Dated findings and original
 packet approvals below remain historical evidence, not the current completion status.
 
+Phase 4B adds independent M01/M02 reference/negative controls for project
+continuity and exactly-once recovery, plus separate H01/H02 personal-fact/image
+history probes. Four bounded native live history outcomes passed after
+compaction/restart checks. These focused probes do not replace the core M01/M02
+mission contracts or complete their runtime/portal wiring. See the
+[4B work log](PHASE_4B_WORK_LOG.md).
+
 Prepared: 2026-10-27. Reviewed code baseline: `818eb67`, the committed Phase 1 measurement/regression foundation. This is the focused design requested by the [development plan](IMPLEMENTATION_PLAN.md), not another proposal to rewrite the agent.
 
 ## 1. Recommendation and first deliverable

@@ -6,9 +6,10 @@ retention. Those requirements are incorporated below. Phase 4A and the bounded
 stream diagnostic are delivered with 324 offline checks passing; the initial
 live check retained a browser deadline failure. Its general repair is delivered
 with three separately recorded successful post-repair Solo outcomes. See the
-[4A work log](PHASE_4A_WORK_LOG.md). The approved 4B implementation is in
-acceptance validation; see its [work log](PHASE_4B_WORK_LOG.md). 4C remains
-unimplemented. The
+[4A work log](PHASE_4A_WORK_LOG.md). The approved 4B implementation is delivered:
+344 offline checks and four live history outcomes passed; see its
+[work log](PHASE_4B_WORK_LOG.md) for source retention, decisions and limits.
+4C remains unimplemented. The
 [native reference](benchmarks/native-baseline-20261104.md) is recorded;
 delivery remains small sequential slices with focused review for
 4B/4C, rather than one state, memory, protocol and Team rewrite.

@@ -166,7 +166,13 @@ diagnostic coverage, not replacement of the volatile general backend logger.
 Stopped/failed/interrupted work and pauses no longer depend on another model
 plan update; model milestone reports remain separate from verification.
 The [Phase 4B implementation](PHASE_4B_WORK_LOG.md) adds shared searchable
-originals and source-aware context; acceptance validation is in progress.
+originals and source-aware context. Its final 344-check offline run and four
+bounded live history probes passed, including repeated compaction/restart and
+actual old-image inspection. Search is lexical with browsing fallback; this is
+not proof of perfect semantic recall or unrestricted long-horizon stability.
+Earlier hidden-viewer rate/layout timing failures are retained in the work log;
+test-only background scheduling flags repaired the hidden harness without
+changing production preview policy or weakening its assertions.
 
 The initial 4A live check retained 5/6 outcomes. Its failed browser task exposed
 a missing-locator wait exhausting the surrounding script's equal 30-second
@@ -175,7 +181,7 @@ coordinates remaining active execution time without changing action identity,
 counting approval waits or replaying uncertain effects. Its 324-check offline
 validation passed; all three separate post-repair live Solo outcomes passed.
 The earlier failed receipt remains retained. This does not establish a general
-efficiency improvement or complete the remaining Phase 4 context/memory work.
+efficiency improvement or complete Phase 4C completion-evidence work.
 
 The 4 November repeated reference also retains a real
 `MODEL_PROTOCOL_ERROR` from repeated directive blocks. The original raw provider
