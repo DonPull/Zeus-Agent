@@ -1,0 +1,167 @@
+{
+  "date": "2026-11-06",
+  "kind": "core-v1-contracts-offline-validation",
+  "source_build": {
+    "source_commit": "df6e43d9a09ee097a7c7c6940c0e176412423064",
+    "dirty": true,
+    "diff_hash": "b28a266ea769743ba381bbbaf818d892d5d6f29b52aafff4a7a5949dd33ecdf6",
+    "node": "v22.13.1"
+  },
+  "counts": {
+    "javascript": 63,
+    "mission_graders": 70,
+    "rust": 126,
+    "browser_service": 23,
+    "desktop": 118,
+    "private_desktop_handoff": 3
+  },
+  "total": 403,
+  "full_receipt": {
+    "build": {
+      "source_commit": "df6e43d9a09ee097a7c7c6940c0e176412423064",
+      "dirty": true,
+      "diff_hash": "b28a266ea769743ba381bbbaf818d892d5d6f29b52aafff4a7a5949dd33ecdf6",
+      "node": "v22.13.1"
+    },
+    "selection": [],
+    "started_at": "2026-11-05T22:56:28.252Z",
+    "status": "passed",
+    "stages": [
+      {
+        "command": "D:\\Programs\\nodejs\\node.exe",
+        "args": [
+          "--test",
+          "tests/unit/baseline.test.js",
+          "tests/unit/benchmark_config.test.js",
+          "tests/unit/browser_observer.test.js",
+          "tests/unit/browser_view.test.js",
+          "tests/unit/chat_refinements.test.js",
+          "tests/unit/dashboard.test.js",
+          "tests/unit/debug_report.test.js",
+          "tests/unit/history_missions.test.js",
+          "tests/unit/memory_core_controls.test.js",
+          "tests/unit/message_projection.test.js",
+          "tests/unit/mission_runtime.test.js",
+          "tests/unit/runner.test.js",
+          "tests/unit/score_recorder.test.js",
+          "tests/unit/synthetic_supervisor.test.js",
+          "tests/unit/trial_runner.test.js"
+        ],
+        "cwd": ".",
+        "status": "passed",
+        "started_at": "2026-11-05T22:56:28.253Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T22:56:28.512Z"
+      },
+      {
+        "command": "D:\\Programs\\nodejs\\node.exe",
+        "args": [
+          "--test",
+          "tests/missions/core_graders.test.js",
+          "tests/missions/graders.test.js"
+        ],
+        "cwd": ".",
+        "status": "passed",
+        "started_at": "2026-11-05T22:56:28.512Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T22:56:40.310Z"
+      },
+      {
+        "command": "cargo",
+        "args": [
+          "test",
+          "--lib",
+          "--locked"
+        ],
+        "cwd": "src-tauri",
+        "status": "passed",
+        "started_at": "2026-11-05T22:56:40.311Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T22:56:42.260Z"
+      },
+      {
+        "command": "D:\\Hristian projects\\Zeus-Agent\\.zeus\\browser-runtime\\venv\\Scripts\\python.exe",
+        "args": [
+          "tests/browser_service/test_service.py"
+        ],
+        "cwd": ".",
+        "status": "passed",
+        "started_at": "2026-11-05T22:56:42.261Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T22:57:51.528Z"
+      },
+      {
+        "command": "D:\\Programs\\nodejs\\node.exe",
+        "args": [
+          "D:\\Hristian projects\\Zeus-Agent\\node_modules\\@playwright\\test\\cli.js",
+          "test",
+          "--config=playwright.offline.config.js"
+        ],
+        "cwd": ".",
+        "status": "passed",
+        "started_at": "2026-11-05T22:57:51.529Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T23:03:35.073Z"
+      },
+      {
+        "command": "D:\\Hristian projects\\Zeus-Agent\\.zeus\\browser-runtime\\venv\\Scripts\\python.exe",
+        "args": [
+          "tests/browser_service/probe_native_handoff.py",
+          "--e2e"
+        ],
+        "cwd": ".",
+        "status": "passed",
+        "started_at": "2026-11-05T23:03:35.074Z",
+        "exit_code": 0,
+        "signal": null,
+        "error": null,
+        "ended_at": "2026-11-05T23:03:51.856Z"
+      }
+    ],
+    "exit_code": 0,
+    "ended_at": "2026-11-05T23:03:51.857Z"
+  },
+  "hosted_requests": 0,
+  "limitations": [
+    "Grader controls are not a model capability score.",
+    "Memory/restart controller traces in unit tests are synthetic; actual runtime wiring is pending.",
+    "No isolated executor or repeated full benchmark is delivered yet."
+  ],
+  "receipts": [
+    {
+      "path": ".zeus/evaluations/regression-receipts/cbda1d8c-5edf-41d7-b42a-e707feb9a587.json",
+      "bytes": 3333,
+      "sha256": "8c8a832182a7f1774f699054452b293c7e0df9017032c25f9a6ffa857077d3d2"
+    },
+    {
+      "path": ".zeus/evaluations/regression-receipts/d89698f3-539a-418e-b2ff-4cafaad653d5.json",
+      "bytes": 792,
+      "sha256": "4b4fc752e249e5334457f4ef7ec63df55d9b0c24913488a5c7fe5fd3ddbf7966"
+    },
+    {
+      "path": ".zeus/evaluations/native-handoff-02c0827fcb5e4629b8fe113ed41336f1/report.json",
+      "bytes": 264,
+      "sha256": "ec207bdd0c9c61ae347520a94a93a53f872fcbcb3c3eb9e329616bc0690a529f"
+    },
+    {
+      "path": ".zeus/evaluations/core-v1-dashboard-reference/dashboard-1100.png",
+      "bytes": 18281,
+      "sha256": "96b0eaae34c8590f47628a41475731fb55661897d531fdec8bd1109ec67e4654"
+    },
+    {
+      "path": ".zeus/evaluations/core-v1-dashboard-reference/dashboard-420.png",
+      "bytes": 16078,
+      "sha256": "dec2f111b9d316e234b29142d041ae84ccf6b425045c11abd4b369517149d8f6"
+    }
+  ]
+}

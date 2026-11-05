@@ -27,6 +27,11 @@ six matched native outcomes and two post-repair reviewer controls passed. Its
 [contract](PHASE_4C_COMPLETION_DESIGN.md) and [work log](PHASE_4C_WORK_LOG.md)
 retain the initial reviewer abstention, validation limits and all usage.
 **Phase 4A–4C foundations are delivered. Full Benchmark v1 is next, before Phase 5.**
+The user has authorized full v1 implementation. Its
+[active delivery packet](BENCHMARK_V1_DELIVERY_PLAN.md) and
+[work log](BENCHMARK_V1_WORK_LOG.md) now track twelve authored contracts and
+70 passing reference/negative controls. Full runtime wiring, validated isolation
+and repeated measurements remain in progress; no full baseline is claimed yet.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency
 is explicitly open work, not a claimed improvement.

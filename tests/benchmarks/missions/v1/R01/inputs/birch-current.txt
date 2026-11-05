@@ -1,0 +1,4 @@
+Birch current offer, effective 2026-03-01.
+Birch monthly price: EUR 110.
+Birch request allowance: 3000 requests/month.
+Birch data region: US only; EU processing is not available.

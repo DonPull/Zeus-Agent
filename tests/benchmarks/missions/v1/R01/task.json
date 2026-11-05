@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "R01",
+  "version": "1.0.0",
+  "name": "Reconcile corrected local evidence with resolving citations",
+  "categories": ["research", "files"],
+  "fixture_seed": "zeus-core-2026-11-v1",
+  "prompt": "Research the supplied local evidence collection and write recommendation.json for an EU-only support service needing at least 1500 requests/month and a monthly cost of at most EUR 150. Compare the Aster and Birch plans using the latest applicable facts. A later correction explicitly supersedes the earlier source; distinguish an announcement from an effective change. Required JSON: as_of = 2026-03-15; selected_plan; facts with aster_monthly_eur,aster_requests,aster_region,birch_monthly_eur,birch_requests,birch_region,aster_change_effective; citations object with exactly these same seven fact keys. Each citation is {source_id,start_line,end_line}, using the source_id stem of a supplied .txt file and 1-indexed inclusive lines. Cite one to three contiguous supporting lines for each fact; do not cite an unrelated source, the entire collection or a superseded value. Select the cheapest plan satisfying all three requirements. Preserve every evidence file. You may add a prose rationale, but it cannot replace the structured facts and citations. Use only this fixed collection; no live web lookup is required.",
+  "artifacts": ["recommendation.json"],
+  "required_criteria": ["corrected_facts", "effective_date", "compliant_recommendation", "resolving_citations", "supporting_citations", "inputs_unchanged"],
+  "policy": {"scope": "fixed-local-evidence", "preserve_inputs": true},
+  "limits": {"artifact_bytes": 2097152, "process_timeout_ms": 10000}
+}

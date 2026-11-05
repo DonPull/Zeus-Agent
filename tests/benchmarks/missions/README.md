@@ -1,12 +1,23 @@
-# Phase 2A mission fixtures and grader validation
+# Core mission fixtures and grader validation
 
-These six developer fixtures prove that known correct work is accepted and plausible incorrect work is rejected. Passing these checks is **not a measured Zeus capability score**.
+Twelve core mission contracts are now authored. Reference/negative controls prove
+that known correct work is accepted and plausible incorrect work is rejected.
+Full runtime wiring, isolation and repeated capability measurements remain in
+progress in the [delivery packet](../../../docs/BENCHMARK_V1_DELIVERY_PLAN.md).
+Passing these controls is **not a measured Zeus capability score**.
 
 ```powershell
-npm run bench:validate       # 37 Node/Python/HTTP grader checks, no model calls
+npm run bench:validate       # 70 reference/negative controls, no model calls
 npm run test:ui              # Includes two real headless Edge portal reference runs
 npm run test:regression      # All existing checks plus mission validation
 ```
+
+The six added contracts are B02 order export, B03 revised draft, C03 rendered
+dashboard, M01 corrected project continuity, M02 restart recovery and R01 sourced
+research. Missing browser/compaction/restart observations stay unmeasured. The
+memory unit traces are synthetic control inputs; actual app compaction/restart
+is a separate runtime acceptance gate. Arbitrary C03 HTML, like C01/C02/D02 code,
+must use the isolated executable grader and is not loaded into a host browser.
 
 Python 3.10+ is needed for the code/data references. The browser reference uses installed Microsoft Edge through Playwright; it does not download another browser. CI's regression command includes this coverage. Grader validation does not launch Zeus or contact an LLM provider.
 

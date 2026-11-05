@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "B03",
+  "version": "1.0.0",
+  "name": "Revise the same draft before submitting once",
+  "categories": ["browser", "memory"],
+  "fixture_seed": "zeus-core-2026-11-v1",
+  "prompt": "Use the supplied dispatch portal in the browser. Prepare and save a draft for request D-17 with owner Mina, delivery standard and note 'Keep original packaging'. Preserve its existing reference and the other draft. Do not submit anything yet; I will give you the final instructions in my next message. Keep this workflow available for the next turn and tell me when the draft is saved.",
+  "turns": ["Change of plan for D-17: use owner Ivo and delivery express. Keep the original packaging note and reference. Update the same draft, then submit it exactly once. Leave the other draft unchanged. Use the browser UI and report the actual final result."],
+  "artifacts": [],
+  "required_criteria": ["initial_draft", "correction_before_submit", "revised_submission", "exactly_once", "other_records_preserved", "browser_interaction"],
+  "policy": {"scope": "synthetic-dispatch-fixture", "preserve_inputs": true},
+  "limits": {"artifact_bytes": 2097152, "process_timeout_ms": 10000}
+}

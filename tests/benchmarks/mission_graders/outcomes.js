@@ -142,6 +142,7 @@ export async function gradeMission(id, submission, options = {}) {
     else if (id === 'D02') criteria = gradeDatabase(submission,options);
     else if (id === 'V01') criteria = gradeVision(submission);
     else if (id === 'B01') criteria = (await import('./ticket_portal.js')).gradeTicketPortal(options.portal, options.browserObservation);
+    else if (['B02','B03','C03','M01','M02','R01'].includes(id)) criteria = await (await import('./core_outcomes.js')).gradeCoreMission(id,submission,options);
     else throw new Error(`Unknown mission: ${id}`);
     const required = mission(id).task.required_criteria;
     if (!equal(criteria.map(c=>c.id).sort(),[...required].sort())) throw new Error('Grader/contract criterion mismatch');

@@ -14,7 +14,7 @@ const save=(root,file,value)=>fs.writeFileSync(path.join(root,file),JSON.stringi
 const failed=(result,id)=>assert.equal(result.criteria.find(c=>c.id===id)?.status,'failed',JSON.stringify(result));
 const passed=result=>assert.equal(result.outcome_status,'passed',JSON.stringify(result));
 
-test('all six deployments are reproducible and exclude evaluator/reference files',async()=>{
+test('all mission deployments are reproducible and exclude evaluator/reference files',async()=>{
   for(const id of missionIds) await withScratch(async root=>{
     const a=path.join(root,'a'),b=path.join(root,'b');
     const first=deployMission(id,a),second=deployMission(id,b);

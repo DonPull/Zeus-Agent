@@ -2,8 +2,10 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { sourceBuild } from './eval_harness/runner.js';
+import { atomicWrite } from '../tests/benchmarks/score_recorder.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requested = process.argv.slice(2);
@@ -25,14 +27,21 @@ for (const key of ['ZEUS_ALLOW_LIVE_EVAL', 'ZEUS_API_BASE_URL', 'ZEUS_EVAL_MODE'
   'ZEUS_BENCH_OVERRIDES', 'ZEUS_BENCH_SELECTED_IDS', 'ZEUS_BENCH_RESULTS_DIR', 'ZEUS_BENCH_PROFILE', 'ZEUS_BENCH_ARCH', 'ZEUS_EVALUATION_LIMITS']) delete env[key];
 env.ZEUS_BENCH_BUILD = JSON.stringify(sourceBuild(root));
 let code = 0;
+const receiptPath=path.join(root,'.zeus/evaluations/regression-receipts',crypto.randomUUID()+'.json');
+const receipt={build:JSON.parse(env.ZEUS_BENCH_BUILD),selection:process.argv.slice(2),started_at:new Date().toISOString(),status:'running',stages:[]};
+const saveReceipt=()=>atomicWrite(receiptPath,JSON.stringify(receipt,null,2));
+saveReceipt();
 const selected = group => !requested.length || requested.includes(`--${group}`);
 function run(command, args, cwd = root) {
+  const stage={command,args,cwd:path.relative(root,cwd)||'.',status:'running',started_at:new Date().toISOString()};
+  receipt.stages.push(stage);saveReceipt();
   const result = spawnSync(command, args, { cwd, env, stdio: 'inherit', shell: false, windowsHide: true });
   if (result.error) console.error(result.error.message);
+  Object.assign(stage,{status:result.status===0?'passed':'failed',exit_code:result.status??null,signal:result.signal??null,error:result.error?.message??null,ended_at:new Date().toISOString()});saveReceipt();
   code ||= result.status ?? 1;
 }
 if (selected('unit')) run(process.execPath, ['--test', ...fs.readdirSync(path.join(root, 'tests/unit')).filter(f => f.endsWith('.test.js')).map(f => `tests/unit/${f}`)]);
-if (selected('missions')) run(process.execPath, ['--test', 'tests/missions/graders.test.js']);
+if (selected('missions')) run(process.execPath, ['--test', ...fs.readdirSync(path.join(root,'tests/missions')).filter(f=>f.endsWith('.test.js')).map(f=>'tests/missions/'+f)]);
 if (selected('backend')) run('cargo', ['test', '--lib', '--locked'], path.join(root, 'src-tauri'));
 if (selected('ui')) {
   env.ZEUS_CAPTURE_METRICS_PATH=path.join(root,'.zeus/evaluations/browser-capture-measurements.json');
@@ -55,3 +64,5 @@ if (requested.includes('--release')) {
   if(!code&&process.platform==='win32'&&fs.existsSync(browserPython))run(browserPython,['tests/browser_service/probe_native_handoff.py','--e2e']);
 }
 process.exitCode = code;
+Object.assign(receipt,{status:code===0?'passed':'failed',exit_code:code,ended_at:new Date().toISOString()});saveReceipt();
+console.log('Regression receipt: '+path.relative(root,receiptPath));

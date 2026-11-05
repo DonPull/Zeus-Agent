@@ -1,0 +1,4 @@
+Aster correction, issued 2026-03-02; effective 2026-03-10.
+Effective 2026-03-10, Aster monthly price is EUR 120, replacing EUR 100.
+Effective 2026-03-10, Aster allowance is 2000 requests/month, replacing 1000.
+Aster data region remains EU only.

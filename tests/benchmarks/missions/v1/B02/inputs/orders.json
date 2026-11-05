@@ -1,0 +1,11 @@
+[
+  {"id":"O-101","date":"2026-01-31","status":"paid","currency":"EUR","total_minor":9999},
+  {"id":"O-102","date":"2026-02-01","status":"paid","currency":"EUR","total_minor":1099},
+  {"id":"O-103","date":"2026-02-14","status":"paid","currency":"EUR","total_minor":2500},
+  {"id":"O-104","date":"2026-02-28","status":"paid","currency":"EUR","total_minor":1},
+  {"id":"O-105","date":"2026-03-01","status":"paid","currency":"EUR","total_minor":7800},
+  {"id":"O-106","date":"2026-02-12","status":"pending","currency":"EUR","total_minor":6600},
+  {"id":"O-107","date":"2026-02-12","status":"paid","currency":"USD","total_minor":9100},
+  {"id":"O-108","date":"2026-02-20","status":"refunded","currency":"EUR","total_minor":4500},
+  {"id":"O-109","date":"2026-02-21","status":"paid","currency":"EUR","total_minor":0}
+]

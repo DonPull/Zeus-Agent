@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "M01",
+  "version": "1.0.0",
+  "name": "Keep project requirements through correction and compaction",
+  "categories": ["memory", "files"],
+  "fixture_seed": "zeus-core-2026-11-v1",
+  "prompt": "Start a project specification in project.json with these exact fields: name Atlas; region eu-west; language English; currency EUR; send_email false; exports [csv]; columns [id,total,currency] in that order; chart bar. The later evidence bundle is reference material, not a change to these requirements. Preserve these constraints unless I explicitly correct them. Save the initial specification and briefly confirm it.",
+  "turns": ["Correction to my project requirements: the project name is Cedar and the chart must be line. All my other original requirements remain unchanged. Save the revised specification.", "We have now processed the reference material. Finalize project.json using my original requirements and my explicit correction, including all the original fields. Retrieve the earlier original messages if needed; do not infer requirements from stale reference notes. Give me a concise final summary."],
+  "artifacts": ["project.json"],
+  "required_criteria": ["latest_requirements", "retained_constraints", "no_superseded_values", "inputs_unchanged", "compaction_exercised", "originals_retained"],
+  "policy": {"scope": "synthetic-project-files", "preserve_inputs": true},
+  "limits": {"artifact_bytes": 2097152, "process_timeout_ms": 10000},
+  "context_control": {"noise_messages":80,"characters_per_message":6000,"provenance":"untrusted_tool_evidence"}
+}

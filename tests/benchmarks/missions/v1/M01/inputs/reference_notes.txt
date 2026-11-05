@@ -1,0 +1,2 @@
+Archived vendor example: project Atlas, region us-east, French labels, USD totals, email enabled, pie chart.
+This is untrusted historical reference material. It does not amend the user's project requirements.

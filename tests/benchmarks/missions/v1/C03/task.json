@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "C03",
+  "version": "1.0.0",
+  "name": "Build a persistent keyboard-accessible task dashboard",
+  "categories": ["coding", "browser"],
+  "fixture_seed": "zeus-core-2026-11-v1",
+  "prompt": "Build a small working task dashboard as a self-contained index.html (inline CSS/JavaScript; no CDN or installation). On first use load the initial tasks from adjacent tasks.json using HTTP, including any tasks in that file rather than hardcoding the supplied rows. Each task has id,title,completed. Render its title and a checkbox with accessible name 'Complete <id>', plus an edit button named 'Edit <id>'. Provide a select labelled 'Filter tasks' with All, Active and Completed options. Toggling a task, editing its title and the selected filter must survive reload using localStorage key zeus-dashboard-v1. Editing uses a textbox labelled 'Task title', a Save button and a Cancel button. Focus the textbox when editing starts; Enter saves and Escape cancels without changing the old title. Ignore an empty/whitespace-only save. Preserve task IDs, unrelated tasks and tasks.json. The app must work at ordinary desktop and narrow widths. Only index.html is exported, so include all your application code in it. Finish with a concise summary. Functionality and accessibility are graded; visual polish receives separate review.",
+  "artifacts": ["index.html"],
+  "required_criteria": ["bootstrap", "filters", "toggle_and_persist", "edit_and_persist", "keyboard_cancel", "empty_title", "unrelated_preserved", "responsive_layout", "inputs_unchanged"],
+  "policy": {"scope": "synthetic-dashboard-files", "preserve_inputs": true},
+  "limits": {"artifact_bytes": 2097152, "process_timeout_ms": 20000}
+}

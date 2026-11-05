@@ -1,0 +1,14 @@
+{
+  "as_of":"2026-03-15",
+  "selected_plan":"Aster",
+  "facts":{"aster_monthly_eur":120,"aster_requests":2000,"aster_region":"EU","birch_monthly_eur":110,"birch_requests":3000,"birch_region":"US","aster_change_effective":"2026-03-10"},
+  "citations":{
+    "aster_monthly_eur":{"source_id":"aster-correction","start_line":2,"end_line":2},
+    "aster_requests":{"source_id":"aster-correction","start_line":3,"end_line":3},
+    "aster_region":{"source_id":"aster-correction","start_line":4,"end_line":4},
+    "birch_monthly_eur":{"source_id":"birch-current","start_line":2,"end_line":2},
+    "birch_requests":{"source_id":"birch-current","start_line":3,"end_line":3},
+    "birch_region":{"source_id":"birch-current","start_line":4,"end_line":4},
+    "aster_change_effective":{"source_id":"aster-correction","start_line":1,"end_line":1}
+  }
+}

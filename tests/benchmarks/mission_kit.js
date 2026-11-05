@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fingerprint } from './benchmark_config.js';
 
 export const missionRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'missions/v1');
-export const missionIds = Object.freeze(['B01', 'C01', 'C02', 'D01', 'D02', 'V01']);
+export const missionIds = Object.freeze(['B01', 'B02', 'B03', 'C01', 'C02', 'C03', 'D01', 'D02', 'M01', 'M02', 'R01', 'V01']);
 export class SubmissionError extends Error {}
 
 export function mission(id) {

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task dashboard</title>
+<style>
+*{box-sizing:border-box}body{font:16px system-ui;margin:0;background:#f2f5f8;color:#162435}
+main{max-width:800px;padding:24px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+ul{list-style:none;padding:0}li{background:white;border:1px solid #d1d9e2;border-radius:10px;padding:16px;margin:12px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.title{flex:1;min-width:0;overflow-wrap:anywhere}button,select,input[type=text]{font:inherit;padding:8px;border:1px solid #8e9bac;border-radius:6px}
+button{cursor:pointer;background:#fff}button:hover{background:#e6f0ff}input[type=text]{max-width:100%;flex:1;min-width:120px}
+form{display:flex;gap:8px;flex-wrap:wrap;width:100%}:focus-visible{outline:3px solid #2674d9;outline-offset:3px}
+@media(max-width:480px){main{padding:12px}}
+</style>
+<main>
+<header><h1>Tasks</h1><label>Filter tasks <select aria-label="Filter tasks"><option>All</option><option>Active</option><option>Completed</option></select></label></header>
+<p role="status"></p><ul></ul>
+</main>
+<script>
+const key='zeus-dashboard-v1',list=document.querySelector('ul'),filter=document.querySelector('select'),status=document.querySelector('[role=status]');
+let state={tasks:[],filter:'All'},editing=null;
+function save(){localStorage.setItem(key,JSON.stringify(state));}
+function el(tag,text){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;}
+function render(){
+  filter.value=state.filter;list.replaceChildren();
+  for(const task of state.tasks){
+    if(state.filter==='Active'&&task.completed||state.filter==='Completed'&&!task.completed)continue;
+    const row=el('li'),checkbox=el('input');checkbox.type='checkbox';checkbox.checked=task.completed;checkbox.setAttribute('aria-label','Complete '+task.id);
+    checkbox.onchange=()=>{task.completed=checkbox.checked;save();render();};row.append(checkbox);
+    row.append(el('span',task.title));row.lastChild.className='title';
+    if(editing===task.id){
+      const form=el('form'),input=el('input');input.type='text';input.value=task.title;input.setAttribute('aria-label','Task title');
+      const submit=el('button','Save'),cancel=el('button','Cancel');submit.type='submit';cancel.type='button';
+      cancel.onclick=()=>{editing=null;render();};
+      input.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();editing=null;render();}};
+      form.onsubmit=e=>{e.preventDefault();const value=input.value.trim();if(!value)return;task.title=value;editing=null;save();render();};
+      form.append(input,submit,cancel);row.append(form);queueMicrotask(()=>{input.focus();input.select();});
+    }else{
+      const button=el('button','Edit');button.setAttribute('aria-label','Edit '+task.id);button.onclick=()=>{editing=task.id;render();};row.append(button);
+    }
+    list.append(row);
+  }
+  status.textContent=list.children.length+' tasks shown';
+}
+filter.onchange=()=>{state.filter=filter.value;editing=null;save();render();};
+(async()=>{
+  try{const stored=JSON.parse(localStorage.getItem(key)||'null');state=stored||{tasks:await(await fetch('tasks.json')).json(),filter:'All'};render();}
+  catch{status.textContent='Unable to load tasks';}
+})();
+</script>
+</html>

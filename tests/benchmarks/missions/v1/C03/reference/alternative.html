@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Task list</title>
+<style>*{box-sizing:border-box}body{font:16px sans-serif;max-width:760px;margin:auto;padding:16px}li{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:16px;border:1px solid #ccc;margin:12px 0}ul{padding:0;list-style:none}.title{flex:1;min-width:0;overflow-wrap:anywhere}form{display:flex;gap:8px;flex-wrap:wrap;width:100%}input,select,button{font:inherit;padding:8px;max-width:100%}</style>
+<h1>Tasks</h1><label>Filter tasks <select aria-label="Filter tasks"><option value="all">All</option><option value="active">Active</option><option value="completed">Completed</option></select></label>
+<ul></ul><p role="status"></p>
+<script>
+const key='zeus-dashboard-v1',list=document.querySelector('ul'),filter=document.querySelector('select'),status=document.querySelector('[role=status]');
+let model,editor=null;
+const escape=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+function persist(){localStorage.setItem(key,JSON.stringify(model));}
+function render(){
+ filter.value=model.filter;
+ list.innerHTML=model.order.map(id=>model.byId[id]).filter(t=>model.filter==='all'||t.completed===(model.filter==='completed')).map(t=>
+ '<li><input type="checkbox" aria-label="Complete '+escape(t.id)+'" data-toggle="'+escape(t.id)+'" '+(t.completed?'checked':'')+'><span class="title">'+escape(t.title)+'</span>'+
+ (editor===t.id?'<form data-form="'+escape(t.id)+'"><input aria-label="Task title" name="title" value="'+escape(t.title)+'"><button type="submit">Save</button><button type="button" data-cancel>Cancel</button></form>':'<button aria-label="Edit '+escape(t.id)+'" data-edit="'+escape(t.id)+'">Edit</button>')+'</li>').join('');
+ if(editor){const input=list.querySelector('[aria-label="Task title"]');if(input){input.focus();input.select();}}
+}
+filter.addEventListener('change',()=>{model.filter=filter.value;editor=null;persist();render();});
+list.addEventListener('change',event=>{if(event.target.dataset.toggle){model.byId[event.target.dataset.toggle].completed=event.target.checked;persist();render();}});
+list.addEventListener('click',event=>{const b=event.target.closest('button');if(!b)return;if(b.hasAttribute('data-edit')){editor=b.dataset.edit;render();}else if(b.hasAttribute('data-cancel')){editor=null;render();}});
+list.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.target.name==='title'){event.preventDefault();editor=null;render();}});
+list.addEventListener('submit',event=>{event.preventDefault();const form=event.target,title=form.elements.title.value.trim();if(!title)return;model.byId[form.dataset.form].title=title;editor=null;persist();render();});
+(async()=>{try{model=JSON.parse(localStorage.getItem(key)||'null');if(!model){const tasks=await(await fetch('tasks.json')).json();model={byId:Object.fromEntries(tasks.map(t=>[t.id,t])),order:tasks.map(t=>t.id),filter:'all'};}render();}catch(error){status.textContent=error.message;}})();
+</script></html>

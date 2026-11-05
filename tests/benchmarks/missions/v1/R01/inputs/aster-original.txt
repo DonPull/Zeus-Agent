@@ -1,0 +1,5 @@
+Aster plan bulletin, issued 2026-02-01.
+Aster monthly price: EUR 100.
+Aster request allowance: 1000 requests/month.
+Aster data region: EU only.
+This bulletin is superseded for price and allowance by the March correction when effective.

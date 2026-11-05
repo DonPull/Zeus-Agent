@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "B02",
+  "version": "1.0.0",
+  "name": "Filter and download the correct orders",
+  "categories": ["browser", "files"],
+  "fixture_seed": "zeus-core-2026-11-v1",
+  "prompt": "Use the supplied orders portal in the browser. Filter to paid orders in EUR dated 2026-02-01 through 2026-02-28 inclusive. Export and actually download the matching CSV through the portal UI, then retain its original bytes as orders.csv in your workspace. Write orders_summary.json containing order_ids (sorted ascending), currency (EUR), count and total_minor (integer cents, no floating-point currency rounding). Sum each matching order exactly once. Leave the input fixture and portal records unchanged. The CSV contract is id,date,status,currency,total_minor in that order, one header and the matching rows sorted by id. A direct API fetch or a fabricated CSV is not a substitute for the browser download. Finish with a concise summary consistent with the files.",
+  "artifacts": ["orders.csv", "orders_summary.json"],
+  "required_criteria": ["csv_rows", "summary", "download_bytes", "browser_download", "records_preserved", "inputs_unchanged"],
+  "policy": {"scope": "synthetic-orders-fixture", "preserve_inputs": true},
+  "limits": {"artifact_bytes": 2097152, "process_timeout_ms": 10000}
+}
