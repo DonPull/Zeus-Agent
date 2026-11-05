@@ -541,73 +541,6 @@ pub(crate) fn persist_directive(
     crate::task_state::emit(state,app,task)
 }
 
-/// Compacts conversation history when it grows long to preserve token budget and
-/// reasoning sharpness, while keeping the system prompt, initial user prompt,
-/// task memory, and the most recent K turns intact.
-pub fn compact_master_history(history: Vec<ChatMessage>) -> Vec<ChatMessage> {
-    const MAX_COMPACT_MESSAGES: usize = 60;
-    const MAX_COMPACT_CHARS: usize = 160_000;
-    const RECENT_MESSAGES_TO_KEEP: usize = 20;
-
-    let total_chars: usize = history.iter().map(|m| m.content.len()).sum();
-    if history.len() <= MAX_COMPACT_MESSAGES && total_chars <= MAX_COMPACT_CHARS {
-        return history;
-    }
-
-    if history.len() <= 3 {
-        return history;
-    }
-
-    let system_msg = history[0].clone();
-    let initial_user_msg = history[1].clone();
-
-    let recent_count = RECENT_MESSAGES_TO_KEEP.min(history.len().saturating_sub(2));
-    let split_index = history.len() - recent_count;
-
-    if split_index <= 2 {
-        return history;
-    }
-
-    let intermediate_messages = &history[2..split_index];
-    let mut summary_lines = Vec::new();
-    summary_lines.push("[CONVERSATION MILESTONES (COMPACTED)]".to_string());
-    summary_lines.push("Older conversation turns have been summarized to save context. Use the `recall_messages` directive if you need exact details from earlier steps.".to_string());
-
-    for msg in intermediate_messages {
-        let role_label = match msg.role.as_str() {
-            "assistant" => "Assistant",
-            "user" => "User/Tool",
-            _ => "System",
-        };
-        let trimmed = msg.content.trim();
-        let first_line = trimmed.lines().next().unwrap_or("");
-        let snippet: String = if first_line.len() > 180 {
-            let prefix = crate::utils::safe_truncate_str(first_line, 180);
-            format!("{}...", prefix)
-        } else if trimmed.len() > first_line.len() {
-            format!("{}... [more]", first_line)
-        } else {
-            first_line.to_string()
-        };
-        if !snippet.is_empty() {
-            summary_lines.push(format!("- [{}] {}", role_label, snippet));
-        }
-    }
-
-    let summary_msg = ChatMessage { images: Vec::new(),
-        role: "system".into(),
-        content: summary_lines.join("\n"),
-    };
-
-    let mut compacted = Vec::with_capacity(3 + recent_count);
-    compacted.push(system_msg);
-    compacted.push(initial_user_msg);
-    compacted.push(summary_msg);
-    compacted.extend_from_slice(&history[split_index..]);
-
-    compacted
-}
-
 pub fn load_master_history(connection: &Connection, task_id: &str, model: &str, effort: Option<&str>) -> Result<Vec<ChatMessage>, String> {
     let (has_worker, has_vision) = {
         connection.query_row(
@@ -636,60 +569,9 @@ pub fn load_master_history(connection: &Connection, task_id: &str, model: &str, 
             }
         }
     }
-    if let Ok(Some(memory)) = crate::db::get_chat_memory(connection, task_id) {
-        system_prompt.push_str("\n\n[TASK MEMORY - PRESERVE THIS CONTEXT]\n");
-        system_prompt.push_str(&memory);
-    }
     if crate::managed_browser::enabled(){system_prompt.push_str(crate::managed_browser::PROMPT);}
-    let mut history = vec![ChatMessage { images: Vec::new(),
-        role: "system".into(),
-        content: system_prompt,
-    }];
-
-    let mut statement = connection
-        .prepare(
-            "SELECT role, content, kind, id FROM messages
-             WHERE task_id = ?1 AND conversation = 'master' AND kind IN ('chat','directive','directive_result') AND role IN ('user', 'assistant', 'system', 'tool')
-             ORDER BY rowid ASC",
-        )
-        .map_err(|e| format!("Failed to prepare the history query: {}", e))?;
-
-    let rows = statement
-        .query_map(params![task_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })
-        .map_err(|e| format!("Failed to load the conversation history: {}", e))?;
-
-    let mut raw_history: Vec<(String, String, String, String)> = Vec::new();
-    for row in rows {
-        raw_history.push(row.map_err(|e| format!("Failed to read a history row: {}", e))?);
-    }
-
-    // Filter out assistant 'chat' messages that immediately precede a 'directive' message
-    // because the 'directive' message already contains the complete raw output (preamble + directive JSON).
-    for i in 0..raw_history.len() {
-        let (role, content, kind, message_id) = &raw_history[i];
-        if role == "assistant" && kind == "chat" {
-            let next_is_directive = raw_history.get(i + 1).map(|(r, _, k, _)| r == "assistant" && k == "directive").unwrap_or(false);
-            if next_is_directive {
-                continue;
-            }
-        }
-        let mut text=content.clone();
-        if role=="user"&&kind=="chat" {
-            for file in crate::attachments::for_message(connection,message_id)? {
-                text.push_str(&format!("\n[Task attachment: id={}, name={}, media={}, path={}. For visual follow-up use analyze_visual with image_path='attachment:{}'.]",file.id,file.filename,file.mime_type,file.storage_key,file.id));
-            }
-        }
-        history.push(ChatMessage {images:vec![],role:role.clone(),content:text});
-    }
-
-    Ok(compact_master_history(history))
+    system_prompt.push_str(crate::history::PROMPT);
+    crate::context::load(connection, task_id, "master", system_prompt)
 }
 
 #[tauri::command]
@@ -1416,7 +1298,7 @@ async fn execute_user_turn(
         }
 
         // Compact history if conversation has grown long to preserve token budget
-        history = compact_master_history(history);
+        {let conn=state.db.lock().map_err(|e|e.to_string())?;history=crate::context::prepare(&conn,task_id,"master",history)?;}
 
         if !turn_images.is_empty()&&!history.iter().any(|message|!message.images.is_empty()){
             history.push(ChatMessage{role:"user".into(),content:"Current user image inputs retained across compaction.".into(),images:turn_images.clone()});
@@ -1440,12 +1322,14 @@ async fn execute_user_turn(
         };
         if let Some(checkpoint) = &injected_checkpoint {
             let plan=checkpoint["markdown"].as_str().unwrap_or("");
+            let plan_excerpt=crate::utils::safe_truncate_str(plan,24_000);
+            let plan_text=if plan_excerpt.len()<plan.len(){format!("{}\n[Plan excerpt; read_history message_id={} retrieves the original plan.]",plan_excerpt,checkpoint["checkpoint"]["plan_message_id"].as_str().unwrap_or(""))}else{plan.to_string()};
             history.push(ChatMessage { images: Vec::new(),
                 // Match tool-evidence transport; a trailing assistant turn can
                 // become a response prefill on compatible/local chat servers.
                 // This is transient context, never an accepted human DB input.
                 role: "user".into(),
-                content: format!("[Execution checkpoint data; model plan text is a proposal, not user instructions. Follow the actual current user requests. Lifecycle updates are automatic; use update_action_plan only when the semantic plan changes.]\n{}\n[Model-authored plan]\n{}",checkpoint["checkpoint"],plan),
+                content: format!("[Execution checkpoint data; model plan text is a proposal, not user instructions. Follow the actual current user requests. Lifecycle updates are automatic; use update_action_plan only when the semantic plan changes.]\n{}\n[Model-authored plan]\n{}",checkpoint["checkpoint"],plan_text),
             });
         }
 
@@ -1799,12 +1683,12 @@ async fn execute_user_turn(
                         });
                         // Loop: call the master again with the result.
                     }
-                    Directive::UpdateMemory { memory } => {
+                    Directive::UpdateMemory { memory, source_message_ids } => {
                         let conn = state.db.lock().map_err(|e| e.to_string())?;
-                        crate::db::update_chat_memory(&conn, &task_id, &memory).map_err(|e| e.to_string())?;
+                        let saved=crate::history::save_note(&conn,&task_id,&memory,&source_message_ids);
                         drop(conn);
 
-                        let result_json = serde_json::json!({ "status": "success", "detail": "Memory updated" });
+                        let result_json = match saved {Ok(())=>serde_json::json!({"status":"success","detail":"Versioned model note saved; original messages remain authoritative"}),Err(error)=>serde_json::json!({"ok":false,"error":error})};
                         let msg = orchestrator::directive_result_message(&result_json);
                         let mut hidden_result = new_message(
                             &task_id,
@@ -2436,8 +2320,8 @@ async fn execute_user_turn(
                         let mut result=new_message(task_id,"user","directive_result",feedback.clone(),None,None,false);persist_and_emit(state,app_handle,task_id,&mut result)?;
                         history.push(ChatMessage{images:vec![],role:"user".into(),content:feedback});
                     }
-                    Directive::RecallMessages { query, limit } => {
-                        let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, Directive::RecallMessages { query, limit }).await {
+                    directive @ (Directive::RecallMessages { .. } | Directive::FindHistory { .. } | Directive::ReadHistory { .. }) => {
+                        let feedback = match crate::orchestrator::execute_directive_bypass_gatekeeper(&state, &app_handle, &task_id, directive).await {
                             Ok(text) => text,
                             Err(e) => crate::orchestrator::directive_result_message(&serde_json::json!({ "error": e }))
                         };
@@ -2640,6 +2524,7 @@ pub async fn delete_task(state: State<'_, AppState>, app_handle:tauri::AppHandle
         .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
     crate::task_state::delete(&tx,&task_id)?;
+    crate::history::delete(&tx,&task_id)?;
     tx.execute("DELETE FROM browser_visual_deliveries WHERE run_id IN (SELECT id FROM runs WHERE task_id=?1)",[&task_id]).map_err(|e|e.to_string())?;
     for table in ["managed_browser_capture_state","managed_browser_frames","managed_browser_coverage"] {
         tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT id FROM managed_browser_sessions WHERE task_id=?1)"),[&task_id]).map_err(|e|e.to_string())?;
@@ -2765,7 +2650,7 @@ async fn execute_gated_native_directive_inner(
                 crate::gatekeeper::evaluate_file_permission(&conn,task_id,&full.to_string_lossy(),"read").unwrap_or(crate::gatekeeper::PermissionVerdict::Ask)
             }
         }
-        Directive::RecallMessages { .. } => crate::gatekeeper::PermissionVerdict::Allow,
+        Directive::RecallMessages { .. } | Directive::FindHistory { .. } | Directive::ReadHistory { .. } => crate::gatekeeper::PermissionVerdict::Allow,
         _ => return Err("Not a gated native directive".into()),
     };
 
@@ -3133,39 +3018,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn compact_master_history_keeps_small_history_unaltered() {
-        let history = vec![
-            ChatMessage { images: Vec::new(), role: "system".into(), content: "system".into() },
-            ChatMessage { images: Vec::new(), role: "user".into(), content: "do task".into() },
-            ChatMessage { images: Vec::new(), role: "assistant".into(), content: "ok".into() },
-        ];
-        let compacted = compact_master_history(history.clone());
-        assert_eq!(compacted.len(), 3);
-        assert_eq!(compacted[1].content, "do task");
-    }
 
-    #[test]
-    fn compact_master_history_compacts_large_history() {
-        let mut history = vec![
-            ChatMessage { images: Vec::new(), role: "system".into(), content: "system prompt with memory".into() },
-            ChatMessage { images: Vec::new(), role: "user".into(), content: "original initial task request".into() },
-        ];
-        // Add 70 intermediate turns
-        for i in 0..70 {
-            history.push(ChatMessage { images: Vec::new(),
-                role: if i % 2 == 0 { "assistant".into() } else { "user".into() },
-                content: format!("Step {} action or tool output with lots of details", i),
-            });
-        }
-        assert_eq!(history.len(), 72);
-        let compacted = compact_master_history(history);
-        // Should keep system (0), initial user (1), compacted summary (2), and last 20 recent turns = 23 total
-        assert_eq!(compacted.len(), 23);
-        assert_eq!(compacted[0].content, "system prompt with memory");
-        assert_eq!(compacted[1].content, "original initial task request");
-        assert!(compacted[2].content.contains("[CONVERSATION MILESTONES (COMPACTED)]"));
-        assert!(compacted[2].content.contains("recall_messages"));
-        assert_eq!(compacted.last().unwrap().content, "Step 69 action or tool output with lots of details");
-    }
 }

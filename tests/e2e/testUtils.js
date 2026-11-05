@@ -118,7 +118,9 @@ export async function launchTauri(useRealApi = false, { policy = 'standard', eva
   const cdpPort = 15000 + Math.floor(Math.random() * 20000);
   const env = { ...process.env, ZEUS_TEST_WORKSPACE_ROOT: workspace,
     ZEUS_TEST_LINK_OPENER:'1',
-    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}`,
+    // Hidden test windows should exercise normal foreground rendering rates
+    // without taking focus. These are test-only Chromium diagnostic switches.
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${cdpPort}${visible?'':' --disable-background-timer-throttling --disable-renderer-backgrounding'}`,
     WEBVIEW2_USER_DATA_FOLDER: path.join(workspace, 'webview'), ZEUS_TEST_HIDE_WINDOW: visible ? '0' : '1' };
   delete env.ZEUS_MANAGED_BROWSER;delete env.ZEUS_BROWSER_PYTHON;
   if(!['headless','offscreen'].includes(browserWindowMode))throw new Error('Invalid browser window mode');

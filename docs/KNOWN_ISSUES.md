@@ -165,7 +165,8 @@ events and a versioned execution/plan projection. This is partial durable
 diagnostic coverage, not replacement of the volatile general backend logger.
 Stopped/failed/interrupted work and pauses no longer depend on another model
 plan update; model milestone reports remain separate from verification.
-Searchable original history and reliable compaction remain Phase 4B.
+The [Phase 4B implementation](PHASE_4B_WORK_LOG.md) adds shared searchable
+originals and source-aware context; acceptance validation is in progress.
 
 The initial 4A live check retained 5/6 outcomes. Its failed browser task exposed
 a missing-locator wait exhausting the surrounding script's equal 30-second

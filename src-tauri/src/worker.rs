@@ -200,6 +200,7 @@ pub async fn run_worker(
         .replace("{host_os}", std::env::consts::OS)
         .replace("{host_family}", std::env::consts::FAMILY);
     if crate::managed_browser::enabled(){system_content.push_str(crate::managed_browser::PROMPT);}
+    system_content.push_str(crate::history::PROMPT);
 
     let mut history = vec![
         ChatMessage { images: Vec::new(),
@@ -236,6 +237,8 @@ pub async fn run_worker(
         false,
     );
     persist_and_emit(state, app_handle, task_id, &mut initial_user_msg)?;
+    {let conn=state.db.lock().map_err(|e|e.to_string())?;
+        history=crate::context::load(&conn,task_id,&conversation,history[0].content.clone())?;}
 
     let (worker_model, verifier_model, budget_units, worker_effort, verifier_effort) = {
         let conn = state.db.lock().unwrap();
@@ -259,6 +262,10 @@ pub async fn run_worker(
                 break Err("Worker hit iteration cap without a final answer.".to_string());
             }
 
+            {
+                let conn=state.db.lock().map_err(|e|e.to_string())?;
+                history=crate::context::prepare(&conn,task_id,&conversation,history)?;
+            }
             Box::pin(crate::browser_visuals::prepare(state,app_handle,task_id,run_id,&conversation,cancellation_token,&mut history)).await?;
             // Stream response
             let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -438,6 +445,8 @@ pub async fn run_worker(
                         | Directive::ListDir { .. }
                         | Directive::SearchFiles { .. }
                         | Directive::RecallMessages { .. }
+                        | Directive::FindHistory { .. }
+                        | Directive::ReadHistory { .. }
                         | Directive::AskUserChoice { .. }
                         | Directive::ConfigureBrowser { .. }
                         | Directive::InstallBrowserExtension { .. }

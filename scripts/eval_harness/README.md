@@ -192,3 +192,23 @@ npm run eval:dashboard -- .zeus/evaluations/<first> .zeus/evaluations/<second>
 The combined report is written to `.zeus/evaluations/dashboard/index.html`. Missing, empty, and corrupt inputs fail explicitly. Raw records survive report-generation failures. Historical score directories may be passed explicitly for inspection; their provenance is preserved, not upgraded to schema-v2 evidence. Append new trials to a fresh experiment, not an old historical score directory.
 
 Phase 1 made no hosted calls. Phase 2 adds independently checked missions and a small native diagnostic; isolated execution, authorization graders, held-out cases, and a repeated baseline remain pending. Neither the legacy suites nor the native diagnostic are that baseline.
+
+## Phase 4B history stress controls
+
+`node scripts/eval_harness/diagnose_history.js` is dry by default. Its explicit
+`--live --output .zeus/evaluations/<fresh-directory>` schedules four synthetic
+cases: H01 personal-fact recovery and H02 old-image inspection, each with short
+history and with forced compaction plus application restart.
+
+The fixed default is the catalogue-checked Abacus `gpt-6.1-terra`, low effort,
+explicit Chat protocol. Each cell has a 12-request/300,000-token/four-minute
+ceiling including its warm-up; each request has at most 4,096 output tokens.
+The evaluated source must be committed. All outcomes, raw synthetic messages,
+retention hashes, compaction receipts, usage and failures remain in the fresh
+output directory. No commands/files/network approvals are silently granted.
+
+This is a native supervised stress comparison on one build. It is not the full
+12-core suite, a cross-version baseline or an independent authorization score.
+Reference/negative controls live in `tests/unit/history_missions.test.js`;
+`tests/regression/history.spec.js` proves the retrieval/attachment/worker paths
+using controlled replies. See [the work log](../../docs/PHASE_4B_WORK_LOG.md).

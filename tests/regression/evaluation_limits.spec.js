@@ -47,8 +47,11 @@ test('Responses follow-up preserves assistant and user history in a provider-val
   const requests=getMockRequests();expect(requests).toHaveLength(2);
   expect(requests.every(request=>request.url.endsWith('/responses'))).toBe(true);
   const history=requests[1].body.input;
-  expect(history).toContainEqual({role:'assistant',content:'4'});
-  expect(history).toContainEqual({role:'user',content:'Repeat the answer, only the numeral.'});
+  // Source metadata is now included in working history. Preserve actual roles
+  // and plain string content: assistant input_text blocks are invalid here.
+  expect(history).toContainEqual({role:'assistant',content:expect.stringMatching(/\n4$/)});
+  expect(history).toContainEqual({role:'user',content:expect.stringContaining('Repeat the answer, only the numeral.')});
+  expect(history.every(message=>typeof message.content==='string')).toBe(true);
   expect((await app.spend()).usage.unknown_requests).toBe(0);
 });
 test('unknown usage stops later dispatch rather than treating it as free',async()=>{

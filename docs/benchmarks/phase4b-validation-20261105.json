@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-05",
+  "scope": "Phase 4B development validation, all offline unless explicitly stated",
+  "attempts": [
+    {
+      "id": "initial-full",
+      "status": "failed",
+      "desktop_passed": 105,
+      "desktop_failed": 1,
+      "failure": "Responses wire-format assertion expected bare source content; new provenance wrappers are plain strings with the original roles.",
+      "preview_measurement": {"source_frames_in_two_seconds": 15, "collector_publications": 9, "displayed_images": 9}
+    },
+    {
+      "id": "second-full",
+      "status": "failed",
+      "desktop_passed": 104,
+      "desktop_failed": 2,
+      "failures": [
+        "The updated Responses assertion over-escaped its newline regex. Test bug corrected; original assistant/user roles and valid plain-string wire payload were retained.",
+        "The existing short-window preview performance assertion observed six displayed images in two seconds, below its minimum of eight."
+      ],
+      "preview_measurement": {"source_frames_in_two_seconds": 7, "collector_publications": 6, "displayed_images": 6},
+      "private_handoff_receipt": ".zeus/evaluations/native-handoff-fc6125f6693945eda763e593d1f4e52a"
+    },
+    {
+      "id": "third-full-before-hidden-webview-flags",
+      "status": "failed",
+      "desktop_passed": 104,
+      "desktop_failed": 2,
+      "failures": [
+        "Existing two-second preview rate check: seven rendered images against minimum eight.",
+        "Existing viewer layout check observed an image-size ratio before resize layout had settled."
+      ],
+      "responses_wire_format": "passed",
+      "preview_measurement": {"source_frames_in_two_seconds": 9, "collector_publications": 8, "displayed_images": 7},
+      "private_handoff_receipt": ".zeus/evaluations/native-handoff-9e962c99c4cd4a0f8b136f486eb6d5d4"
+    },
+    {
+      "id": "targeted-after-hidden-webview-flags",
+      "status": "passed",
+      "desktop_passed": 3,
+      "desktop_failed": 0,
+      "command": "node scripts/run_regression.js --ui-files browser_capture,viewer_layout",
+      "change": "Test-only background timer and renderer priority switches. All original rate/layout thresholds retained; no production capture code change.",
+      "preview_measurement": {"source_frames_in_two_seconds": 15, "collector_publications": 13, "displayed_images": 13}
+    }
+  ],
+  "notes": [
+    "No browser/live-preview production implementation was changed for Phase 4B.",
+    "The preview rate failure is retained as performance variability, not erased by another passing run.",
+    "These scripted checks are not model capability or independent authorization scores."
+  ]
+}

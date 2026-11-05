@@ -64,6 +64,8 @@ pub enum Directive {
     },
     UpdateMemory {
         memory: String,
+        #[serde(default)]
+        source_message_ids: Vec<String>,
     },
     TaskUpdate {
         update: TaskUpdateSpec,
@@ -114,6 +116,17 @@ pub enum Directive {
         query: String,
         #[serde(default)]
         limit: Option<usize>,
+    },
+    FindHistory {
+        #[serde(flatten)]
+        request: crate::history::Find,
+    },
+    ReadHistory {
+        message_id: String,
+        #[serde(default)] offset: usize,
+        #[serde(default)] limit: Option<usize>,
+        #[serde(default)] neighbors: usize,
+        #[serde(default)] attachment_id: Option<String>,
     },
     AskUserChoice {
         prompt: String,
@@ -715,40 +728,21 @@ pub async fn execute_directive_bypass_gatekeeper(
             Ok(crate::orchestrator::directive_result_message(&result_json))
         }
         Directive::RecallMessages { query, limit } => {
-            let max_limit = limit.unwrap_or(10).min(50);
             let conn = _state.db.lock().map_err(|e| e.to_string())?;
-            let search_pattern = format!("%{}%", query);
-            let mut stmt = conn.prepare(
-                "SELECT role, kind, content, created_at FROM messages
-                 WHERE task_id = ?1 AND content LIKE ?2
-                 ORDER BY rowid DESC LIMIT ?3"
-            ).map_err(|e| e.to_string())?;
-
-            let rows = stmt.query_map(rusqlite::params![task_id, search_pattern, max_limit], |row| {
-                let role: String = row.get(0)?;
-                let kind: String = row.get(1)?;
-                let content: String = row.get(2)?;
-                let created_at: String = row.get(3)?;
-                Ok(serde_json::json!({
-                    "role": role,
-                    "kind": kind,
-                    "content": content,
-                    "created_at": created_at,
-                }))
-            }).map_err(|e| e.to_string())?;
-
-            let mut results = Vec::new();
-            for r in rows {
-                if let Ok(item) = r {
-                    results.push(item);
-                }
-            }
-
-            let result_json = serde_json::json!({
-                "recall_results": results,
-                "matches_count": results.len()
-            });
-            Ok(crate::orchestrator::directive_result_message(&result_json))
+            let mut result=crate::history::find(&conn,task_id,&crate::history::Find{query,limit,..Default::default()})?;
+            let mut compatible=result["results"].clone();
+            for item in compatible.as_array_mut().unwrap() {item["content"]=item["excerpt"].clone();}
+            result["recall_results"]=compatible;
+            result["matches_count"]=serde_json::json!(result["results"].as_array().unwrap().len());
+            Ok(directive_result_message(&result))
+        }
+        Directive::FindHistory { request } => {
+            let conn = _state.db.lock().map_err(|e|e.to_string())?;
+            Ok(directive_result_message(&crate::history::find(&conn,task_id,&request)?))
+        }
+        Directive::ReadHistory {message_id,offset,limit,neighbors,attachment_id} => {
+            let conn = _state.db.lock().map_err(|e|e.to_string())?;
+            Ok(directive_result_message(&crate::history::read(&conn,task_id,&message_id,offset,limit.unwrap_or(8000),neighbors,attachment_id.as_deref())?))
         }
         Directive::AskUserChoice { prompt: _, options: _, allow_custom_input: _, custom_placeholder: _ } => {
             let result_json = serde_json::json!({ "choice_result": "User decision processed." });

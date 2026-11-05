@@ -137,6 +137,7 @@ pub fn link(conn: &Connection, message: &str, files: &[Attachment]) -> Result<()
             params![message, file.id, ordinal as i64],
         )
         .map_err(|e| e.to_string())?;
+        crate::history::index_attachment(conn,file)?;
     }
     Ok(())
 }

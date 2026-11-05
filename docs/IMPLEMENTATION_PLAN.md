@@ -18,8 +18,9 @@ retained one browser deadline/recovery failure; its general repair is delivered,
 and all three separate post-repair Solo outcomes passed. See the
 [4A work log](PHASE_4A_WORK_LOG.md) for retained failures, source/receipt hashes,
 usage and comparison limits.
-4B context plus searchable originals and 4C completion evidence remain next,
-with focused review before each substantial slice. Phase 4 is not yet complete.
+The approved 4B context/searchable-originals implementation is now in acceptance
+validation; see the [4B work log](PHASE_4B_WORK_LOG.md). 4C completion evidence
+remains next, with focused review before that slice. Phase 4 is not yet complete.
 
 The completed browser and benchmark commits are merged/pushed to main and the
 temporary browser branch is deleted. The delivered
@@ -98,7 +99,7 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
 | 2C — small matched reference checkpoint | Delivered for three native missions | Six pilot plus 18 repeated D01/B01/V01 attempts; 17/18 repeated outcomes, retained protocol failure, actual role use and unknown provider credits |
-| 4 — state, memory and context | In progress; 4A delivered and validated | Automatic checkpoint/plan, stream boundary and script-deadline repairs delivered; next 4B compaction plus searchable originals, then 4C completion evidence |
+| 4 — state, memory and context | In progress; 4A delivered, 4B in validation | Automatic checkpoint/plan, stream boundary and script-deadline repairs delivered; 4B shared context/searchable originals in acceptance checks, then 4C completion evidence |
 | 2D/2E — complete Benchmark v1 | **Immediately after Phase 4, before Phase 5** | All 12 core mission contracts/graders/runtime paths, validated benchmark isolation/coverage, repeated matched current Solo/Team baseline, versioned comparison report |
 | Browser speed/efficiency track | Explicit follow-up alongside 4 and v1 completion | Profile controlled multi-step browser work, isolate format/observation/wait/batching overhead and verify outcomes before accepting an optimization |
 | 5 — permissions and Smart mode | Planned after state and full v1 baseline | Scoped files/commands/scripts/browser policy, goal-alignment and consequences checks, prompt-injection tests and calibrated shadow classifier |
