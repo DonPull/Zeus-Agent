@@ -49,6 +49,8 @@ try{
     const timer=setTimeout(()=>abort.abort(new Error('Memory diagnostic wall-time limit')),limits.wall_time_ms);
     try{
       app=await launchTauri(true,{evaluationLimits:limits});
+      await app.page.waitForSelector('#app-container',{state:'visible',timeout:15000});
+      await app.page.waitForFunction(()=>Boolean(window.__ZEUS_BRIDGE__),{timeout:15000});
       const preflight=await app.page.evaluate(()=>Promise.race([
         (async()=>({key:await window.__ZEUS_BRIDGE__.hasApiKey(),catalogue:await window.__ZEUS_BRIDGE__.fetchModelCatalogue()}))(),
         new Promise((_,reject)=>setTimeout(()=>reject(new Error('Catalogue timeout')),15000)),
@@ -73,6 +75,8 @@ try{
         const remaining=limits.max_requests-spent.usage.requests;if(remaining<1||spent.usage.unknown_requests)throw new Error('Warm-up exhausted the known-usage request budget');
         const remainingTokens=limits.max_tokens-spent.usage.known_tokens;if(remainingTokens<1)throw new Error('Warm-up exhausted token budget');
         app=await launchTauri(true,{reuseWorkspace:workspace,evaluationLimits:{...limits,max_requests:remaining,max_tokens:remainingTokens,wall_time_ms:Math.max(1000,limits.wall_time_ms-(Date.now()-started))}});
+        await app.page.waitForSelector('#app-container',{state:'visible',timeout:15000});
+        await app.page.waitForFunction(()=>Boolean(window.__ZEUS_BRIDGE__),{timeout:15000});
       }
       const targetStart=historyFixture(app,task,'inspect').messages.at(-1)?.seq??0;
       await sendWithApprovals(app.page,task.id,cell.startsWith('H01')?memoryPrompt:imagePrompt,{signal:abort.signal});
