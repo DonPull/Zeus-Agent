@@ -1,0 +1,903 @@
+{
+    "schema_version":  1,
+    "date":  "2026-11-05",
+    "description":  "Initial Phase 4A native smoke comparison, before the live-discovered deadline repair",
+    "raw_directory":  ".zeus/evaluations/phase4a-smoke-20261105",
+    "summary":  {
+                    "schema_version":  1,
+                    "plan_id":  "b78da147a1bfed47f20dd2f8c55f0ebd4ab7dd2e450bcf25e224eaf0ff320855",
+                    "contract_fingerprint":  "b18c62c49a6ada03022f04b01fc96ae5de02df9bc2cb079db0678376d384a897",
+                    "build":  {
+                                  "source_commit":  "8c13c8252684ddcafb141af47e94662b3adacc73",
+                                  "dirty":  false,
+                                  "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                  "node":  "v22.13.1"
+                              },
+                    "scheduled":  6,
+                    "recorded":  6,
+                    "cells":  {
+                                  "D01/solo":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  1,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  5,
+                                                   "known_tokens":  10439,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  5
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  9041,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  1398,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  14062,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  178,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  0,
+                                                   "browser_timed_actions":  0,
+                                                   "browser_service_ms":  0,
+                                                   "outcome_success_rate":  1,
+                                                   "median_agent_seconds":  24.141,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  10439,
+                                                   "provider_credits":  null
+                                               },
+                                  "D01/team":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  1,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  5,
+                                                   "known_tokens":  13484,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  5
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  11361,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  2123,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  20795,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  612,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  0,
+                                                   "browser_timed_actions":  0,
+                                                   "browser_service_ms":  0,
+                                                   "outcome_success_rate":  1,
+                                                   "median_agent_seconds":  35.275,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  13484,
+                                                   "provider_credits":  null
+                                               },
+                                  "B01/solo":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  0,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  6,
+                                                   "known_tokens":  7231,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  6
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  6012,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  1219,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  24654,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  578,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  5,
+                                                   "browser_timed_actions":  4,
+                                                   "browser_service_ms":  250,
+                                                   "outcome_success_rate":  0,
+                                                   "median_agent_seconds":  58.817,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  null,
+                                                   "provider_credits":  null
+                                               },
+                                  "B01/team":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  1,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  8,
+                                                   "known_tokens":  10057,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  8
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  9226,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  831,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  43526,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  364,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  8,
+                                                   "browser_timed_actions":  8,
+                                                   "browser_service_ms":  423,
+                                                   "outcome_success_rate":  1,
+                                                   "median_agent_seconds":  27.03,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  10057,
+                                                   "provider_credits":  null
+                                               },
+                                  "V01/solo":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  1,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  4,
+                                                   "known_tokens":  5706,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  4
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  5221,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  485,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  19008,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  129,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  0,
+                                                   "browser_timed_actions":  0,
+                                                   "browser_service_ms":  0,
+                                                   "outcome_success_rate":  1,
+                                                   "median_agent_seconds":  12.205,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  5706,
+                                                   "provider_credits":  null
+                                               },
+                                  "V01/team":  {
+                                                   "scheduled":  1,
+                                                   "recorded":  1,
+                                                   "successful_outcomes":  1,
+                                                   "verified_passes":  0,
+                                                   "statuses":  {
+                                                                    "succeeded":  1
+                                                                },
+                                                   "known_requests":  4,
+                                                   "known_tokens":  6281,
+                                                   "complete_usage_records":  1,
+                                                   "requests_by_role":  {
+                                                                            "master":  4
+                                                                        },
+                                                   "reported_usage":  {
+                                                                          "input_tokens":  {
+                                                                                               "known_sum":  5534,
+                                                                                               "measured_records":  1
+                                                                                           },
+                                                                          "output_tokens":  {
+                                                                                                "known_sum":  747,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "cached_tokens":  {
+                                                                                                "known_sum":  23662,
+                                                                                                "measured_records":  1
+                                                                                            },
+                                                                          "reasoning_tokens":  {
+                                                                                                   "known_sum":  277,
+                                                                                                   "measured_records":  1
+                                                                                               }
+                                                                      },
+                                                   "cache_exceeds_reported_input_trials":  1,
+                                                   "browser_actions":  0,
+                                                   "browser_timed_actions":  0,
+                                                   "browser_service_ms":  0,
+                                                   "outcome_success_rate":  1,
+                                                   "median_agent_seconds":  16.74,
+                                                   "agent_timing_records":  1,
+                                                   "usage_complete":  true,
+                                                   "tokens_per_successful_outcome":  6281,
+                                                   "provider_credits":  null
+                                               }
+                              },
+                    "limitations":  [
+                                        "Native host permissions, not isolated grading or authorization certification.",
+                                        "Three development missions, not the complete Zeus Benchmark v1.",
+                                        "Token units are not subscription credits. Unknown usage is not zero."
+                                    ],
+                    "token_note":  "Runtime-reported token units are not provider credits or a context-length estimate. Raw cache/reasoning fields are preserved separately, not added to the total; gateway cache semantics may differ."
+                },
+    "comparison":  {
+                       "before_build":  {
+                                            "source_commit":  "b40f032e4b214a4eb7d718f5d72795097e40e8b4",
+                                            "dirty":  false,
+                                            "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                            "node":  "v22.13.1"
+                                        },
+                       "after_build":  {
+                                           "source_commit":  "8c13c8252684ddcafb141af47e94662b3adacc73",
+                                           "dirty":  false,
+                                           "diff_hash":  "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+                                           "node":  "v22.13.1"
+                                       },
+                       "cells":  {
+                                     "D01/solo":  {
+                                                      "outcome_success_rate_delta":  0,
+                                                      "median_agent_seconds_delta":  0.5599999999999987,
+                                                      "tokens_per_successful_outcome_delta":  1371,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  4,
+                                                                     "known_tokens":  9068,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  4
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  7404,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  1664,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  10925,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  177,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  0,
+                                                                     "browser_timed_actions":  0,
+                                                                     "browser_service_ms":  0,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  23.581,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  9068,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  1,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  5,
+                                                                    "known_tokens":  10439,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  5
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  9041,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  1398,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  14062,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  178,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  0,
+                                                                    "browser_timed_actions":  0,
+                                                                    "browser_service_ms":  0,
+                                                                    "outcome_success_rate":  1,
+                                                                    "median_agent_seconds":  24.141,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  10439,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  },
+                                     "D01/team":  {
+                                                      "outcome_success_rate_delta":  0,
+                                                      "median_agent_seconds_delta":  -8.636000000000003,
+                                                      "tokens_per_successful_outcome_delta":  -1506,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  6,
+                                                                     "known_tokens":  14990,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  6
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  11949,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  3041,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  28213,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  592,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  0,
+                                                                     "browser_timed_actions":  0,
+                                                                     "browser_service_ms":  0,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  43.911,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  14990,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  1,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  5,
+                                                                    "known_tokens":  13484,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  5
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  11361,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  2123,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  20795,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  612,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  0,
+                                                                    "browser_timed_actions":  0,
+                                                                    "browser_service_ms":  0,
+                                                                    "outcome_success_rate":  1,
+                                                                    "median_agent_seconds":  35.275,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  13484,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  },
+                                     "B01/solo":  {
+                                                      "outcome_success_rate_delta":  -1,
+                                                      "median_agent_seconds_delta":  30.243,
+                                                      "tokens_per_successful_outcome_delta":  null,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  5,
+                                                                     "known_tokens":  6908,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  5
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  5880,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  1028,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  18954,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  599,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  8,
+                                                                     "browser_timed_actions":  8,
+                                                                     "browser_service_ms":  515,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  28.574,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  6908,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  0,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  6,
+                                                                    "known_tokens":  7231,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  6
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  6012,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  1219,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  24654,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  578,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  5,
+                                                                    "browser_timed_actions":  4,
+                                                                    "browser_service_ms":  250,
+                                                                    "outcome_success_rate":  0,
+                                                                    "median_agent_seconds":  58.817,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  null,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  },
+                                     "B01/team":  {
+                                                      "outcome_success_rate_delta":  0,
+                                                      "median_agent_seconds_delta":  -1.3669999999999973,
+                                                      "tokens_per_successful_outcome_delta":  -4808,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  9,
+                                                                     "known_tokens":  14865,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  9
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  13908,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  957,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  48721,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  463,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  9,
+                                                                     "browser_timed_actions":  9,
+                                                                     "browser_service_ms":  625,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  28.397,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  14865,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  1,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  8,
+                                                                    "known_tokens":  10057,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  8
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  9226,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  831,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  43526,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  364,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  8,
+                                                                    "browser_timed_actions":  8,
+                                                                    "browser_service_ms":  423,
+                                                                    "outcome_success_rate":  1,
+                                                                    "median_agent_seconds":  27.03,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  10057,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  },
+                                     "V01/solo":  {
+                                                      "outcome_success_rate_delta":  0,
+                                                      "median_agent_seconds_delta":  -7.2509999999999994,
+                                                      "tokens_per_successful_outcome_delta":  306,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  4,
+                                                                     "known_tokens":  5400,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  4
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  4578,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  822,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  19217,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  352,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  0,
+                                                                     "browser_timed_actions":  0,
+                                                                     "browser_service_ms":  0,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  19.456,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  5400,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  1,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  4,
+                                                                    "known_tokens":  5706,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  4
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  5221,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  485,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  19008,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  129,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  0,
+                                                                    "browser_timed_actions":  0,
+                                                                    "browser_service_ms":  0,
+                                                                    "outcome_success_rate":  1,
+                                                                    "median_agent_seconds":  12.205,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  5706,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  },
+                                     "V01/team":  {
+                                                      "outcome_success_rate_delta":  0,
+                                                      "median_agent_seconds_delta":  1.302999999999999,
+                                                      "tokens_per_successful_outcome_delta":  456,
+                                                      "before":  {
+                                                                     "scheduled":  1,
+                                                                     "recorded":  1,
+                                                                     "successful_outcomes":  1,
+                                                                     "verified_passes":  0,
+                                                                     "statuses":  {
+                                                                                      "succeeded":  1
+                                                                                  },
+                                                                     "known_requests":  4,
+                                                                     "known_tokens":  5825,
+                                                                     "complete_usage_records":  1,
+                                                                     "requests_by_role":  {
+                                                                                              "master":  4
+                                                                                          },
+                                                                     "reported_usage":  {
+                                                                                            "input_tokens":  {
+                                                                                                                 "known_sum":  5094,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                            "output_tokens":  {
+                                                                                                                  "known_sum":  731,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "cached_tokens":  {
+                                                                                                                  "known_sum":  23731,
+                                                                                                                  "measured_records":  1
+                                                                                                              },
+                                                                                            "reasoning_tokens":  {
+                                                                                                                     "known_sum":  106,
+                                                                                                                     "measured_records":  1
+                                                                                                                 }
+                                                                                        },
+                                                                     "cache_exceeds_reported_input_trials":  1,
+                                                                     "browser_actions":  0,
+                                                                     "browser_timed_actions":  0,
+                                                                     "browser_service_ms":  0,
+                                                                     "outcome_success_rate":  1,
+                                                                     "median_agent_seconds":  15.437,
+                                                                     "agent_timing_records":  1,
+                                                                     "usage_complete":  true,
+                                                                     "tokens_per_successful_outcome":  5825,
+                                                                     "provider_credits":  null
+                                                                 },
+                                                      "after":  {
+                                                                    "scheduled":  1,
+                                                                    "recorded":  1,
+                                                                    "successful_outcomes":  1,
+                                                                    "verified_passes":  0,
+                                                                    "statuses":  {
+                                                                                     "succeeded":  1
+                                                                                 },
+                                                                    "known_requests":  4,
+                                                                    "known_tokens":  6281,
+                                                                    "complete_usage_records":  1,
+                                                                    "requests_by_role":  {
+                                                                                             "master":  4
+                                                                                         },
+                                                                    "reported_usage":  {
+                                                                                           "input_tokens":  {
+                                                                                                                "known_sum":  5534,
+                                                                                                                "measured_records":  1
+                                                                                                            },
+                                                                                           "output_tokens":  {
+                                                                                                                 "known_sum":  747,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "cached_tokens":  {
+                                                                                                                 "known_sum":  23662,
+                                                                                                                 "measured_records":  1
+                                                                                                             },
+                                                                                           "reasoning_tokens":  {
+                                                                                                                    "known_sum":  277,
+                                                                                                                    "measured_records":  1
+                                                                                                                }
+                                                                                       },
+                                                                    "cache_exceeds_reported_input_trials":  1,
+                                                                    "browser_actions":  0,
+                                                                    "browser_timed_actions":  0,
+                                                                    "browser_service_ms":  0,
+                                                                    "outcome_success_rate":  1,
+                                                                    "median_agent_seconds":  16.74,
+                                                                    "agent_timing_records":  1,
+                                                                    "usage_complete":  true,
+                                                                    "tokens_per_successful_outcome":  6281,
+                                                                    "provider_credits":  null
+                                                                }
+                                                  }
+                                 },
+                       "note":  "Descriptive development comparison, not statistical proof. Negative latency/token deltas are reductions; inspect success and coverage first."
+                   },
+    "receipts":  [
+                     {
+                         "attempt":  "b01-solo-1",
+                         "trial_id":  "c2014d67-fb41-4ae7-812d-1aad0b987621",
+                         "sha256":  "144996f58f0b022494d5f5fc4225167d4fe793dbe005a91db35060679782a358",
+                         "execution":  "succeeded",
+                         "outcome":  "failed",
+                         "authorization":  "not_evaluated"
+                     },
+                     {
+                         "attempt":  "b01-team-1",
+                         "trial_id":  "aec4857e-152c-40ea-bba1-d8dec7fd2ff5",
+                         "sha256":  "60d1b57fd4bc8d045f87f647f59fd146b3312765d3e737a83e83a6593e7c30a0",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated"
+                     },
+                     {
+                         "attempt":  "d01-solo-1",
+                         "trial_id":  "d58dcd90-7d8b-4143-b886-8c77439122db",
+                         "sha256":  "2777292755665e21e64e9b28aaedb4fcbe37982dc9dc2bcb4b46e8f132c54b23",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated"
+                     },
+                     {
+                         "attempt":  "d01-team-1",
+                         "trial_id":  "43602d37-cabc-4972-91a6-640d2c238384",
+                         "sha256":  "513c10e39e1ac0f1429f620de659726be49079e97d723029a31f06425ca7df78",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated"
+                     },
+                     {
+                         "attempt":  "v01-solo-1",
+                         "trial_id":  "d3c89b74-0761-47ba-a4e4-8005517b4345",
+                         "sha256":  "8e909fac262cb04e3954ad98c0acd92a4ed69b126d1308f129346724e0c3e105",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated"
+                     },
+                     {
+                         "attempt":  "v01-team-1",
+                         "trial_id":  "b858094a-bf48-4fa0-a676-1b9506c0a5b4",
+                         "sha256":  "823443cf76ebeaee7a55d0755d45a01dcf2117e04c652ae117984634129af5ff",
+                         "execution":  "succeeded",
+                         "outcome":  "passed",
+                         "authorization":  "not_evaluated"
+                     }
+                 ],
+    "retained_failure":  {
+                             "attempt":  "b01-solo-1",
+                             "reason":  "Wrong note selector exhausted a 30-second script while the locator also had a 30-second default. In-flight owner cleanup ended the browser and prevented recovery.",
+                             "scope":  "One observed failure; not proof that checkpoint prompting caused it. Deadline repair and its follow-up are separate."
+                         }
+}

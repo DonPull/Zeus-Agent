@@ -185,13 +185,34 @@ test('concurrent script clients acquire one service without inventing sessions',
     queueMockResponse(response(finish));await app.send();const sessions=await app.sessions();expect(sessions).toHaveLength(1);expect(sessions[0].runtime.cleanup.owned_processes_remaining).toBe(0);
 });
 
-test('a script timeout cannot leave a browser action running or replay its uncertain effect',async()=>{
-    const app=await fixture();queueMockResponse(response(action('navigate',{url})));
-    const timed=script("from zeus_browser import call\ncall('navigate',url="+JSON.stringify(url+'slow')+",timeout_ms=60000)");timed.action.timeout_secs=1;
+test('a hard script timeout still reaps the owner and never repeats an uncertain effect',async()=>{
+    const app=await fixture(),before=updates;queueMockResponse(response(action('navigate',{url})));
+    const timed=script("from zeus_browser import call\nimport time\ntry:\n call('click',target={'css':'#save'},timeout_ms=250,expect={'target':{'css':'#statusText'},'condition':{'kind':'text','value':'Never confirmed'}})\nexcept Exception as error:\n print(error,flush=True)\ntime.sleep(60)");timed.action.timeout_secs=3;
     queueMockResponse(response(timed));queueMockResponse(response(finish));await app.send();
-    const session=(await app.sessions())[0];expect(session.status).toBe('failed');expect(session.runtime.cleanup.owned_processes_remaining).toBe(0);
+    const session=(await app.sessions())[0];expect(session.runtime.cleanup.owned_processes_remaining).toBe(0);
     const actions=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:app.task.id,session:session.session_id});
     expect(actions.at(-1).status).toBe('uncertain');
+    expect(updates-before).toBe(1);
+    const messages=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id,true),app.task.id);
+    expect(messages.some(message=>message.kind==='action'&&JSON.parse(message.content).timed_out===true)).toBe(true);
+});
+
+test('a default locator timeout returns before its script deadline and the same browser can recover',async()=>{
+    const app=await fixture(),before=updates;
+    queueMockResponse(response(action('navigate',{url})));
+    const missing=script("from zeus_browser import call\ncall('fill',target={'css':'#not-a-real-field'},value='must not appear')");
+    missing.action.timeout_secs=4;queueMockResponse(response(missing));
+    queueMockResponse(response(script("from zeus_browser import call\nimport uuid,time\ncall('fill',target={'css':'#note'},value='Recovered after a locator failure')\nonce=str(uuid.uuid4())\ncall('click',target={'css':'#save'},action_id=once)\ntime.sleep(.6)\ncall('click',target={'css':'#save'},action_id=once)\nassert 'Recovered after a locator failure' in call('observe')['text']")));
+    queueMockResponse(response(finish));await app.send();
+    const sessions=await app.sessions();expect(sessions).toHaveLength(1);expect(sessions[0].status).toBe('completed');
+    const actions=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:app.task.id,session:sessions[0].session_id});
+    expect(actions.some(row=>row.op==='fill'&&row.status==='failed')).toBe(true);
+    expect(actions.filter(row=>row.op==='click'&&row.status==='succeeded')).toHaveLength(1);
+    const messages=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id,true),app.task.id);
+    const failed=messages.filter(message=>message.kind==='action').map(message=>JSON.parse(message.content)).find(action=>action.exit_code!==0);
+    expect(failed.timed_out).toBe(false);expect(failed.stderr).toContain('BROWSER_ACTION_FAILED');
+    expect(updates-before).toBe(1);
+    expect(sessions[0].runtime.cleanup.owned_processes_remaining).toBe(0);
 });
 
 const policy=value=>({choices:[{message:{content:value}}],usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10}});
@@ -212,6 +233,28 @@ test('a denied normal approval preserves the session and prevents the browser ef
     expect(await pending).toBeNull();const session=(await app.sessions())[0];expect(session.status).toBe('completed');
     const actions=await app.page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:app.task.id,session:session.session_id});
     expect(actions.at(-1).status).toBe('denied');
+});
+
+test('script action budgets exclude time spent waiting on a real permission card',async()=>{
+    const app=await fixture();
+    await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.addWatcherPolicy(id,'Ask before modifying a form; allow navigation.'),app.task.id);
+    queueMockResponse(response(action('navigate',{url})));queueMockResponse(policy('ALLOW'));
+    const bounded=script("from zeus_browser import call\ncall('fill',target={'css':'#note'},value='Approved after a long human wait')");
+    bounded.action.timeout_secs=4;queueMockResponse(response(bounded));queueMockResponse(policy('ASK'));
+    queueMockResponse(response(finish));
+    const pending=app.send().then(()=>null,error=>String(error));
+    let card;
+    await expect.poll(async()=>{
+        const messages=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id,true),app.task.id);
+        card=messages.find(message=>message.kind==='approval'&&JSON.parse(message.content).status==='pending');return !!card;
+    }).toBe(true);
+    await new Promise(resolve=>setTimeout(resolve,4500));
+    await app.page.evaluate(({task,id})=>window.__ZEUS_BRIDGE__.resolvePendingApprovals(task,true,id,'Controlled delayed approval'),{task:app.task.id,id:card.id});
+    expect(await pending).toBeNull();
+    const messages=await app.page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskMessages(id,true),app.task.id);
+    const outcomes=messages.filter(message=>message.kind==='action').map(message=>JSON.parse(message.content));
+    expect(outcomes).toHaveLength(1);expect(outcomes[0].timed_out).toBe(false);expect(outcomes[0].exit_code).toBe(0);
+    expect((await app.sessions())[0].status).toBe('completed');
 });
 
 test('Stop expires a pending browser approval and a late approval cannot execute it',async()=>{

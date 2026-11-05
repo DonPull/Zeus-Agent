@@ -903,6 +903,10 @@ async fn execute_pending(
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         store::assert_running(&conn, task, run)?;
+    }
+    let mut service_params = crate::python_runner::browser_execution_params(&command.params)?;
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
         store::action_state(&conn, id, "dispatched", Some(&authorization), None)?;
     }
     let broker = io.as_mut().unwrap();
@@ -949,8 +953,7 @@ async fn execute_pending(
         cancel: cancel.clone(),
         armed: true,
     };
-    let timeout = command.params["timeout_ms"].as_u64().unwrap_or(30000) + 5000;
-    let mut service_params = command.params.clone();
+    let timeout = service_params["timeout_ms"].as_u64().unwrap_or(30000) + 5000;
     if let Some(upload) = upload.as_ref() {
         service_params["_file"] = upload.metadata.clone();
     }
@@ -962,6 +965,7 @@ async fn execute_pending(
     in_flight.armed = false;
     match result {
         Ok(mut response) => {
+            response["effective_timeout_ms"]=json!(service_params["timeout_ms"].as_u64().unwrap_or(30000));
             let verified = transfers::collect(state, task, &slot.id, &response["transfers"])?;
             if let Some(id) = response["result"]["download"]["id"].as_str() {
                 if let Some(file) = verified.iter().find(|row| row["id"] == id) {

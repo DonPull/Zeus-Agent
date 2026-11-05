@@ -3,8 +3,9 @@
 Status, 5 November 2026: direction reviewed positively by the user, with explicit
 requirements for lightweight checks and lossless, searchable conversation
 retention. Those requirements are incorporated below. Phase 4A and the bounded
-stream diagnostic are implemented with 320 offline checks passing; bounded live
-validation is pending. See the
+stream diagnostic are implemented with 324 offline checks passing; the initial
+live check retained a browser deadline failure. Its general repair is implemented;
+post-repair live validation is pending. See the
 [4A work log](PHASE_4A_WORK_LOG.md). 4B/4C are not implemented. The
 [native reference](benchmarks/native-baseline-20261104.md) is recorded;
 delivery remains small sequential slices with focused review for

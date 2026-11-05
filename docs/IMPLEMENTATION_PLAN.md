@@ -13,8 +13,10 @@ outcomes. It is an early measurement foundation, not the full benchmark suite.
 The [Phase 4 design](PHASE_4_TASK_STATE_DESIGN.md) has been reviewed positively,
 with the user's lightweight-check and lossless-history requirements incorporated.
 Phase 4A automatic task state and the bounded response-format diagnostic are
-implemented with 320 offline checks passing; the bounded live follow-up is
-pending. See the [4A work log](PHASE_4A_WORK_LOG.md).
+implemented with 324 offline checks passing. The initial six-attempt live
+check retained one browser deadline/recovery failure; its general repair is
+implemented and a separate post-repair live follow-up is pending.
+See the [4A work log](PHASE_4A_WORK_LOG.md).
 4B context plus searchable originals and 4C completion evidence remain next,
 with focused review before each substantial slice. Phase 4 is not yet complete.
 
@@ -90,7 +92,7 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 320 checks |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current full regression has 324 checks |
 | 2A — mission contracts/graders | Initial six delivered | B01, C01, C02, D01, D02, V01 references and negative controls; these are grader tests, not six live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |

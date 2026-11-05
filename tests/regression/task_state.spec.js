@@ -102,6 +102,6 @@ test('a rejected stale proposal stays historical while a corrected proposal and 
   expect(plans.map(plan=>plan.proposal_state)).toEqual(['stale','accepted']);
   expect(getMockRequests()).toHaveLength(3);
   const context=getMockRequests()[2].body.messages;
-  expect(context.some(message=>message.role==='assistant'&&message.content.includes('[Model-authored plan]\n'+currentPlan))).toBe(true);
+  expect(context.some(message=>message.role==='user'&&message.content.includes('[Model-authored plan]\n'+currentPlan))).toBe(true);
   expect(context.some(message=>message.role==='system'&&message.content.includes('source of truth for remaining work'))).toBe(false);
 });

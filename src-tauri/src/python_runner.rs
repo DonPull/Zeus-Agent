@@ -4,8 +4,13 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+
+tokio::task_local! {
+    static BROWSER_SCRIPT_BUDGET: Arc<AtomicU64>;
+}
 
 pub struct ActionOutcome {
     pub stdout: String,
@@ -81,6 +86,9 @@ pub async fn run_python_action_scoped(
         .map_err(|e| format!("Failed to create the task workspace: {}", e))?;
 
     let tid_opt = task_id.clone();
+    // The outer script clock excludes human approval waits. Share its remaining
+    // active budget with IPC so a locator can fail before the script is killed.
+    let script_budget=Arc::new(AtomicU64::new(timeout_secs.saturating_mul(1000)));
     let ipc_token=format!("{}{}",crate::db::new_id(),crate::db::new_id());
     let ipc_stop=browser_context.as_ref().map(|context|context.cancel.child_token()).unwrap_or_default();
     let mut ipc_owner=IpcOwner{stop:ipc_stop.clone(),listener:None,app:app_handle.clone(),context:browser_context.clone()};
@@ -91,7 +99,7 @@ pub async fn run_python_action_scoped(
             ipc_port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
             let app_clone = app.clone();
             let tid_clone = tid.clone();
-            let context=browser_context.clone();let token=ipc_token.clone();let stop=ipc_stop.clone();
+            let context=browser_context.clone();let token=ipc_token.clone();let stop=ipc_stop.clone();let budget=script_budget.clone();
             ipc_owner.listener=Some(tokio::spawn(async move {
                 let mut connections=tokio::task::JoinSet::new();
                 loop{tokio::select!{
@@ -99,10 +107,10 @@ pub async fn run_python_action_scoped(
                     result=listener.accept()=>{
                         let Ok((stream,_))=result else{break};
                         if connections.len()>=16{drop(stream);continue;}
-                        let app=app_clone.clone();let task=tid_clone.clone();let context=context.clone();let token=token.clone();let stop=stop.clone();
+                        let app=app_clone.clone();let task=tid_clone.clone();let context=context.clone();let token=token.clone();let stop=stop.clone();let budget=budget.clone();
                         connections.spawn(async move{tokio::select!{
                             _=stop.cancelled()=>{},
-                            _=handle_ipc_connection(stream,app,task,context,token)=>{},
+                            _=handle_ipc_connection(stream,app,task,context,token,budget)=>{},
                         }});
                     },
                     _=connections.join_next(),if !connections.is_empty()=>{},
@@ -339,6 +347,7 @@ sys.addaudithook(_zeus_audit_hook)
                 // Only accumulate active execution time if NOT waiting on human approval!
                 if !has_pending_approval {
                     elapsed_active += delta;
+                    script_budget.store(timeout_secs.saturating_mul(1000).saturating_sub(elapsed_active.as_millis().min(u64::MAX as u128) as u64),Ordering::Relaxed);
                     if elapsed_active >= timeout_duration {
                         timed_out = true;
                         let _ = child.kill().await;
@@ -395,12 +404,42 @@ async fn bounded_ipc_line<R:tokio::io::AsyncBufRead+Unpin>(reader:&mut R,line:&m
     let len=bytes.len();*line=String::from_utf8(bytes).map_err(|e|std::io::Error::new(std::io::ErrorKind::InvalidData,e))?;Ok(len)
 }
 
+/// Reserve room for browser boundary captures, IPC and interpreter cleanup.
+/// This bounds defaults AND explicit timeouts; it does not shorten native
+/// browser actions or automatically retry a potentially committed effect.
+fn bound_browser_timeout(params:&mut serde_json::Value,remaining_ms:u64)->Result<(),String>{
+    let requested=match params.get("timeout_ms"){
+        None=>30000,
+        Some(value)=>value.as_u64().filter(|value|(100..=60000).contains(value))
+            .ok_or("BROWSER_ARGUMENT: timeout_ms must be an integer from 100 to 60000")?,
+    };
+    let reserve=(remaining_ms/3).clamp(1000,8000);
+    let available=remaining_ms.saturating_sub(reserve);
+    if available<100 {
+        return Err("BROWSER_SCRIPT_BUDGET: insufficient active script budget for another browser action; no action was dispatched. Return control and use a new script or browser_action.".into());
+    }
+    params.as_object_mut().ok_or("BROWSER_ARGUMENT: params must be an object")?
+        .insert("timeout_ms".into(),serde_json::json!(requested.min(available)));
+    Ok(())
+}
+
+/// Apply the execution limit after policy/startup/queue waits, without changing
+/// the canonical requested action or its idempotency/authorization hash.
+pub(crate) fn browser_execution_params(params:&serde_json::Value)->Result<serde_json::Value,String>{
+    let mut execution=params.clone();
+    if let Ok(remaining)=BROWSER_SCRIPT_BUDGET.try_with(|budget|budget.load(Ordering::Relaxed)){
+        bound_browser_timeout(&mut execution,remaining)?;
+    }
+    Ok(execution)
+}
+
 async fn handle_ipc_connection(
     mut stream: tokio::net::TcpStream,
     app_handle: tauri::AppHandle,
     task_id: String,
     browser_context:Option<BrowserScriptContext>,
     ipc_token:String,
+    script_budget:Arc<AtomicU64>,
 ) {
     let (reader, mut writer) = stream.split();
     let mut reader = tokio::io::BufReader::new(reader);
@@ -427,10 +466,10 @@ async fn handle_ipc_connection(
             if req_type=="managed_browser"{
                 let response=match serde_json::from_value::<crate::managed_browser::BrowserCommand>(req["command"].clone()){
                     Ok(command)=>match crate::evaluation::directive(){
-                        Ok(())=>match Box::pin(crate::managed_browser::execute(&state,&app_handle,&task_id,&context.run_id,&context.cancel,&context.caller,command)).await{
+                        Ok(())=>match BROWSER_SCRIPT_BUDGET.scope(script_budget.clone(),Box::pin(crate::managed_browser::execute(&state,&app_handle,&task_id,&context.run_id,&context.cancel,&context.caller,command))).await{
                             Ok(value)=>value,Err(error)=>serde_json::json!({"ok":false,"error":{"code":error.split(':').next().unwrap_or("BROWSER_ERROR"),"message":error}}),
                         },
-                        Err(error)=>serde_json::json!({"ok":false,"error":{"code":"EVAL_LIMIT","message":error}}),
+                        Err(error)=>serde_json::json!({"ok":false,"error":{"code":error.split(':').next().unwrap_or("BROWSER_ERROR"),"message":error}}),
                     },
                     Err(_)=>serde_json::json!({"ok":false,"error":{"code":"BROWSER_ARGUMENT","message":"Invalid browser command"}}),
                 };
@@ -562,6 +601,36 @@ async fn handle_ipc_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_command_timeout_fits_the_remaining_active_script_budget() {
+        let mut default=serde_json::json!({});
+        bound_browser_timeout(&mut default,30000).unwrap();
+        assert_eq!(default["timeout_ms"],22000);
+        let mut short=serde_json::json!({"timeout_ms":500});
+        bound_browser_timeout(&mut short,30000).unwrap();
+        assert_eq!(short["timeout_ms"],500);
+        let mut explicit=serde_json::json!({"timeout_ms":60000});
+        bound_browser_timeout(&mut explicit,4000).unwrap();
+        assert_eq!(explicit["timeout_ms"],2667);
+        assert!(bound_browser_timeout(&mut default,1000).unwrap_err().starts_with("BROWSER_SCRIPT_BUDGET:"));
+        for invalid in [serde_json::json!(0),serde_json::json!(true),serde_json::json!(1.5),serde_json::json!(60001)] {
+            assert!(bound_browser_timeout(&mut serde_json::json!({"timeout_ms":invalid}),30000).unwrap_err().starts_with("BROWSER_ARGUMENT:"));
+        }
+    }
+
+    #[tokio::test]
+    async fn browser_execution_limits_preserve_canonical_params_and_do_not_leak_between_scripts() {
+        let requested=serde_json::json!({"timeout_ms":60000});
+        assert_eq!(browser_execution_params(&requested).unwrap(),requested);
+        let first=BROWSER_SCRIPT_BUDGET.scope(Arc::new(AtomicU64::new(4000)),async{browser_execution_params(&requested).unwrap()});
+        let second=BROWSER_SCRIPT_BUDGET.scope(Arc::new(AtomicU64::new(30000)),async{browser_execution_params(&requested).unwrap()});
+        let (first,second)=tokio::join!(first,second);
+        assert_eq!(first["timeout_ms"],2667);
+        assert_eq!(second["timeout_ms"],22000);
+        assert_eq!(requested["timeout_ms"],60000);
+        assert_eq!(browser_execution_params(&requested).unwrap(),requested);
+    }
 
     // Regression test for the pipe-buffer bug: stdout larger than the OS pipe
     // buffer must arrive intact (this used to come back empty).

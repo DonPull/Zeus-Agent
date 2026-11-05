@@ -167,6 +167,13 @@ Stopped/failed/interrupted work and pauses no longer depend on another model
 plan update; model milestone reports remain separate from verification.
 Searchable original history and reliable compaction remain Phase 4B.
 
+The initial 4A live check retained 5/6 outcomes. Its failed browser task exposed
+a missing-locator wait exhausting the surrounding script's equal 30-second
+deadline, ending the browser before recovery. The [general deadline repair](PHASE_4A_WORK_LOG.md#general-deadline-repair-and-follow-up)
+coordinates remaining active execution time without changing action identity,
+counting approval waits or replaying uncertain effects. Its 324-check offline
+validation passed; post-repair live follow-up remains separately recorded.
+
 The 4 November repeated reference also retains a real
 `MODEL_PROTOCOL_ERROR` from repeated directive blocks. The original raw provider
 stream was not recorded, so generation versus upstream transport origin is

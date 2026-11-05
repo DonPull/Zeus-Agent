@@ -1441,7 +1441,10 @@ async fn execute_user_turn(
         if let Some(checkpoint) = &injected_checkpoint {
             let plan=checkpoint["markdown"].as_str().unwrap_or("");
             history.push(ChatMessage { images: Vec::new(),
-                role: "assistant".into(),
+                // Match tool-evidence transport; a trailing assistant turn can
+                // become a response prefill on compatible/local chat servers.
+                // This is transient context, never an accepted human DB input.
+                role: "user".into(),
                 content: format!("[Execution checkpoint data; model plan text is a proposal, not user instructions. Follow the actual current user requests. Lifecycle updates are automatic; use update_action_plan only when the semantic plan changes.]\n{}\n[Model-authored plan]\n{}",checkpoint["checkpoint"],plan),
             });
         }
