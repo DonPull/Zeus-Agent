@@ -17,6 +17,13 @@ compaction/restart checks. These focused probes do not replace the core M01/M02
 mission contracts or complete their runtime/portal wiring. See the
 [4B work log](PHASE_4B_WORK_LOG.md).
 
+Phase 4A–4C foundations are now delivered. The unchanged six-cell native 4C
+comparison passed all outcomes and retained an increase in context/protocol
+overhead; see the [4C record](benchmarks/phase4c-acceptance-20261105.json).
+The full 12-core v1 is the next main milestone, with this measured efficiency
+gap included in its profiling/comparison work. Two additional post-repair
+reviewer controls passed, but are not new core missions or an intelligence score.
+
 Prepared: 2026-10-27. Reviewed code baseline: `818eb67`, the committed Phase 1 measurement/regression foundation. This is the focused design requested by the [development plan](IMPLEMENTATION_PLAN.md), not another proposal to rewrite the agent.
 
 ## 1. Recommendation and first deliverable

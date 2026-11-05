@@ -61,6 +61,13 @@ Manual follow-up on 2026-10-30 found permission titles inherited `user-select:no
 
 **Priority: high. Status: workspace-policy defect repaired; reliable goal completion remains open.**
 
+Phase 4C now records scoped runtime checks and optional source-grounded model
+reviews without promoting narration or tool exit into whole-goal verification.
+Six matched native outcomes and two post-repair reviewer controls passed; the
+initial reviewer abstention remains recorded. This foundation does not close
+general semantic completion or independent authorization coverage. See the
+[4C work log](PHASE_4C_WORK_LOG.md), and ZA-012 for the measured efficiency gap.
+
 The 2026-11-01 browser follow-up reproduced narration/false tool-unavailability
 with Luna on both wire protocols. A transport clarification helped it navigate
 once but did not establish reliable continuation. Separate Sol controls passed
@@ -195,6 +202,34 @@ transport remains a separate measured decision.
 The subsequent [browser UX follow-up](BROWSER_UX_FOLLOWUP.md) addresses relative file links unloading chat, active-session Replay affordances, freshness/status presentation, centered replay jumps/playback and generic readiness/input overhead. It removes the normal recording-export button while retaining a separate maintainer CLI. Fixed viewed capture targets 8 FPS/quality 80, with no load-based throttling and no corresponding increase in archive frequency. Native document rendering, compression, conversation transfer, comprehensive UI polish and browser hydration on arbitrary sites remain outside this patch. The work log retains the exact validation and limits; these controls alone do not establish faster or more reliable live-model task completion.
 
 Phase 3C passed **257 offline checks plus seven optimized checks**, frontend build and production compile. Its two bounded live attempts retain one false tool-unavailability reply and one independently correct workflow/final summary with recorded history and clean shutdown. Authorization is still partially evaluated; no fully verified isolated baseline is claimed. The earlier 3B/stabilization results remain historical and are not retroactively upgraded. Next browser design is 3D; deterministic initiation/task state/completion/memory remains high priority, as does a mixed-task live acceptance pack with frozen settings and retained failures. Remote CI remains unverified.
+
+## ZA-012 — Context/protocol overhead in the Phase 4 comparison
+
+**Priority: high. Status: measured follow-up; outcome success retained, efficiency improvement not established.**
+
+The unchanged six native D01/B01/V01 cells passed on both the pre-Phase-4
+reference and the delivered 4C build. Across 4A/4B/4C, actor requests rose from
+32 to 41 and reported tokens from 57,056 to 164,747. Duplicate-directive
+rejections rose from five to 13. B01 Solo's first logged payload estimate grew
+from 14,686 to 19,072 bytes. Four cells were slower, two slightly faster; this
+is one attempt per cell, not a causal or statistically stable estimate.
+
+All requests in the six cases were master calls: no optional paid completion
+review caused the increase, and Team configuration did not demonstrate active
+delegation. The old and new cache counters have uncertain provider semantics,
+including cached counts greater than reported input; do not convert the token
+ratio into a subscription-credit or dollar ratio. The exact cause of generated
+versus upstream-duplicated directive blocks remains unverified without a bounded
+wire reproduction. The app rejected every ambiguous multi-action response.
+
+Profile context-package overhead, protocol repair/format behavior, turn count,
+observations, readiness and batching under the full Benchmark v1/efficiency
+track before accepting an optimization. Preserve original history, source
+provenance, outcome graders and the one-action execution contract. Do not solve
+this by silently executing an ambiguous reply or removing correctness checks.
+The [reviewed 4C record](benchmarks/phase4c-acceptance-20261105.json) retains
+both builds, raw usage, per-cell times, rejection counts and receipt hashes;
+the [work log](PHASE_4C_WORK_LOG.md) states comparison limits.
 
 ## Chat/replay usability follow-up — 2026-11-01
 

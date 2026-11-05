@@ -9,11 +9,14 @@ with three separately recorded successful post-repair Solo outcomes. See the
 [4A work log](PHASE_4A_WORK_LOG.md). The approved 4B implementation is delivered:
 344 offline checks and four live history outcomes passed; see its
 [work log](PHASE_4B_WORK_LOG.md) for source retention, decisions and limits.
-4C is implemented and undergoing final acceptance; see its
-[contract](PHASE_4C_COMPLETION_DESIGN.md) and [work log](PHASE_4C_WORK_LOG.md). The
+4C is delivered with current coverage of 370 distinct automated checks, six
+matched native outcomes and two successful post-repair reviewer controls; see its
+[contract](PHASE_4C_COMPLETION_DESIGN.md) and [work log](PHASE_4C_WORK_LOG.md) for
+the retained initial abstention and measured context/protocol efficiency gap. The
 [native reference](benchmarks/native-baseline-20261104.md) is recorded;
-delivery remains small sequential slices with focused review for
-4B/4C, rather than one state, memory, protocol and Team rewrite.
+delivery used small sequential slices with focused review for 4B/4C.
+Full 12-core Benchmark v1 and context/protocol efficiency measurement are next;
+the sample does not establish a general goal-completion or efficiency guarantee.
 
 ## Tangible differences
 

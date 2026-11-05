@@ -1,0 +1,1945 @@
+{
+  "date": "2026-11-05",
+  "kind": "reviewed-phase4c-native-acceptance-v1",
+  "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+  "offline": {
+    "full_run": {
+      "source_commit": "f1d8713ea82db6b8a3bbab8561223ddd3c39bb7b",
+      "checks": {
+        "javascript": 63,
+        "mission_graders": 37,
+        "rust": 125,
+        "browser_service": 23,
+        "desktop": 118,
+        "private_desktop_handoff": 3
+      },
+      "group_results": "369 passed, zero test failures",
+      "shell_reported_exit": 1,
+      "shell_note": "Original child exit not separately captured. A zero-exit Node process writing synthetic stderr reproduces the PowerShell redirection wrapper exit 1; explicit exit with LASTEXITCODE returns 0. Both probes retained."
+    },
+    "ledger_followup": {
+      "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+      "command": "node scripts/run_regression.js --backend --ui-files completion",
+      "rust_passed": 126,
+      "desktop_passed": 12,
+      "exit_code": 0,
+      "receipt_kind": "Transcribed from completed tool output; no separate raw log"
+    },
+    "current_distinct_coverage": 370,
+    "frontend_build": "passed",
+    "ui_review": "Wide/narrow actual desktop screenshots inspected",
+    "retained_development_failure": "First browser fixture used unsupported locator exact:true; 37/38 targeted checks passed. Correcting the fixture to documented CSS, without relaxing production checks, passed all ten original completion cases; later 15 completion/gallery checks passed."
+  },
+  "native_study": {
+    "schema_version": 1,
+    "plan_id": "278426138c4fb4f0e363beb5f663739e88e755050e6911a1199a71bc5f716faa",
+    "contract_fingerprint": "b18c62c49a6ada03022f04b01fc96ae5de02df9bc2cb079db0678376d384a897",
+    "build": {
+      "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+      "dirty": false,
+      "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+      "node": "v22.13.1"
+    },
+    "scheduled": 6,
+    "recorded": 6,
+    "cells": {
+      "D01/solo": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 5,
+        "known_tokens": 17876,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 5
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 16039,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 1837,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 13608,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 367,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 0,
+        "browser_actions": 0,
+        "browser_timed_actions": 0,
+        "browser_service_ms": 0,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 29.295,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 17876,
+        "provider_credits": null
+      },
+      "D01/team": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 8,
+        "known_tokens": 28151,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 8
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 26037,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 2114,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 31675,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 489,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 1,
+        "browser_actions": 0,
+        "browser_timed_actions": 0,
+        "browser_service_ms": 0,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 51.892,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 28151,
+        "provider_credits": null
+      },
+      "B01/solo": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 7,
+        "known_tokens": 28980,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 7
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 28061,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 919,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 23814,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 431,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 0,
+        "browser_actions": 10,
+        "browser_timed_actions": 10,
+        "browser_service_ms": 594,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 28.022,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 28980,
+        "provider_credits": null
+      },
+      "B01/team": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 12,
+        "known_tokens": 49386,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 12
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 47612,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 1774,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 54300,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 740,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 1,
+        "browser_actions": 10,
+        "browser_timed_actions": 10,
+        "browser_service_ms": 549,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 46.187,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 49386,
+        "provider_credits": null
+      },
+      "V01/solo": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 4,
+        "known_tokens": 17417,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 4
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 16613,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 804,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 13608,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 112,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 0,
+        "browser_actions": 0,
+        "browser_timed_actions": 0,
+        "browser_service_ms": 0,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 16.835,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 17417,
+        "provider_credits": null
+      },
+      "V01/team": {
+        "scheduled": 1,
+        "recorded": 1,
+        "successful_outcomes": 1,
+        "verified_passes": 0,
+        "statuses": {
+          "succeeded": 1
+        },
+        "known_requests": 5,
+        "known_tokens": 22937,
+        "complete_usage_records": 1,
+        "requests_by_role": {
+          "master": 5
+        },
+        "reported_usage": {
+          "input_tokens": {
+            "known_sum": 21540,
+            "measured_records": 1
+          },
+          "output_tokens": {
+            "known_sum": 1397,
+            "measured_records": 1
+          },
+          "cached_tokens": {
+            "known_sum": 22625,
+            "measured_records": 1
+          },
+          "reasoning_tokens": {
+            "known_sum": 720,
+            "measured_records": 1
+          }
+        },
+        "cache_exceeds_reported_input_trials": 1,
+        "browser_actions": 0,
+        "browser_timed_actions": 0,
+        "browser_service_ms": 0,
+        "outcome_success_rate": 1,
+        "median_agent_seconds": 24.384,
+        "agent_timing_records": 1,
+        "usage_complete": true,
+        "tokens_per_successful_outcome": 22937,
+        "provider_credits": null
+      }
+    },
+    "limitations": [
+      "Native host permissions, not isolated grading or authorization certification.",
+      "Three development missions, not the complete Zeus Benchmark v1.",
+      "Token units are not subscription credits. Unknown usage is not zero."
+    ],
+    "token_note": "Runtime-reported token units are not provider credits or a context-length estimate. Raw cache/reasoning fields are preserved separately, not added to the total; gateway cache semantics may differ."
+  },
+  "comparison": {
+    "before_build": {
+      "source_commit": "b40f032e4b214a4eb7d718f5d72795097e40e8b4",
+      "dirty": false,
+      "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+      "node": "v22.13.1"
+    },
+    "after_build": {
+      "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+      "dirty": false,
+      "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+      "node": "v22.13.1"
+    },
+    "cells": {
+      "D01/solo": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": 5.714000000000002,
+        "tokens_per_successful_outcome_delta": 8808,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 4,
+          "known_tokens": 9068,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 4
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 7404,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 1664,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 10925,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 177,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 23.581,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 9068,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 5,
+          "known_tokens": 17876,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 5
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 16039,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 1837,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 13608,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 367,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 0,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 29.295,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 17876,
+          "provider_credits": null
+        }
+      },
+      "D01/team": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": 7.981000000000002,
+        "tokens_per_successful_outcome_delta": 13161,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 6,
+          "known_tokens": 14990,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 6
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 11949,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 3041,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 28213,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 592,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 43.911,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 14990,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 8,
+          "known_tokens": 28151,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 8
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 26037,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 2114,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 31675,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 489,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 51.892,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 28151,
+          "provider_credits": null
+        }
+      },
+      "B01/solo": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": -0.5520000000000032,
+        "tokens_per_successful_outcome_delta": 22072,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 5,
+          "known_tokens": 6908,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 5
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 5880,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 1028,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 18954,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 599,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 8,
+          "browser_timed_actions": 8,
+          "browser_service_ms": 515,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 28.574,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 6908,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 7,
+          "known_tokens": 28980,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 7
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 28061,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 919,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 23814,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 431,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 0,
+          "browser_actions": 10,
+          "browser_timed_actions": 10,
+          "browser_service_ms": 594,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 28.022,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 28980,
+          "provider_credits": null
+        }
+      },
+      "B01/team": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": 17.79,
+        "tokens_per_successful_outcome_delta": 34521,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 9,
+          "known_tokens": 14865,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 9
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 13908,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 957,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 48721,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 463,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 9,
+          "browser_timed_actions": 9,
+          "browser_service_ms": 625,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 28.397,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 14865,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 12,
+          "known_tokens": 49386,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 12
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 47612,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 1774,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 54300,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 740,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 10,
+          "browser_timed_actions": 10,
+          "browser_service_ms": 549,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 46.187,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 49386,
+          "provider_credits": null
+        }
+      },
+      "V01/solo": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": -2.6209999999999987,
+        "tokens_per_successful_outcome_delta": 12017,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 4,
+          "known_tokens": 5400,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 4
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 4578,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 822,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 19217,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 352,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 19.456,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 5400,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 4,
+          "known_tokens": 17417,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 4
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 16613,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 804,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 13608,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 112,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 0,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 16.835,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 17417,
+          "provider_credits": null
+        }
+      },
+      "V01/team": {
+        "outcome_success_rate_delta": 0,
+        "median_agent_seconds_delta": 8.947000000000001,
+        "tokens_per_successful_outcome_delta": 17112,
+        "before": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 4,
+          "known_tokens": 5825,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 4
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 5094,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 731,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 23731,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 106,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 15.437,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 5825,
+          "provider_credits": null
+        },
+        "after": {
+          "scheduled": 1,
+          "recorded": 1,
+          "successful_outcomes": 1,
+          "verified_passes": 0,
+          "statuses": {
+            "succeeded": 1
+          },
+          "known_requests": 5,
+          "known_tokens": 22937,
+          "complete_usage_records": 1,
+          "requests_by_role": {
+            "master": 5
+          },
+          "reported_usage": {
+            "input_tokens": {
+              "known_sum": 21540,
+              "measured_records": 1
+            },
+            "output_tokens": {
+              "known_sum": 1397,
+              "measured_records": 1
+            },
+            "cached_tokens": {
+              "known_sum": 22625,
+              "measured_records": 1
+            },
+            "reasoning_tokens": {
+              "known_sum": 720,
+              "measured_records": 1
+            }
+          },
+          "cache_exceeds_reported_input_trials": 1,
+          "browser_actions": 0,
+          "browser_timed_actions": 0,
+          "browser_service_ms": 0,
+          "outcome_success_rate": 1,
+          "median_agent_seconds": 24.384,
+          "agent_timing_records": 1,
+          "usage_complete": true,
+          "tokens_per_successful_outcome": 22937,
+          "provider_credits": null
+        }
+      }
+    },
+    "note": "Descriptive development comparison, not statistical proof. Negative latency/token deltas are reductions; inspect success and coverage first."
+  },
+  "trials": [
+    {
+      "trial_id": "43871994-3d0a-4f96-8667-9dd225af4e87",
+      "prompt_id": "B01",
+      "architecture": "solo",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "fbaac1cb3b5956489f076510c94517ec6e5de70becd49fd0f70553d4c15385b1",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 7,
+        "unknown_requests": 0,
+        "known_tokens": 28980,
+        "input_tokens": 28061,
+        "output_tokens": 919,
+        "reasoning_tokens": 431,
+        "cached_tokens": 23814,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 7
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 7
+        },
+        "requests_by_connection": {
+          "abacus": 7
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 28.022,
+        "browser": {
+          "actions": 10,
+          "truncated": false,
+          "operations": {
+            "navigate/succeeded": {
+              "count": 2,
+              "service_ms": 249,
+              "timed_actions": 2
+            },
+            "observe/succeeded": {
+              "count": 4,
+              "service_ms": 125,
+              "timed_actions": 4
+            },
+            "inspect/succeeded": {
+              "count": 1,
+              "service_ms": 16,
+              "timed_actions": 1
+            },
+            "select_option/succeeded": {
+              "count": 1,
+              "service_ms": 78,
+              "timed_actions": 1
+            },
+            "fill/succeeded": {
+              "count": 1,
+              "service_ms": 63,
+              "timed_actions": 1
+            },
+            "click/succeeded": {
+              "count": 1,
+              "service_ms": 63,
+              "timed_actions": 1
+            }
+          },
+          "service_ms": 594,
+          "timed_actions": 10,
+          "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+        }
+      },
+      "interventions": []
+    },
+    {
+      "trial_id": "d3707990-d4ca-44ae-aba7-4d2b3f836459",
+      "prompt_id": "B01",
+      "architecture": "team",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "5638a37ed49a365ddd2a9529b10a6badaac6e885e2c7a8156e7160808cf29518",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 12,
+        "unknown_requests": 0,
+        "known_tokens": 49386,
+        "input_tokens": 47612,
+        "output_tokens": 1774,
+        "reasoning_tokens": 740,
+        "cached_tokens": 54300,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 12
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 12
+        },
+        "requests_by_connection": {
+          "abacus": 12
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 46.187,
+        "browser": {
+          "actions": 10,
+          "truncated": false,
+          "operations": {
+            "navigate/succeeded": {
+              "count": 2,
+              "service_ms": 250,
+              "timed_actions": 2
+            },
+            "observe/succeeded": {
+              "count": 4,
+              "service_ms": 79,
+              "timed_actions": 4
+            },
+            "inspect/succeeded": {
+              "count": 1,
+              "service_ms": 16,
+              "timed_actions": 1
+            },
+            "select_option/succeeded": {
+              "count": 1,
+              "service_ms": 63,
+              "timed_actions": 1
+            },
+            "fill/succeeded": {
+              "count": 1,
+              "service_ms": 63,
+              "timed_actions": 1
+            },
+            "click/succeeded": {
+              "count": 1,
+              "service_ms": 78,
+              "timed_actions": 1
+            }
+          },
+          "service_ms": 549,
+          "timed_actions": 10,
+          "note": "Service time excludes model/approval/queue time; do not sum it with agent wall time."
+        }
+      },
+      "interventions": []
+    },
+    {
+      "trial_id": "a37e4caa-fd58-4395-ac3a-fe3c48fad399",
+      "prompt_id": "D01",
+      "architecture": "solo",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "62e35f8463b8b3663bcffcd1d6b66e9e286d908f68e740b5db0c9645b54d8548",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 5,
+        "unknown_requests": 0,
+        "known_tokens": 17876,
+        "input_tokens": 16039,
+        "output_tokens": 1837,
+        "reasoning_tokens": 367,
+        "cached_tokens": 13608,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 5
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 5
+        },
+        "requests_by_connection": {
+          "abacus": 5
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 29.295,
+        "browser": null
+      },
+      "interventions": []
+    },
+    {
+      "trial_id": "3aae1d1b-e823-4047-a888-131516be603b",
+      "prompt_id": "D01",
+      "architecture": "team",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "724db0c57fa6f2a38258516d8bb7284f87d6c0fae300b100f417230138498da4",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 8,
+        "unknown_requests": 0,
+        "known_tokens": 28151,
+        "input_tokens": 26037,
+        "output_tokens": 2114,
+        "reasoning_tokens": 489,
+        "cached_tokens": 31675,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 8
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 8
+        },
+        "requests_by_connection": {
+          "abacus": 8
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 51.892,
+        "browser": null
+      },
+      "interventions": []
+    },
+    {
+      "trial_id": "bbb0e558-fe4c-4dc9-bf88-e516c9dee019",
+      "prompt_id": "V01",
+      "architecture": "solo",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "feb687f1c452a276430a8808f6ec102d105e7326297e184f630c7970c80577f3",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 4,
+        "unknown_requests": 0,
+        "known_tokens": 17417,
+        "input_tokens": 16613,
+        "output_tokens": 804,
+        "reasoning_tokens": 112,
+        "cached_tokens": 13608,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 4
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 4
+        },
+        "requests_by_connection": {
+          "abacus": 4
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 16.835,
+        "browser": null
+      },
+      "interventions": []
+    },
+    {
+      "trial_id": "b4850689-d478-4d55-af87-16c63a2c2563",
+      "prompt_id": "V01",
+      "architecture": "team",
+      "build": {
+        "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+        "dirty": false,
+        "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+        "node": "v22.13.1",
+        "runtime": "zeus-evaluation (same production library)"
+      },
+      "configuration_fingerprint": "abecd7f2a38108fabe9f42136a8208f7595f4a54c4c8f2620c3f86fab11b0e6d",
+      "execution_status": "succeeded",
+      "outcome_passed": true,
+      "passed": false,
+      "authorization_status": "not_evaluated",
+      "error": null,
+      "usage": {
+        "requests": 5,
+        "unknown_requests": 0,
+        "known_tokens": 22937,
+        "input_tokens": 21540,
+        "output_tokens": 1397,
+        "reasoning_tokens": 720,
+        "cached_tokens": 22625,
+        "provider_credits": null,
+        "unit_kind": "tokens_not_provider_credits",
+        "requests_by_role": {
+          "master": 5
+        },
+        "requests_by_provider": {
+          "https://routellm.abacus.ai": 5
+        },
+        "requests_by_connection": {
+          "abacus": 5
+        }
+      },
+      "measurements": {
+        "agent_duration_seconds": 24.384,
+        "browser": null
+      },
+      "interventions": []
+    }
+  ],
+  "review_controls": [
+    {
+      "directory": ".zeus/evaluations/phase4c-review-20261105",
+      "experiment": {
+        "kind": "scripted-actor-live-review-controls-v1",
+        "model": "gpt-6.1-terra",
+        "connection": "abacus",
+        "protocol": "chat",
+        "effort": "low",
+        "cases": [
+          "matching-currency",
+          "contradicting-currency"
+        ],
+        "hosted_inference_ceiling": 2,
+        "actor": "hardcoded loopback control, not an LLM; zero declared tokens",
+        "review_output_cap": 2048,
+        "review_attempts_per_case": 1,
+        "note": "Two independent read-only model judgments in the production completion path. No generated commands, no benchmark capability or isolation claim.",
+        "build": {
+          "source_commit": "f1d8713ea82db6b8a3bbab8561223ddd3c39bb7b",
+          "dirty": false,
+          "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+          "node": "v22.13.1"
+        }
+      },
+      "cases": [
+        {
+          "currency": "EUR",
+          "passed": false,
+          "error": null,
+          "elapsed_ms": 9392,
+          "local_scripted_requests": 1,
+          "usage": {
+            "requests": 2,
+            "unknown_requests": 0,
+            "known_tokens": 911,
+            "input_tokens": 555,
+            "output_tokens": 356,
+            "reasoning_tokens": 263,
+            "cached_tokens": 0,
+            "provider_credits": null,
+            "unit_kind": "tokens_not_provider_credits",
+            "requests_by_role": {
+              "master": 1,
+              "verifier": 1
+            },
+            "requests_by_provider": {
+              "http://127.0.0.1:64726": 1,
+              "https://routellm.abacus.ai": 1
+            },
+            "requests_by_connection": {
+              "abacus": 1,
+              "local": 1
+            }
+          },
+          "provider_credits": null,
+          "report": "{\"checked_at\":\"2026-11-05T20:12:58.189952+00:00\",\"checks\":{\"failed\":0,\"passed\":1,\"unknown\":0},\"checks_omitted\":false,\"claim_input_revision\":null,\"claim_status\":\"completed\",\"conversation\":\"master\",\"criteria\":[{\"checks\":[{\"bytes\":18,\"checked_at\":\"2026-11-05T20:12:58.189494300+00:00\",\"expected\":\"EUR\",\"kind\":\"json_value\",\"observed_value_present\":true,\"path\":\"report.json\",\"pointer\":\"/currency\",\"reason\":\"JSON value comparison\",\"scope\":\"artifact predicate, not whole-goal verification\",\"sha256\":\"f2fd0a823b2e34bd89358f390fa1c4661c8d60815084c2b3a63f210e7affde28\",\"state\":\"passed\"}],\"description\":\"Required report currency is satisfied\",\"grounding\":\"linked_human_source_not_semantic_proof\",\"id\":\"currency\",\"plan_step_id\":null,\"sources\":[{\"conversation\":\"master\",\"created_at\":\"2026-11-05T20:12:58.145878+00:00\",\"id\":\"e58ed889-bbd1-4967-8c59-9a3b3085f0aa\",\"kind\":\"chat\",\"provenance\":\"human_input\",\"role\":\"user\",\"seq\":1}]}],\"goal_status\":\"unknown\",\"input_revision\":1,\"review\":{\"attempted\":true,\"evidence\":[\"Human source e58ed889-bbd1-4967-8c59-9a3b3085f0aa requires EUR and prohibits file modifications.\",\"The recorded JSON-value check for report.json at /currency passed against EUR; it does not verify modification history.\"],\"judgment\":\"configured model assessment, not deterministic proof\",\"model\":\"gpt-6.1-terra\",\"reason\":\"The currency check passed, but the evidence does not establish that the existing report was left unmodified.\",\"request_id\":\"9e0efaf6-28bd-4c12-a69c-1bf79b29aa25\",\"state\":\"unknown\"},\"run_id\":\"638fdab9-77a0-4216-b816-565b675fd112\",\"scope\":\"Historical evidence snapshot. Checks are narrow predicates; criteria and expected values are model proposals, not independent whole-goal verification.\",\"source_id\":\"ee067a54-4471-44ea-a884-df60a90863d1\",\"stale\":false,\"version\":2}",
+          "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\4525bd9a-cab1-4d9a-ac19-2886a1c8e863"
+        },
+        {
+          "currency": "USD",
+          "passed": true,
+          "error": null,
+          "elapsed_ms": 6451,
+          "local_scripted_requests": 1,
+          "usage": {
+            "requests": 2,
+            "unknown_requests": 0,
+            "known_tokens": 689,
+            "input_tokens": 552,
+            "output_tokens": 137,
+            "reasoning_tokens": 43,
+            "cached_tokens": 0,
+            "provider_credits": null,
+            "unit_kind": "tokens_not_provider_credits",
+            "requests_by_role": {
+              "master": 1,
+              "verifier": 1
+            },
+            "requests_by_provider": {
+              "http://127.0.0.1:64726": 1,
+              "https://routellm.abacus.ai": 1
+            },
+            "requests_by_connection": {
+              "abacus": 1,
+              "local": 1
+            }
+          },
+          "provider_credits": null,
+          "report": "{\"checked_at\":\"2026-11-05T20:13:07.571951800+00:00\",\"checks\":{\"failed\":0,\"passed\":1,\"unknown\":0},\"checks_omitted\":false,\"claim_input_revision\":null,\"claim_status\":\"completed\",\"conversation\":\"master\",\"criteria\":[{\"checks\":[{\"bytes\":18,\"checked_at\":\"2026-11-05T20:13:07.571481800+00:00\",\"expected\":\"USD\",\"kind\":\"json_value\",\"observed_value_present\":true,\"path\":\"report.json\",\"pointer\":\"/currency\",\"reason\":\"JSON value comparison\",\"scope\":\"artifact predicate, not whole-goal verification\",\"sha256\":\"ea14a2ae6724a06e110bd27e56efaf1c5370129cec23adbae1f30761fbefe20d\",\"state\":\"passed\"}],\"description\":\"Required report currency is satisfied\",\"grounding\":\"linked_human_source_not_semantic_proof\",\"id\":\"currency\",\"plan_step_id\":null,\"sources\":[{\"conversation\":\"master\",\"created_at\":\"2026-11-05T20:13:07.485250200+00:00\",\"id\":\"f85a2b72-661b-4fff-9a12-8202a679a3ff\",\"kind\":\"chat\",\"provenance\":\"human_input\",\"role\":\"user\",\"seq\":2}]}],\"goal_status\":\"unknown\",\"input_revision\":1,\"review\":{\"attempted\":true,\"evidence\":[\"Human source f85a2b72-661b-4fff-9a12-8202a679a3ff requires EUR in the existing report.json and prohibits file modifications.\",\"The recorded json_value check for report.json at /currency passed with expected value USD.\"],\"judgment\":\"configured model assessment, not deterministic proof\",\"model\":\"gpt-6.1-terra\",\"reason\":\"The report cannot be confirmed complete: the required currency is EUR, but the recorded check found USD.\",\"request_id\":\"eeb32d68-5b5b-4137-8919-13375468bd24\",\"state\":\"not_supported\"},\"run_id\":\"5c354c6c-bad9-4b83-8190-03dab20289a2\",\"scope\":\"Historical evidence snapshot. Checks are narrow predicates; criteria and expected values are model proposals, not independent whole-goal verification.\",\"source_id\":\"529d0ee4-59b3-45ce-afd6-9a9ad2f686a6\",\"stale\":false,\"version\":2}",
+          "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\9e3bad4e-59e1-4f4f-bf2f-c3633234052d"
+        }
+      ]
+    },
+    {
+      "directory": ".zeus/evaluations/phase4c-review-ledger-20261105",
+      "experiment": {
+        "kind": "scripted-actor-live-review-controls-v1",
+        "model": "gpt-6.1-terra",
+        "connection": "abacus",
+        "protocol": "chat",
+        "effort": "low",
+        "cases": [
+          "matching-currency",
+          "contradicting-currency"
+        ],
+        "hosted_inference_ceiling": 2,
+        "actor": "hardcoded loopback control, not an LLM; zero declared tokens",
+        "review_output_cap": 2048,
+        "review_attempts_per_case": 1,
+        "note": "Two independent read-only model judgments in the production completion path. No generated commands, no benchmark capability or isolation claim.",
+        "build": {
+          "source_commit": "28d6b871c4a53507aacd34dfcf28aeb13447f411",
+          "dirty": false,
+          "diff_hash": "5dbdd367ae6759b5c09a4545071da13a38c21bf1a1353657d9917e5f8d503807",
+          "node": "v22.13.1"
+        }
+      },
+      "cases": [
+        {
+          "currency": "EUR",
+          "passed": true,
+          "error": null,
+          "elapsed_ms": 6920,
+          "local_scripted_requests": 1,
+          "usage": {
+            "requests": 2,
+            "unknown_requests": 0,
+            "known_tokens": 844,
+            "input_tokens": 648,
+            "output_tokens": 196,
+            "reasoning_tokens": 107,
+            "cached_tokens": 0,
+            "provider_credits": null,
+            "unit_kind": "tokens_not_provider_credits",
+            "requests_by_role": {
+              "master": 1,
+              "verifier": 1
+            },
+            "requests_by_provider": {
+              "http://127.0.0.1:57875": 1,
+              "https://routellm.abacus.ai": 1
+            },
+            "requests_by_connection": {
+              "abacus": 1,
+              "local": 1
+            }
+          },
+          "provider_credits": null,
+          "report": "{\"checked_at\":\"2026-11-05T20:45:31.439510400+00:00\",\"checks\":{\"failed\":0,\"passed\":1,\"unknown\":0},\"checks_omitted\":false,\"claim_input_revision\":null,\"claim_status\":\"completed\",\"conversation\":\"master\",\"criteria\":[{\"checks\":[{\"bytes\":18,\"checked_at\":\"2026-11-05T20:45:31.439046+00:00\",\"expected\":\"EUR\",\"kind\":\"json_value\",\"observed_value_present\":true,\"path\":\"report.json\",\"pointer\":\"/currency\",\"reason\":\"JSON value comparison\",\"scope\":\"artifact predicate, not whole-goal verification\",\"sha256\":\"f2fd0a823b2e34bd89358f390fa1c4661c8d60815084c2b3a63f210e7affde28\",\"state\":\"passed\"}],\"description\":\"Required report currency is satisfied\",\"grounding\":\"linked_human_source_not_semantic_proof\",\"id\":\"currency\",\"plan_step_id\":null,\"sources\":[{\"conversation\":\"master\",\"created_at\":\"2026-11-05T20:45:31.396149900+00:00\",\"id\":\"b24b68ca-1a7f-4cfe-af26-2a675196a3ff\",\"kind\":\"chat\",\"provenance\":\"human_input\",\"role\":\"user\",\"seq\":1}]}],\"goal_status\":\"model_supported\",\"input_revision\":1,\"review\":{\"attempted\":true,\"evidence\":[\"Human source b24b68ca-1a7f-4cfe-af26-2a675196a3ff requires EUR and prohibits file modifications.\",\"The report.json /currency JSON value check passed against EUR.\",\"The execution receipt records no tool attempts.\"],\"judgment\":\"configured model assessment, not deterministic proof\",\"model\":\"gpt-6.1-terra\",\"reason\":\"The recorded check confirms that the report’s currency is EUR. No file modification is recorded.\",\"request_id\":\"6428d774-28dc-462f-b7fe-0c77f6af1b4e\",\"state\":\"supported\"},\"run_id\":\"bf065dfa-16ce-4e5e-9507-5de61cf4a134\",\"scope\":\"Historical evidence snapshot. Checks are narrow predicates; criteria and expected values are model proposals, not independent whole-goal verification.\",\"source_id\":\"21e0f30a-63a9-4c08-9090-a6540efb96c4\",\"stale\":false,\"version\":2}",
+          "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\0af65690-b0ca-4ff4-840c-9c9322050b5c"
+        },
+        {
+          "currency": "USD",
+          "passed": true,
+          "error": null,
+          "elapsed_ms": 6703,
+          "local_scripted_requests": 1,
+          "usage": {
+            "requests": 2,
+            "unknown_requests": 0,
+            "known_tokens": 808,
+            "input_tokens": 647,
+            "output_tokens": 161,
+            "reasoning_tokens": 55,
+            "cached_tokens": 0,
+            "provider_credits": null,
+            "unit_kind": "tokens_not_provider_credits",
+            "requests_by_role": {
+              "master": 1,
+              "verifier": 1
+            },
+            "requests_by_provider": {
+              "http://127.0.0.1:57875": 1,
+              "https://routellm.abacus.ai": 1
+            },
+            "requests_by_connection": {
+              "abacus": 1,
+              "local": 1
+            }
+          },
+          "provider_credits": null,
+          "report": "{\"checked_at\":\"2026-11-05T20:45:38.389565+00:00\",\"checks\":{\"failed\":0,\"passed\":1,\"unknown\":0},\"checks_omitted\":false,\"claim_input_revision\":null,\"claim_status\":\"completed\",\"conversation\":\"master\",\"criteria\":[{\"checks\":[{\"bytes\":18,\"checked_at\":\"2026-11-05T20:45:38.389062200+00:00\",\"expected\":\"USD\",\"kind\":\"json_value\",\"observed_value_present\":true,\"path\":\"report.json\",\"pointer\":\"/currency\",\"reason\":\"JSON value comparison\",\"scope\":\"artifact predicate, not whole-goal verification\",\"sha256\":\"ea14a2ae6724a06e110bd27e56efaf1c5370129cec23adbae1f30761fbefe20d\",\"state\":\"passed\"}],\"description\":\"Required report currency is satisfied\",\"grounding\":\"linked_human_source_not_semantic_proof\",\"id\":\"currency\",\"plan_step_id\":null,\"sources\":[{\"conversation\":\"master\",\"created_at\":\"2026-11-05T20:45:38.301264900+00:00\",\"id\":\"4e5ed7fd-2b5d-4baf-ac69-0f36e7cf0798\",\"kind\":\"chat\",\"provenance\":\"human_input\",\"role\":\"user\",\"seq\":2}]}],\"goal_status\":\"unknown\",\"input_revision\":1,\"review\":{\"attempted\":true,\"evidence\":[\"Human source 4e5ed7fd-2b5d-4baf-ac69-0f36e7cf0798 requires EUR in report.json and prohibits file modifications.\",\"The recorded JSON value check for report.json at /currency passed with expected value USD.\"],\"judgment\":\"configured model assessment, not deterministic proof\",\"model\":\"gpt-6.1-terra\",\"reason\":\"The human required confirmation only if the existing report uses EUR. The recorded check instead passed for USD, so the report does not meet the stated completion condition.\",\"request_id\":\"8638847c-f7ca-412f-810d-885166338791\",\"state\":\"not_supported\"},\"run_id\":\"6b04f377-6668-4060-8362-8407c7f344ef\",\"scope\":\"Historical evidence snapshot. Checks are narrow predicates; criteria and expected values are model proposals, not independent whole-goal verification.\",\"source_id\":\"cf13607c-7d57-4203-b693-951b207a7e83\",\"stale\":false,\"version\":2}",
+          "app_workspace": "D:\\Hristian projects\\Zeus-Agent\\tests\\e2e\\.test_workspace\\9c0860ff-1358-437e-9709-620dcf2389ec"
+        }
+      ]
+    }
+  ],
+  "combined_live_usage": {
+    "requests": 49,
+    "unknown_requests": 0,
+    "known_tokens": 167999,
+    "input_tokens": 158304,
+    "output_tokens": 9695,
+    "reasoning_tokens": 3327,
+    "cached_tokens": 159630,
+    "requests_by_role": {
+      "master": 45,
+      "verifier": 4
+    },
+    "local_scripted_requests": 4,
+    "hosted_requests": 45,
+    "provider_credits": null,
+    "note": "Four loopback actor replies are scripted, zero declared tokens. All reported tokens are hosted; cache/reasoning remain separate subsets, never added to totals.",
+    "hosted_requests_by_role": {
+      "master": 41,
+      "verifier": 4
+    }
+  },
+  "receipts": [
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/plan.json",
+      "bytes": 4374,
+      "sha256": "7660ac9504437f4e827242afc17218b1630b316ec27fd5d3b0c0e9e6c145907a"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/state.json",
+      "bytes": 1315,
+      "sha256": "e88b99c50aba947374d56949b40e0115ffcd3d4df83a260bccff65671df8f737"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/summary.json",
+      "bytes": 7620,
+      "sha256": "ef09a3e4569765c0993375dd04daf7b54ac7b5006fd35beb92a0618748bde5a5"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/comparison.json",
+      "bytes": 15974,
+      "sha256": "aa5483f8779c5cc4d73ffbfdc7fc53a1d5fb044f74f856bcc3adeb05bab2e809"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/plan.json",
+      "bytes": 4374,
+      "sha256": "2e9dae892dbddece9b4caccda1560e484634a3566e53159c8e7cecc4de272069"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/summary.json",
+      "bytes": 7601,
+      "sha256": "eabb53466e1776935a9861940f55df358bfdbb9f77d85d1962af389c18f088e3"
+    },
+    {
+      "path": "docs/benchmarks/native-baseline-20261104.json",
+      "bytes": 30137,
+      "sha256": "4049f38b6bba6ca1c0a2a5f9462f895ea5d49e9994ace10d4914cb04a5885a3b"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-solo-1/experiment.json",
+      "bytes": 2155,
+      "sha256": "60177d4eb33912029875b19adf7fbfb4b417d46edb08016eb6b68663e395ccdd"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-solo-1/scores.json",
+      "bytes": 25507,
+      "sha256": "1206c2d734e7291a4578d0afaa30a267bafee6164a5fe906c57544a8df467573"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-solo-1/trials/43871994-3d0a-4f96-8667-9dd225af4e87.json",
+      "bytes": 19584,
+      "sha256": "32702243adc9652a7b585d279394f3c4772439d38b0fdf736971778bed8ac3a9"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-team-1/experiment.json",
+      "bytes": 2155,
+      "sha256": "6349f70a9b6442d4ea124018b05ebec5b1e7b64d19920413b6c33a7b2f690e41"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-team-1/scores.json",
+      "bytes": 25580,
+      "sha256": "f33508558209bc11e574f88251b0fca19f67038810a82e678a797bdb40b14103"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-team-1/trials/d3707990-d4ca-44ae-aba7-4d2b3f836459.json",
+      "bytes": 19650,
+      "sha256": "e9674a82bfab858eb9536ffa7f958befe8bcfb23db73a4ec3234410d84bf954c"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-solo-1/experiment.json",
+      "bytes": 2141,
+      "sha256": "9b3f3663bc366fa1007e841d11766e1bbe2aaee2672308ec37217b08cc8ac196"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-solo-1/scores.json",
+      "bytes": 26651,
+      "sha256": "1ae507dffebaa6a68d458d5ba5c2407335c9fb599898b9d122bc2de750037a16"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-solo-1/trials/a37e4caa-fd58-4395-ac3a-fe3c48fad399.json",
+      "bytes": 20227,
+      "sha256": "40b5e891cdba1a6b4632982ec260845a7c29c639d96fe62ab362779b887f13d1"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-team-1/experiment.json",
+      "bytes": 2141,
+      "sha256": "e22fb2908fe676a0b112d85ab046da5cdfcb5f80ba884e8fdf9b2ffabcbfe431"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-team-1/scores.json",
+      "bytes": 26711,
+      "sha256": "c26e3f8ab409c254109e14eabd3880ca702437f60ef82be7a5632ed200baf9ce"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-team-1/trials/3aae1d1b-e823-4047-a888-131516be603b.json",
+      "bytes": 20287,
+      "sha256": "4473f458763db2349ffad3e2c8b7329005cbb7e4a647bd33913a7679121dca60"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-solo-1/experiment.json",
+      "bytes": 2144,
+      "sha256": "a6702d065b435e794d9d599c1ad9caf8ce27a55fa2a6230b18f194b6f6db9ee0"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-solo-1/scores.json",
+      "bytes": 14969,
+      "sha256": "66565f1560529c3ca864dc32101994aa59fc075bcf8287d38bbcfb072ae12b28"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-solo-1/trials/bbb0e558-fe4c-4dc9-bf88-e516c9dee019.json",
+      "bytes": 10020,
+      "sha256": "2849ba0422baddad5fcd1274e4ce43ceb258ea4459ba12906d1a1c17951e42d4"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-team-1/experiment.json",
+      "bytes": 2144,
+      "sha256": "61901b24f45dd9e7fc69bf632615e853a83638a9616a8ee102d522cab004767b"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-team-1/scores.json",
+      "bytes": 15030,
+      "sha256": "0ecfcb955e14efd994d8e24c501aff02f03c466f8792bccadb2fd679dcf55033"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-team-1/trials/b4850689-d478-4d55-af87-16c63a2c2563.json",
+      "bytes": 10081,
+      "sha256": "90385167908da921c348f1fa4ee32fd990fb03f6244940ed83c38de2bce6a3e3"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/experiment.json",
+      "bytes": 759,
+      "sha256": "a9f48e1bafd34b4ee514f3cb6ab95420bbd9ff278cd5d39f9a3a663062875662"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/results.json",
+      "bytes": 5655,
+      "sha256": "ff6eba225bf29766cdeb89af7b94ca04c447e9cea20682b6b661abeddc2cc34d"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/EUR/messages.json",
+      "bytes": 5788,
+      "sha256": "55178a2f86c24e57a30eb27c61d7849e536cc670bc301c43c6d79e632e817596"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/EUR/scripted-actor.json",
+      "bytes": 617,
+      "sha256": "1bc6bb5bd57fe2f6e8ef0cd86261242a90b11553d858fac6799463ef72f5ff00"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/USD/messages.json",
+      "bytes": 5799,
+      "sha256": "38bbb42259ea66e3fbe17fba4a9d9ba0864f699d292159207b35bb8e26c28b1e"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-20261105/USD/scripted-actor.json",
+      "bytes": 617,
+      "sha256": "ec407ed44986b1f6beddb9abe9bffb51f7abee6309dbe16a9d14e8dc6a25d440"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/experiment.json",
+      "bytes": 759,
+      "sha256": "280660f57fb5f799c53b8be62b7f5326178ae0c210aaa46b0950cc19f2b8ea65"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/results.json",
+      "bytes": 5705,
+      "sha256": "e7b7a54e9d95dee6dfe736d3f545761b3ec36718ce2280b827917968f2b677fc"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/EUR/messages.json",
+      "bytes": 5787,
+      "sha256": "ba4b6ed1d8f17ca511971131954975930ba145d36e213589c8dbebd1c2403e4c"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/EUR/scripted-actor.json",
+      "bytes": 617,
+      "sha256": "d140d567d50f8497d2bbd6f5962e4cd762c089d06421535d495b315b34cc5a14"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/USD/messages.json",
+      "bytes": 5908,
+      "sha256": "8a0a247ee2f9c98e2dc3183f3cb66f6dc5e4b52afa7fbf3778ad38cf82d41245"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-review-ledger-20261105/USD/scripted-actor.json",
+      "bytes": 617,
+      "sha256": "69e7ff9c00f7e505560276c13bf52f550fbd629fe147f4fa54ff07dedf04d495"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-regression-20261105.log",
+      "bytes": 120526,
+      "sha256": "51ea575bd85e2fd2e3572ddbf6670fb2dc9677350b52fdb7cc87841171039ddb"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-shell-check.log",
+      "bytes": 744,
+      "sha256": "8cbe524b9264634693aa8d429f7d14ffb4d78705ed1e3d754679116af5766490"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-shell-check-explicit.log",
+      "bytes": 744,
+      "sha256": "8cbe524b9264634693aa8d429f7d14ffb4d78705ed1e3d754679116af5766490"
+    },
+    {
+      "path": ".zeus/evaluations/native-handoff-82fe0cf44a8944448a239e8a79831c04/report.json",
+      "bytes": 264,
+      "sha256": "ec207bdd0c9c61ae347520a94a93a53f872fcbcb3c3eb9e329616bc0690a529f"
+    },
+    {
+      "path": ".zeus/evaluations/native-handoff-82fe0cf44a8944448a239e8a79831c04/worker.log",
+      "bytes": 874,
+      "sha256": "299de455e0ab573573a85e24420ecd9179a27c7d644f8a3fccc4c1cc0ce2439d"
+    },
+    {
+      "path": "test-results/offline/completion-real-artifact-c-5d23f-rowly-labelled-after-reload/completion-1250.png",
+      "bytes": 188713,
+      "sha256": "6c3601e7c43a6a9a340b90e698d3cc925f002ac54192f86bea3041ea7db80036"
+    },
+    {
+      "path": "test-results/offline/completion-real-artifact-c-5d23f-rowly-labelled-after-reload/completion-540.png",
+      "bytes": 85440,
+      "sha256": "1652c1459c4a31ac3a8f542e48c24ae3b781eeb6aa24417069f5ec446eef4271"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/b01-solo-1/artifacts/9fab4bc2-19c9-4f23-9a5d-439832d0db1e/debug.log",
+      "bytes": 2159,
+      "sha256": "97abf3aa8041f1004970b1ccad4e6a97cb54537b0f8a7b0e636e4192c80087cb"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/b01-team-1/artifacts/ab64d26d-f0e4-4fd5-b64c-bd546c91b31d/debug.log",
+      "bytes": 3461,
+      "sha256": "65e8914fb0685c9e7af0c9ae45234fa73ae6e60929a7a6b67aa6a38a2da8e604"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/d01-solo-1/artifacts/b473013c-38c2-4871-a221-0d517fb191d9/debug.log",
+      "bytes": 5352,
+      "sha256": "7b5aa9987480ce4c7380a0c9c1738df0bdddd27c1139743a6d1601658d1a6568"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/d01-team-1/artifacts/97ca6903-eef3-4e35-83b1-4b6b520bb26a/debug.log",
+      "bytes": 6060,
+      "sha256": "84019656eec84164edc782bf088bb3131aa6df8a02252d45a2750a8de0304c8f"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/v01-solo-1/artifacts/01895f2e-c6e0-46ff-9208-613f66e667b1/debug.log",
+      "bytes": 1526,
+      "sha256": "68d9f3f06884913b3bb580f263960efc99a43f94d1712085060918ee26fa9906"
+    },
+    {
+      "path": ".zeus/evaluations/baseline-calibration-20261104/attempts/v01-team-1/artifacts/f28fa26d-669f-4b4e-a3c3-4afce91adfbf/debug.log",
+      "bytes": 2065,
+      "sha256": "0cbd93e3ce76bec46ab8e9b1d3b1ae51ce76fe563b82c8c33318d9c7e12ca90a"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-solo-1/artifacts/43871994-3d0a-4f96-8667-9dd225af4e87/debug.log",
+      "bytes": 2817,
+      "sha256": "83c4431e3b219f901bd22151b8e7ad37deb2b47a14d81446544edba9019e068c"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-solo-1/artifacts/43871994-3d0a-4f96-8667-9dd225af4e87/messages.json",
+      "bytes": 33366,
+      "sha256": "26ff1afaa53d74285abbb32294f896438fbafa995996a17cb24718817664028b"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-team-1/artifacts/d3707990-d4ca-44ae-aba7-4d2b3f836459/debug.log",
+      "bytes": 5039,
+      "sha256": "bf88edf5a3283a6051d7c877f8644dcb4be9bca11aeed6ebc72d2d49d006a92a"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/b01-team-1/artifacts/d3707990-d4ca-44ae-aba7-4d2b3f836459/messages.json",
+      "bytes": 41496,
+      "sha256": "d0bb2c23f7cf5edf171722ec0eba2615677030a305ba16231e91ed0d5ba7c4f1"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-solo-1/artifacts/a37e4caa-fd58-4395-ac3a-fe3c48fad399/debug.log",
+      "bytes": 5438,
+      "sha256": "9ae00082f99d862d79f56ad7c6c93c2e3f56cbde0e7bdad3a02a15250400e5de"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-solo-1/artifacts/a37e4caa-fd58-4395-ac3a-fe3c48fad399/messages.json",
+      "bytes": 28112,
+      "sha256": "24426d5652741e957e00ef6fe44ac3c7a6c3d4466d8d36806e0935825bc9d47e"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-team-1/artifacts/3aae1d1b-e823-4047-a888-131516be603b/debug.log",
+      "bytes": 7537,
+      "sha256": "2f7a9bd933c595d958e33e189f688eb2cdde243ba8effccd66b86b08e1d7f354"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/d01-team-1/artifacts/3aae1d1b-e823-4047-a888-131516be603b/messages.json",
+      "bytes": 34685,
+      "sha256": "3f854cf1320f6b31d32a6c525aebdbbf9f528d1b512abe003133b61d014a48d5"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-solo-1/artifacts/bbb0e558-fe4c-4dc9-bf88-e516c9dee019/debug.log",
+      "bytes": 2159,
+      "sha256": "c31547e78bb83c364680b75bb13cff5984382d0ae30b69b611cdb13dc872dfb8"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-solo-1/artifacts/bbb0e558-fe4c-4dc9-bf88-e516c9dee019/messages.json",
+      "bytes": 12603,
+      "sha256": "d53b0bb30701ace35cebe3c2bdae76df86476d84a7c6112016c3830abeb8537c"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-team-1/artifacts/b4850689-d478-4d55-af87-16c63a2c2563/debug.log",
+      "bytes": 1959,
+      "sha256": "3313a0ede1670b1dc58964b362bf1a45ade516f13eb0d889456651486ee4b034"
+    },
+    {
+      "path": ".zeus/evaluations/phase4c-smoke-20261105/attempts/v01-team-1/artifacts/b4850689-d478-4d55-af87-16c63a2c2563/messages.json",
+      "bytes": 11969,
+      "sha256": "616474a875e3fffad14dce499c3c7ca30d07275d4e73589c0081e06d8c1626e7"
+    }
+  ],
+  "limits": [
+    "Native supervised host, not isolated authorization certification.",
+    "One attempt per matched cell, descriptive only; not statistical evidence of speed/intelligence improvement.",
+    "Team enabled does not prove actual delegation; inspect request roles.",
+    "Model judgments are fallible; unknown remains unknown.",
+    "This is not the full 12-core Benchmark v1."
+  ],
+  "observed_efficiency_audit": {
+    "baseline-calibration-20261104": {
+      "cells": {
+        "b01-solo-1": {
+          "logged_payloads": 5,
+          "first_logged_payload_bytes": 14686,
+          "sum_logged_payload_bytes": 100050,
+          "multi_directive_rejections": 0,
+          "parsed_directive_types": {
+            "BrowserAction": 3,
+            "RunAction": 1
+          }
+        },
+        "b01-team-1": {
+          "logged_payloads": 9,
+          "first_logged_payload_bytes": 20319,
+          "sum_logged_payload_bytes": 255466,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "BrowserAction": 6,
+            "RunAction": 1
+          }
+        },
+        "d01-solo-1": {
+          "logged_payloads": 4,
+          "first_logged_payload_bytes": 15436,
+          "sum_logged_payload_bytes": 75658,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "RunAction": 2
+          }
+        },
+        "d01-team-1": {
+          "logged_payloads": 6,
+          "first_logged_payload_bytes": 21069,
+          "sum_logged_payload_bytes": 166501,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "ListDir": 1,
+            "RunAction": 3
+          }
+        },
+        "v01-solo-1": {
+          "logged_payloads": 4,
+          "first_logged_payload_bytes": 129878,
+          "sum_logged_payload_bytes": 525696,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "WriteFile": 1,
+            "ReadFile": 1
+          }
+        },
+        "v01-team-1": {
+          "logged_payloads": 4,
+          "first_logged_payload_bytes": 135511,
+          "sum_logged_payload_bytes": 549415,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "WriteFile": 1,
+            "RunAction": 1
+          }
+        }
+      },
+      "total_logged_requests": 32,
+      "total_multi_directive_rejections": 5
+    },
+    "phase4c-smoke-20261105": {
+      "cells": {
+        "b01-solo-1": {
+          "logged_payloads": 7,
+          "first_logged_payload_bytes": 19072,
+          "sum_logged_payload_bytes": 191599,
+          "multi_directive_rejections": 0,
+          "parsed_directive_types": {
+            "BrowserAction": 5,
+            "RunAction": 1
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "unspecified",
+              "checks": {
+                "failed": 0,
+                "passed": 0,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        },
+        "b01-team-1": {
+          "logged_payloads": 12,
+          "first_logged_payload_bytes": 24741,
+          "sum_logged_payload_bytes": 402356,
+          "multi_directive_rejections": 5,
+          "parsed_directive_types": {
+            "BrowserAction": 5,
+            "RunAction": 1
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "unspecified",
+              "checks": {
+                "failed": 0,
+                "passed": 0,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        },
+        "d01-solo-1": {
+          "logged_payloads": 5,
+          "first_logged_payload_bytes": 19822,
+          "sum_logged_payload_bytes": 118987,
+          "multi_directive_rejections": 2,
+          "parsed_directive_types": {
+            "RunAction": 2
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "unspecified",
+              "checks": {
+                "failed": 0,
+                "passed": 0,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        },
+        "d01-team-1": {
+          "logged_payloads": 8,
+          "first_logged_payload_bytes": 25500,
+          "sum_logged_payload_bytes": 239059,
+          "multi_directive_rejections": 3,
+          "parsed_directive_types": {
+            "ListDir": 1,
+            "RunAction": 3,
+            "FinalAnswer": 1
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "completed",
+              "checks": {
+                "failed": 0,
+                "passed": 2,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        },
+        "v01-solo-1": {
+          "logged_payloads": 4,
+          "first_logged_payload_bytes": 134260,
+          "sum_logged_payload_bytes": 544777,
+          "multi_directive_rejections": 1,
+          "parsed_directive_types": {
+            "WriteFile": 1,
+            "RunAction": 1
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "unspecified",
+              "checks": {
+                "failed": 0,
+                "passed": 0,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        },
+        "v01-team-1": {
+          "logged_payloads": 5,
+          "first_logged_payload_bytes": 139938,
+          "sum_logged_payload_bytes": 711087,
+          "multi_directive_rejections": 2,
+          "parsed_directive_types": {
+            "WriteFile": 1,
+            "ReadFile": 1
+          },
+          "app_completion_reports": [
+            {
+              "claim_status": "unspecified",
+              "checks": {
+                "failed": 0,
+                "passed": 0,
+                "unknown": 0
+              },
+              "goal_status": "unknown",
+              "correction_requested": null
+            }
+          ]
+        }
+      },
+      "total_logged_requests": 41,
+      "total_multi_directive_rejections": 13
+    }
+  },
+  "observed_efficiency_note": "Across 4A/4B/4C, reported tokens rose 57,056 to 164,747 and actor requests 32 to 41 in six matched single-attempt cells. Duplicate-directive rejections rose 5 to 13. Logged first B01 Solo payload grew 14,686 to 19,072 bytes. Logged payload estimates are not exact token/wire/credit measurements. Provider cache semantics are uncertain and some cache counts exceed reported input; do not infer a 2.9x bill or attribute the increase to 4C alone. Profile context and protocol overhead in the next benchmark/efficiency track; do not execute ambiguous replies to make the score pass."
+}
