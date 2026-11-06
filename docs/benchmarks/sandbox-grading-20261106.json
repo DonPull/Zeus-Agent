@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "checkpoint": "separate-known-executable-grader-runtime",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "051a183eec970f3a7e3ed71f1f8f4a3844a88af0",
+    "dirty": true,
+    "diff_hash": "c71fc66df5c8066670002a178069a841d8421cdb144ddab4506465986b187d01",
+    "node": "v22.13.1"
+  },
+  "guest": {
+    "id": "105fef1a-562a-4622-8823-32d8985e3fb7",
+    "receipt": ".zeus\\evaluations\\sandbox-sessions\\105fef1a-562a-4622-8823-32d8985e3fb7\\host-lifecycle-8f5109c0-8d72-4f7e-91e0-71fdce48a5ab.json",
+    "receipt_sha256": "a855afa1faf0a305aaaf9d733d1a27dbe2baf6f2fbc633f118b7b5d4b25dbf46",
+    "result_sha256": "3956556a804b98b66ae43dbfb4e05099756ea65fc4a9a6a86dd6c8080e996451",
+    "evidence_sha256": "3a352aaf8011b00d068fcc7e8c1564affdc2d29e62fda35b39101cc50e31e572",
+    "checks": {
+      "different_computer": true,
+      "input_read": true,
+      "input_read_only": true,
+      "host_private_unavailable": true,
+      "network_disabled": true,
+      "writable_output": true,
+      "fresh_guest_disk": true,
+      "grader_runtime": true,
+      "grader_evidence": true
+    },
+    "container_id": "2b87b7b8-26f2-4974-ac60-ba608dfe4217",
+    "different_from_preceding_actor": true,
+    "owned_host_processes_gone": true,
+    "independent_hcs_disposal": null
+  },
+  "packet_sha256": "649942462d336cc3755aa42b435799737c6d7c2e68904671b6684fd22fac0696",
+  "runtime_bundle": {
+    "path": "D:\\Hristian projects\\Zeus-Agent\\.zeus\\evaluations\\sandbox-runtime\\bundle-06f39324-456e-4162-9f8e-40e4fff69edb",
+    "manifest_sha256": "114b9095fa92768cbb1fdbaaf76375b2d6cd58e6eb9149753c0b66da5e6523de",
+    "content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777",
+    "versions": {
+      "python": "3.11.0",
+      "node": "v22.13.1",
+      "playwright": "1.62.0",
+      "chromium": "151.0.7922.34",
+      "chromium_revision": "1234",
+      "webview2": "157.0.4341.42",
+      "microsoft_crt": "14.51.36247.0"
+    }
+  },
+  "controls": [
+    {
+      "mission": "C01",
+      "variant": "reference",
+      "source_sha256": "cb36c1fab00e6d496954f6522ccfbacac20da427ead0f3dbe17c7289a7cc40dd",
+      "outcome_status": "passed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "a8e5552833c8586dd0aeada6f99bb7d4a40417679c98848714f4518a39307f41"
+    },
+    {
+      "mission": "C01",
+      "variant": "alternative",
+      "source_sha256": "99ddecc1a9b6517263b8b4a7c2a5b8b2d1d9d5312eb626c004c78186dabdd91d",
+      "outcome_status": "passed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "a8e5552833c8586dd0aeada6f99bb7d4a40417679c98848714f4518a39307f41"
+    },
+    {
+      "mission": "C01",
+      "variant": "negative",
+      "source_sha256": "7cbfb6d6b99918c944647b049b76bd0fe701f115884c1e1e0ebb7f280089b8fe",
+      "outcome_status": "failed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "a8e5552833c8586dd0aeada6f99bb7d4a40417679c98848714f4518a39307f41"
+    },
+    {
+      "mission": "C02",
+      "variant": "reference",
+      "source_sha256": "4dbc2046d2b6cf7b36138b4a96e49a396a789381353d53a02fd78d1e612c4d27",
+      "outcome_status": "passed",
+      "task_hash": "947330dab6a3a19eb378791e9b5d9594fc3e3341727204c0c8d80733e7096f09",
+      "fixture_hash": "221c328573b3063860639c48c5718635eb9151db28eeebbb6170fa41cdda3674",
+      "grader_version": "0640731e6164b8576a822a132b2554171c80f306245ec989d0ff4930d88fe864"
+    },
+    {
+      "mission": "C02",
+      "variant": "alternative",
+      "source_sha256": "5fc4d178622a29e62b99b6fe2acd2a1a7ebc619f609b64e0a8cf768159e60f06",
+      "outcome_status": "passed",
+      "task_hash": "947330dab6a3a19eb378791e9b5d9594fc3e3341727204c0c8d80733e7096f09",
+      "fixture_hash": "221c328573b3063860639c48c5718635eb9151db28eeebbb6170fa41cdda3674",
+      "grader_version": "0640731e6164b8576a822a132b2554171c80f306245ec989d0ff4930d88fe864"
+    },
+    {
+      "mission": "C02",
+      "variant": "negative",
+      "source_sha256": "edafe654db02e99ed21b796b73d9162c11216ef49911eee1c20757c06b0c3c34",
+      "outcome_status": "failed",
+      "task_hash": "947330dab6a3a19eb378791e9b5d9594fc3e3341727204c0c8d80733e7096f09",
+      "fixture_hash": "221c328573b3063860639c48c5718635eb9151db28eeebbb6170fa41cdda3674",
+      "grader_version": "0640731e6164b8576a822a132b2554171c80f306245ec989d0ff4930d88fe864"
+    },
+    {
+      "mission": "C03",
+      "variant": "reference",
+      "source_sha256": "5d7e1e3873cca1c178fe5f1446bb007a54b23165eb4a11e6e8bbb83ef507721e",
+      "outcome_status": "passed",
+      "task_hash": "ca2a7111d32bd7fe569af52fe8cbf26bfa027660286913a4f910c197f6c5df7a",
+      "fixture_hash": "f875d7de8219549ef746beff72f685c206a41228e07b1b9b05b9c9c60c737c4a",
+      "grader_version": "85c6e88666ab53e1c8bdbb2d5093179e35771a4776c5c78a2697841b2c93b3ae"
+    },
+    {
+      "mission": "C03",
+      "variant": "alternative",
+      "source_sha256": "dbc2059d75f06e7898c1cd1d091d23c423617965882c24127403d8f69a2b573a",
+      "outcome_status": "passed",
+      "task_hash": "ca2a7111d32bd7fe569af52fe8cbf26bfa027660286913a4f910c197f6c5df7a",
+      "fixture_hash": "f875d7de8219549ef746beff72f685c206a41228e07b1b9b05b9c9c60c737c4a",
+      "grader_version": "85c6e88666ab53e1c8bdbb2d5093179e35771a4776c5c78a2697841b2c93b3ae"
+    },
+    {
+      "mission": "C03",
+      "variant": "negative",
+      "source_sha256": "0b02b6b5f18eb920253331394b7fb3288f839df21986925e8b8b1f21cad4d59c",
+      "outcome_status": "failed",
+      "task_hash": "ca2a7111d32bd7fe569af52fe8cbf26bfa027660286913a4f910c197f6c5df7a",
+      "fixture_hash": "f875d7de8219549ef746beff72f685c206a41228e07b1b9b05b9c9c60c737c4a",
+      "grader_version": "85c6e88666ab53e1c8bdbb2d5093179e35771a4776c5c78a2697841b2c93b3ae"
+    },
+    {
+      "mission": "D02",
+      "variant": "reference",
+      "source_sha256": "d871688aca56d48b7a27a519beb24d4672df05efa26dfd1624e03268dc923a79",
+      "outcome_status": "passed",
+      "task_hash": "e48f250f2b49891dd54e0d76ac1ddc30c1954434533b34159ad2f7a3d04319f0",
+      "fixture_hash": "515293bc8e88af2a06d0723024b375562322b9049fc82b06cb7413f42f5a10c8",
+      "grader_version": "710688b1489c0314342fd7d9c57ffcba87c42c0f742f7e3e7866969fea639cda"
+    },
+    {
+      "mission": "D02",
+      "variant": "alternative",
+      "source_sha256": "2d20aafd6e522e0644259c59e1acffd7a6843cdb857b056354b8c851cf9cab8d",
+      "outcome_status": "passed",
+      "task_hash": "e48f250f2b49891dd54e0d76ac1ddc30c1954434533b34159ad2f7a3d04319f0",
+      "fixture_hash": "515293bc8e88af2a06d0723024b375562322b9049fc82b06cb7413f42f5a10c8",
+      "grader_version": "710688b1489c0314342fd7d9c57ffcba87c42c0f742f7e3e7866969fea639cda"
+    },
+    {
+      "mission": "D02",
+      "variant": "negative",
+      "source_sha256": "a460e9fb63a38df66d692bfc26720afdeff4f75d671ac2b3c1f2ce356cb94b36",
+      "outcome_status": "failed",
+      "task_hash": "e48f250f2b49891dd54e0d76ac1ddc30c1954434533b34159ad2f7a3d04319f0",
+      "fixture_hash": "515293bc8e88af2a06d0723024b375562322b9049fc82b06cb7413f42f5a10c8",
+      "grader_version": "710688b1489c0314342fd7d9c57ffcba87c42c0f742f7e3e7866969fea639cda"
+    }
+  ],
+  "validation": {
+    "unit_checks": 89,
+    "grader_checks": 70,
+    "receipt": ".zeus/evaluations/regression-receipts/1a3ef51f-5090-4242-bdd9-8c54a666b07d.json",
+    "receipt_sha256": "1d38270e1293ca09e262305d48d5664ea911bbd4b50a44e4df3e938dbddcc7d5",
+    "combined_distinct_with_earlier_full_run": 435
+  },
+  "code_sha256": {
+    "scripts/eval_harness/sandbox/grader_packet.mjs": "5a138e4c07cd6917c76ccbc24709324be1fdb8a90ca7963a24d68920fadc130c",
+    "scripts/eval_harness/sandbox/guest_grading.mjs": "9ad19caf80e02013f081bf5b437ddb0fcf6049820e304c5c865ff6fa949a300a",
+    "scripts/eval_harness/sandbox/session.js": "8939f82f4d530afadb0fd78184dc8f351db176a2827cdb25d5cdade565e23385",
+    "scripts/eval_harness/sandbox/probe.js": "82a1135308e1f5df6f2a8633a1f5a546d7f2049679a367318d2817714f64f55c",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "0c65e8c5998cfeeb119aa938723d3f339fb4b87fbbff7e9cbae44dbf73f306d4",
+    "tests/benchmarks/mission_graders/dashboard.js": "b76803f7c912c7ae420d76e178f22f5ffa705f22e0d72b1671932c84adf149b8",
+    "tests/unit/sandbox_grading.test.js": "f71d50d74532f94f9a867db77ae3cd61048dedfd1b73aaa95ac77ddbac8da185"
+  },
+  "provider_inference_requests": 0,
+  "physical_input": false,
+  "isolation_validated": false,
+  "limitations": [
+    "Known-control runtime validation does not enable arbitrary generated submissions or paid benchmark dispatch.",
+    "Independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated.",
+    "Full isolated mission orchestration, live provider wiring and generated-submission grading remain incomplete."
+  ]
+}

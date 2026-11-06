@@ -67,7 +67,9 @@ if ($job.runtime_smoke) {
         New-Item -Path $debugPolicy -Force | Out-Null
         New-ItemProperty -LiteralPath $debugPolicy -Name 'zeus-evaluation.exe' -PropertyType String -Value '--remote-debugging-port=19223 --disable-background-timer-throttling --disable-renderer-backgrounding' -Force | Out-Null
         $result['runtime_control_transport']='guest-only per-application WebView2 policy'
-        $controlProcess=Start-Process -FilePath 'C:\Zeus\Runtime\node\node.exe' -ArgumentList 'C:\Zeus\Input\guest_smoke.mjs' -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput 'C:\Zeus\runtime-console.txt' -RedirectStandardError 'C:\Zeus\runtime-errors.txt'
+        $controlScript='C:\Zeus\Input\guest_smoke.mjs'
+        if ($job.runtime_smoke.mode -eq 'grader-controls-v1') { $controlScript='C:\Zeus\Input\guest_grading.mjs' }
+        $controlProcess=Start-Process -FilePath 'C:\Zeus\Runtime\node\node.exe' -ArgumentList $controlScript -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput 'C:\Zeus\runtime-console.txt' -RedirectStandardError 'C:\Zeus\runtime-errors.txt'
         $result['runtime_smoke']=Get-Content -LiteralPath 'C:\Zeus\runtime-report.json' -Raw | ConvertFrom-Json
     } catch {
         $result['runtime_smoke']=[ordered]@{status='failed'; error=$_.Exception.Message}

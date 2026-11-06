@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {RPC_LIMITS,validateRequest,validateResponse,responseName,decodeResponseFrame} from './file_rpc.mjs';
+import {prepareGraderPacket,gradingSmokeMatches} from './grader_packet.mjs';
 
 const directory=path.dirname(fileURLToPath(import.meta.url));
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
@@ -67,10 +68,11 @@ export function readBoundedFile(root,name,limit=1024*1024){
   }finally{fs.closeSync(fd);}
 }
 
-export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,transportDenyTest=false}={}){
+export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,transportDenyTest=false,gradingSmoke=false}={}){
   if(process.platform!=='win32')throw Error('The .wsb probe requires a Windows host');
   if(transportSmoke&&!runtimeBundle)throw Error('Transport smoke requires a prepared public runtime');
   if(transportDenyTest&&!transportSmoke)throw Error('A deny control requires synthetic transport');
+  if(gradingSmoke&&(!runtimeBundle||transportSmoke||transportDenyTest))throw Error('Grading controls require a separate runtime guest without actor transport');
   let runtimeInfo=null;
   if(runtimeBundle){
     runtimeBundle=unlinkedDirectory(runtimeBundle);
@@ -91,9 +93,12 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   if(runtimeInfo)job.runtime_smoke={manifest_sha256:runtimeInfo.manifest_sha256};
   if(transportSmoke)job.runtime_smoke.transport='synthetic-file-v1';
   if(transportDenyTest)job.runtime_smoke.deny_test=true;
+  const grading=gradingSmoke?prepareGraderPacket():null;
+  if(grading)job.runtime_smoke.mode='grader-controls-v1';
   const inputs={'job.json':Buffer.from(JSON.stringify(job,null,2)),'challenge.txt':challenge,'probe.ps1':fs.readFileSync(path.join(directory,'probe_guest.ps1'))};
   if(runtimeInfo)for(const name of ['guest_smoke.mjs','guest_diagnostics.ps1'])inputs[name]=fs.readFileSync(path.join(directory,name));
   if(transportSmoke)inputs['file_rpc.mjs']=fs.readFileSync(path.join(directory,'file_rpc.mjs'));
+  if(grading){inputs['guest_grading.mjs']=fs.readFileSync(path.join(directory,'guest_grading.mjs'));inputs['grader-packet.json']=grading.bytes;}
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
   if(transportSmoke)for(let id=1;id<=RPC_LIMITS.messages;id++)fs.writeFileSync(path.join(input,responseName(id)),Buffer.alloc(0),{flag:'wx'});
   const wsb=sandboxConfiguration({input,output,runtime:runtimeBundle});
@@ -101,7 +106,7 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   const manifest={schema_version:2,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
     host_name:os.hostname(),nonce,input,output,private_file:privateFile,private_sha256:hash(sentinel),
     inputs:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,hash(bytes)])),configuration_sha256:hash(wsb),
-    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,transport_smoke:transportSmoke?'synthetic-file-v1':null,provider_requests:0,launch_requested:false,
+    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,transport_smoke:transportSmoke?'synthetic-file-v1':null,grader_controls:grading?.expected??null,provider_requests:0,launch_requested:false,
     limitations:['Prepared configuration is not evidence of guest execution or isolation validation.',
       'Memory is configured; CPU, writable mapping disk quota and full actor/grader containment are not validated.']};
   fs.writeFileSync(path.join(root,'session.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
@@ -155,6 +160,8 @@ export function inspectProbe(root){
   const names=fs.readdirSync(output);
   if(manifest.transport_smoke){
     if(!names.includes('probe-result.json')||names.length>RPC_LIMITS.messages+1||names.some(name=>name!=='probe-result.json'&&!/^rpc-request-\d{6}\.json$/.test(name)))throw Error('Unexpected transport result files');
+  }else if(manifest.grader_controls){
+    if(!names.includes('probe-result.json')||names.length>2||names.some(name=>!['probe-result.json','grader-evidence.json'].includes(name)))throw Error('Unexpected grader output files');
   }else if(names.length!==1||names[0]!=='probe-result.json')throw Error('Probe requires exactly one declared result file');
   const bytes=readBoundedFile(output,'probe-result.json',65536),guest=JSON.parse(bytes);
   if(guest.id!==manifest.id||guest.nonce!==manifest.nonce||guest.schema_version!==2)throw Error('Guest result identity mismatch');
@@ -162,7 +169,16 @@ export function inspectProbe(root){
     input_read:guest.challenge_sha256===manifest.inputs['challenge.txt'],input_read_only:guest.input_write_denied===true,
     host_private_unavailable:guest.private_read_denied===true,network_disabled:guest.active_nonloopback_adapters===0,
     writable_output:guest.output_written===true,fresh_guest_disk:guest.marker_preexisting===false&&guest.marker_created===true};
-  if(manifest.runtime_bundle){
+  if(manifest.grader_controls){
+    const smoke=guest.runtime_smoke;
+    checks.grader_runtime=gradingSmokeMatches(smoke,manifest.grader_controls)&&names.includes('grader-evidence.json');
+    if(checks.grader_runtime){
+      const evidence=readBoundedFile(output,'grader-evidence.json',2*1024*1024);
+      checks.grader_evidence=hash(evidence)===smoke.evidence_sha256;
+      const rows=JSON.parse(evidence);
+      checks.grader_evidence&&=gradingSmokeMatches({...smoke,results:rows.map(row=>({mission:row.mission,variant:row.variant,source_sha256:row.source_sha256,...row.assessment}))},manifest.grader_controls);
+    }
+  }else if(manifest.runtime_bundle){
     checks.runtime_smoke=runtimeSmokeMatches(guest.runtime_smoke,manifest.runtime_bundle.versions);
   }
   if(manifest.transport_smoke){

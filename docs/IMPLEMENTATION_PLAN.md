@@ -39,10 +39,12 @@ guest runtime now runs the real Zeus app, Python and managed Chromium against a
 synthetic fixture, with exact versions and successful browser cleanup checked.
 Bounded file transport also connects the network-disabled guest to host-controlled
 synthetic provider/fixture handlers; an actual undeclared-route control is rejected
-before dispatch. Live provider wiring, isolated mission orchestration, separate executable grading,
+before dispatch. A separate fresh guest also runs all four executable graders
+against twelve known reference/alternative/negative controls, with complete
+hashed assessments. Live provider wiring, isolated mission orchestration, generated-submission grading,
 remaining lifecycle/resource validation and repeated live measurements remain
 incomplete. No full baseline is claimed yet.
-Current combined regression coverage is **433 distinct checks**, from a complete
+Current combined regression coverage is **435 distinct checks**, from a complete
 411-check run and focused follow-ups, plus actual Sandbox boundary/runtime probes;
 the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
@@ -121,7 +123,7 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 433 distinct checks plus actual Sandbox probes; see the full-v1 work log for full-run and follow-up receipts |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 435 distinct checks plus actual Sandbox probes; see the full-v1 work log for full-run and follow-up receipts |
 | 2A — mission contracts/graders | All twelve authored; grader controls delivered | Six original plus B02/B03/C03/M01/M02/R01, with 70 reference/negative controls; these are grader tests, not twelve live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |

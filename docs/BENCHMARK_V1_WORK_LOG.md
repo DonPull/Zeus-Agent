@@ -288,13 +288,52 @@ actual guest probes. Production app/UI code is unchanged. Hosted inference:
 **zero**. Independent HCS disposal, CPU and writable-mapping disk quotas remain
 unvalidated. No full isolation certificate or full benchmark baseline is claimed.
 
+## Separate executable-grader runtime controls
+
+The user authorized continuation with 11% Codex allowance remaining. This slice
+was kept restartable on disk and uses no model inference.
+
+Decisions compared with the earlier runtime checks:
+
+- Run the existing C01/C02/C03/D02 outcome graders in a fresh guest, separate from
+  the earlier Zeus actor guest. Stage only a bounded readonly packet of trusted
+  grading code, public fixtures and exact known controls; never map the repository.
+- Exercise a reference, a distinct valid alternative and a failing control for
+  each executable mission. A success label cannot replace exact source identity,
+  required reference criteria or the expected negative result.
+- Retain complete assessments as bounded JSON with a verified hash. The host
+  reads data only and compares it with its own expected-control manifest.
+- The dashboard grader now imports the existing `playwright-core` package and
+  explicitly selects full Chromium, matching the pinned managed-browser runtime.
+  Its outcome probes are unchanged. The grader identity changes, so future
+  comparable baselines must freeze this version rather than mix old/new graders.
+- This is a known-control runtime check. It does not accept generated programs
+  or relax the native host execution guard, and it cannot unlock core live runs.
+
+Fresh guest `105fef1a-562a-4622-8823-32d8985e3fb7` passed all nine boundary/
+grading/evidence checks. All twelve outcomes matched: eight valid implementations
+passed and all four negative controls failed as expected. Its container identity
+differs from the preceding actor guest and its guest-only marker was absent on
+entry. Owned Sandbox client and launcher exited. Independent HCS disposal is
+still unknown.
+
+The final focused run passed **89 JavaScript + 70 grader checks**; receipt
+`1a3ef51f-5090-4242-bdd9-8c54a666b07d.json`. The initial unit assertion omitted
+the deliberately staged `controls/` namespace and was corrected; its failed
+receipt `0b6d1d91-0e1d-41f1-b3a1-961fe0b7b281.json` remains retained. Combined
+distinct software coverage with the earlier full regression is **435 checks**,
+plus actual OS guest probes. No production app/UI code changed. Hosted inference:
+**zero**. [The reviewed record](benchmarks/sandbox-grading-20261106.json) retains
+source, packet, evidence, validation and lifecycle hashes.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Implement and validate the separate executable-grading environment, live provider
-broker with host-only credentials/caps, all-mission fixture/artifact transport and
-isolated mission orchestration. Preserve the current synthetic transport as a
+Wire generated submissions into separate fresh grading jobs with explicit
+failure controls. Implement the live provider broker with host-only credentials/
+caps, all-mission fixture/artifact transport and isolated mission orchestration.
+Preserve the current synthetic transport as a
 no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.
 Then freeze/review a live
 pilot manifest and use its resource evidence for the repeated full Solo/Team run.

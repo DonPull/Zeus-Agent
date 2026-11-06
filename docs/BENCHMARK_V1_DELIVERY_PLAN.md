@@ -119,8 +119,12 @@ navigation, two mock requests and zero remaining owned browser processes.
 This uses no hosted inference. A further actual guest check passes through bounded
 file transport to a host-controlled synthetic provider/fixture, with independent
 request hashes and zero handler calls for an undeclared-route negative control.
-Live provider wiring, isolated mission orchestration, a separate executable
-grader, all-mission fixture/artifact transport and remaining lifecycle validation still remain;
+A separate fresh guest now also runs the four existing executable graders against
+twelve exact known reference/alternative/negative controls; all outcomes match
+and complete assessments are retained with verified hashes. This validates the
+grading runtime, not acceptance of arbitrary generated programs.
+Live provider wiring, isolated mission orchestration, generated-submission
+grading, all-mission fixture/artifact transport and remaining lifecycle validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

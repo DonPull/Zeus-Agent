@@ -142,3 +142,20 @@ request handlers and successful owned-process cleanup. It must never be counted
 as a successful model mission. Both actual positive and negative controls are
 retained with the earlier publication/exit-check failures. No paid inference is
 enabled by these modes. Core live dispatch remains unavailable.
+
+## Separate known-control grading guest
+
+`probe.js --runtime-bundle <owned-bundle-directory> --grading-smoke` prepares a
+separate fresh guest with a readonly packet of existing C01/C02/C03/D02 graders,
+public fixtures and twelve exact known controls. The packet is at most 1 MiB,
+128 files and 1 MiB per decoded file; no user-selected program path is accepted.
+The guest checks packet file hashes, runs the same outcome probes and retains
+full assessments in `grader-evidence.json` (at most 2 MiB). The host checks its
+hash, expected source identities, every reference criterion and every negative
+outcome. A runtime success label alone is insufficient.
+
+The dashboard grader uses the pinned `playwright-core` SDK and full Chromium
+channel. No provider connection, API key, repository mapping or physical input is
+needed. This mode validates only known controls and leaves the untrusted host
+execution guard and core live-dispatch gates unchanged. Arbitrary generated
+submissions still need their reviewed isolated adapter and failure controls.
