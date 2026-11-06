@@ -28,19 +28,20 @@ try{
   let rpc=null;
   if(job.runtime_smoke.transport==='synthetic-file-v1'){
     const {createFileClient}=await import('./file_rpc.mjs');
+    const client=job.runtime_smoke.fixture_mission?(await import('./mission_rpc.mjs')).createMissionFileClient:createFileClient;
     const read=(folder,name,limit)=>{
       const file=path.join(folder,name),stat=fs.lstatSync(file);
       if(!stat.isFile()||stat.isSymbolicLink()||stat.size>limit)throw Error('Invalid readonly response');
       const bytes=fs.readFileSync(file);if(bytes.length>limit)throw Error('Oversized readonly response');return bytes;
     };
-    rpc=createFileClient({input:control,output:'C:\\Zeus\\Output',nonce:job.nonce,read});
+    rpc=client({input:control,output:'C:\\Zeus\\Output',nonce:job.nonce,read,mission:job.runtime_smoke.fixture_mission});
   }
   const forward=async(channel,req,res)=>{
     try{
       const chunks=[];let length=0;
       for await(const chunk of req){length+=chunk.length;if(length>1024*1024)throw Error('Loopback request exceeds its allowance');chunks.push(chunk);}
       const response=await rpc(channel,req.method,req.url,Buffer.concat(chunks));
-      res.writeHead(response.status,{'Content-Type':response.content_type});res.end(response.body);
+      res.writeHead(response.status,{'Content-Type':response.content_type,...(response.content_disposition?{'Content-Disposition':response.content_disposition}:{})});res.end(response.body);
     }catch(error){res.writeHead(502,{'Content-Type':'application/json'});res.end(JSON.stringify({error:String(error.message).slice(0,500)}));}
   };
   result.python_imports=execFileSync(path.join(root,'browser/venv/Scripts/python.exe'),['-I','-c','import sys, asyncio, greenlet, pyee; from playwright.async_api import async_playwright; print(sys.version); print("Browser dependencies imported")'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],windowsHide:true,timeout:10000}).trim();
@@ -55,6 +56,7 @@ try{
     res.writeHead(200,{'Content-Type':mime});fs.createReadStream(file).pipe(res);
   }),1420);
   fixture=await listen(http.createServer((req,res)=>{
+    if(rpc&&job.runtime_smoke.fixture_mission){fixtureRequests++;void forward('fixture',req,res);return;}
     if(req.url!=='/'){res.writeHead(404).end();return;}fixtureRequests++;
     if(rpc){void forward('fixture',req,res);return;}
     res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><title>Runtime fixture</title><main><h1>Managed browser is working</h1></main>');

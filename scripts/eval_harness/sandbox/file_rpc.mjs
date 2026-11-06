@@ -77,21 +77,21 @@ export async function publishResponse(directory,name,bytes){
   return frame;
 }
 /** Only a trusted synthetic controller creates this client. Host reads stay bounded. */
-export function createFileClient({input,output,nonce,read,timeoutMs=20000}){
+export function createFileClient({input,output,nonce,read,timeoutMs=20000,requestValidator=validateRequest,responseValidator=validateResponse,limits=RPC_LIMITS}){
   if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)throw Error('Invalid client response deadline');
   let sequence=0,total=0;
   return async function request(channel,method,route,body=Buffer.alloc(0)){
     const id=++sequence,value={schema_version:1,nonce,id,channel,method,path:route,body_base64:Buffer.from(body).toString('base64')};
-    validateRequest(value,nonce);
+    requestValidator(value,nonce);
     const bytes=Buffer.from(JSON.stringify(value));total+=bytes.length;
-    if(bytes.length>RPC_LIMITS.requestBytes||total>RPC_LIMITS.totalBytes)throw Error('Guest exchange allowance exhausted');
+    if(id>limits.messages||bytes.length>limits.requestBytes||total>limits.totalBytes)throw Error('Guest exchange allowance exhausted');
     await atomicExchange(output,requestName(id),bytes);
     const deadline=Date.now()+timeoutMs;
     while(Date.now()<deadline){
       try{
-        const bytes=read(input,responseName(id),RPC_LIMITS.responseBytes);
+        const bytes=read(input,responseName(id),limits.responseBytes);
         const frame=decodeResponseFrame(bytes);
-        if(frame){total+=bytes.length;if(total>RPC_LIMITS.totalBytes)throw Error('Guest exchange allowance exhausted');return validateResponse(JSON.parse(frame),nonce,id);}
+        if(frame){total+=bytes.length;if(total>limits.totalBytes)throw Error('Guest exchange allowance exhausted');return responseValidator(JSON.parse(frame),nonce,id);}
       }catch(error){if(error.code!=='ENOENT')throw error;}
       await pause(20);
     }
@@ -99,26 +99,26 @@ export function createFileClient({input,output,nonce,read,timeoutMs=20000}){
   };
 }
 /** One host step handles immutable request files and never executes their content. */
-export function createHostExchange({input,output,nonce,read,handle,publish=publishResponse}){
+export function createHostExchange({input,output,nonce,read,handle,publish=publishResponse,requestValidator=validateRequest,responseValidator=validateResponse,limits=RPC_LIMITS,responseFields=()=>({})}){
   const handled=new Map(),rows=[];let total=0,closed=false;
   return {rows,get totalBytes(){return total;},
     async step(){
       if(closed)throw Error('Exchange is closed after a failure');
       try{
-        const names=fs.readdirSync(output);if(names.length>RPC_LIMITS.messages*2+4)throw Error('Too many exchange files');
+        const names=fs.readdirSync(output);if(names.length>limits.messages*2+4)throw Error('Too many exchange files');
         for(const name of names.sort()){
           if(name==='probe-result.json'||name==='probe-result.tmp'||/^rpc-request-\d{6}\.json\.tmp$/.test(name))continue;
           if(!/^rpc-request-\d{6}\.json$/.test(name))throw Error('Undeclared exchange output file');
-          const bytes=read(output,name,RPC_LIMITS.requestBytes),digest=sha(bytes);
+          const bytes=read(output,name,limits.requestBytes),digest=sha(bytes);
           if(handled.has(name)){if(handled.get(name)!==digest)throw Error('Previously handled exchange request changed');continue;}
-          if(rows.length>=RPC_LIMITS.messages)throw Error('Host exchange request allowance exhausted');
-          const value=validateRequest(JSON.parse(bytes),nonce);
+          if(rows.length>=limits.messages)throw Error('Host exchange request allowance exhausted');
+          const value=requestValidator(JSON.parse(bytes),nonce);
           if(name!==requestName(value.id)||rows.some(row=>row.id===value.id))throw Error('Exchange filename/identity mismatch');
-          total+=bytes.length;if(total>RPC_LIMITS.totalBytes)throw Error('Host exchange byte allowance exhausted');
+          total+=bytes.length;if(total>limits.totalBytes)throw Error('Host exchange byte allowance exhausted');
           const response=await handle(value);
-          const reply={schema_version:1,nonce,id:value.id,status:response.status,content_type:response.content_type,body_base64:Buffer.from(response.body).toString('base64')};
-          validateResponse(reply,nonce,value.id);const encoded=Buffer.from(JSON.stringify(reply)),frame=encodeResponseFrame(encoded);total+=frame.length;
-          if(frame.length>RPC_LIMITS.responseBytes||total>RPC_LIMITS.totalBytes)throw Error('Host exchange response allowance exhausted');
+          const reply={schema_version:1,nonce,id:value.id,status:response.status,content_type:response.content_type,body_base64:Buffer.from(response.body).toString('base64'),...responseFields(response)};
+          responseValidator(reply,nonce,value.id);const encoded=Buffer.from(JSON.stringify(reply)),frame=encodeResponseFrame(encoded);total+=frame.length;
+          if(frame.length>limits.responseBytes||total>limits.totalBytes)throw Error('Host exchange response allowance exhausted');
           await publish(input,responseName(value.id),encoded);handled.set(name,digest);
           rows.push({id:value.id,channel:value.channel,method:value.method,path:value.path,request_sha256:digest,response_sha256:sha(frame),request_bytes:bytes.length,response_bytes:frame.length});
         }

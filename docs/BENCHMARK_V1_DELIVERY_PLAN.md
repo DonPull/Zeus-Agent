@@ -128,9 +128,12 @@ non-admin guest account and accepts only host-pinned, signed controller results.
 All four executable missions pass reference controls and reject their negative
 controls; an actual forged result is rejected. The host execution guard remains.
 The fixed host provider relay now has request/usage ledgers, bounded file-exchange
-integration and an actual successful catalogue-only check. Hosted inference has
-not been dispatched through it. Connecting it to the isolated actor, all-mission
-fixture/artifact transport and remaining lifecycle/resource validation still remain;
+integration and an actual successful catalogue-only check. Browser fixture route
+contracts retain protected host state and mutation/response hashes; four real
+browser workflows and an actual guest/real-Zeus orders navigation pass through
+the framed transport. Hosted inference has not been dispatched through it.
+Connecting those components to the isolated actor, bounded artifact export,
+full isolated workflows and remaining lifecycle/resource validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

@@ -112,7 +112,7 @@ export function createProviderRelay({privateDirectory,id,nonce,limits,transport=
     },
     async request(requestId,bytes,{signal}={}){
       available();if(!record.catalogue)throw Error('Catalogue preflight required');
-      if(!Number.isSafeInteger(requestId)||requestId<1||requestId>32||record.requests.some(row=>row.id===requestId))throw Error('Provider request identity already used or invalid');
+      if(!Number.isSafeInteger(requestId)||requestId<1||requestId>4096||record.requests.some(row=>row.id===requestId))throw Error('Provider request identity already used or invalid');
       if(inFlight)throw Error('Provider request concurrency exceeds allowance');
       const payload=validateProviderPayload(bytes,limits),estimate=Math.ceil(bytes.length/3)+payload.max_tokens;
       if(record.requests.length>=limits.max_requests||record.known_tokens+estimate>limits.max_tokens)throw Error('Provider request/token reservation allowance exhausted');

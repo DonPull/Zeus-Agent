@@ -5,6 +5,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {readBoundedFile,unlinkedDirectory} from './session.js';
 import {createHostExchange} from './file_rpc.mjs';
+import crypto from 'node:crypto';
+import {createMissionHostExchange} from './mission_rpc.mjs';
+import {createMissionFixture} from './mission_fixture.mjs';
 
 const parent=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../.zeus/evaluations/sandbox-sessions');
 const root=unlinkedDirectory(process.argv[2]??'');
@@ -16,13 +19,15 @@ const code='import json\nfrom zeus_browser import call\nprint(json.dumps(call("n
 const replies=[{type:'run_action',action:{language:'python',code,timeout_secs:30},success_criteria:'Inspect the synthetic local browser fixture.'},
   {type:'final_answer',final_answer:{summary:'Synthetic isolated runtime control completed.'}}];
 let provider=0,fixture=0;
+const missionFixture=manifest.fixture_mission?await createMissionFixture({mission:manifest.fixture_mission,privateDirectory:path.join(root,'private'),id:manifest.id,nonce:manifest.nonce}):null;
 const result={schema_version:1,id:manifest.id,nonce:manifest.nonce,kind:'host-observed-synthetic-file-transport',status:'running',provider_inference_requests:0,provider_requests:0,fixture_requests:0,requests:[],total_bytes:0};
 const save=()=>{
   const temporary=receipt+'.tmp';fs.writeFileSync(temporary,JSON.stringify(result,null,2));fs.renameSync(temporary,receipt);
 };
-const exchange=createHostExchange({input,output,nonce:manifest.nonce,read:readBoundedFile,handle:async request=>{
+const exchange=(missionFixture?createMissionHostExchange:createHostExchange)({input,output,nonce:manifest.nonce,mission:manifest.fixture_mission,read:readBoundedFile,handle:async request=>{
   if(request.channel==='fixture'){
-    fixture++;return {status:200,content_type:'text/html',body:'<!doctype html><title>Host fixture</title><main><h1>Managed browser is working</h1></main>'};
+    fixture++;if(missionFixture)return missionFixture.handle(request);
+    return {status:200,content_type:'text/html',body:'<!doctype html><title>Host fixture</title><main><h1>Managed browser is working</h1></main>'};
   }
   const payload=JSON.parse(request.body);
   if(payload.model!=='phase1-mock'||!Array.isArray(payload.messages)||payload.stream!==true)throw Error('Unexpected synthetic provider payload');
@@ -43,4 +48,6 @@ try{
   }
   if(result.status!=='complete')throw Error('Host exchange deadline expired');
 }catch(error){result.status='failed';result.error=String(error.message).slice(0,2000);process.exitCode=1;}
-finally{Object.assign(result,{provider_requests:provider,fixture_requests:fixture,requests:exchange.rows,total_bytes:exchange.totalBytes});result.completed_at=new Date().toISOString();save();}
+finally{Object.assign(result,{provider_requests:provider,fixture_requests:fixture,requests:exchange.rows,total_bytes:exchange.totalBytes});
+  if(missionFixture){await missionFixture.close();result.fixture_ledger_sha256=crypto.createHash('sha256').update(readBoundedFile(path.join(root,'private'),'fixture-ledger.json',4*1024*1024)).digest('hex');}
+  result.completed_at=new Date().toISOString();save();}

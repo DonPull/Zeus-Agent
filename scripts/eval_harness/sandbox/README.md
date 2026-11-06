@@ -213,3 +213,30 @@ Responses use the existing buffered file framing; per-token delivery timing is
 not preserved. The relay is not yet connected to the isolated mission actor and
 does not unlock the core live driver. Current validation used zero hosted
 inference requests and one real catalogue request.
+
+## Browser mission fixture transport
+
+`probe.js --runtime-bundle <owned-bundle-directory> --mission-transport B02`
+prepares a synthetic real-runtime smoke against a host-owned orders fixture.
+B01, B02, B03 and M02 are the supported HTTP contracts. The explicit Run step
+opens the fresh Sandbox; preparation opens nothing and calls no provider.
+
+This contract uses at most 4,096 shared fixture/provider messages, 64 MiB
+aggregate transport bytes, 2 MiB exchange files and 1 MiB decoded bodies. The
+older smoke keeps its 32-message/16-MiB default. Paid request caps are separate;
+provider request identities may exceed 32 when earlier messages served fixtures.
+
+Only declared routes/methods/filter names are forwarded to the controller-owned
+loopback portal. Its state and correction/commit checkpoints remain outside the
+guest. The sole forwarded attachment header is the fixed `orders.csv` filename.
+Intent is logged before an effect, state/response hashes afterward; publication
+failure cannot repeat a completed mutation. Inspection matches immutable framed
+bytes with the unmapped host fixture ledger. HTTP activity alone remains
+`browser_interaction: unobserved`; live integration must supply independent
+browser observations before those outcome criteria can pass.
+
+Local controls exercise four actual browser workflows, including CSV download.
+The actual guest smoke checks navigation/runtime/transport and process cleanup.
+It uses a fake model and does not report agent intelligence or unlock core live
+dispatch. Bounded artifact export and full isolated workflow orchestration remain
+pending.

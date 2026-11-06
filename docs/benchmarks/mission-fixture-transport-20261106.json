@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "checkpoint": "host-owned-browser-fixture-transport",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "eda1aa8f9aba413d8a4edae2856a969a6d6869cc",
+    "dirty": true,
+    "diff_hash": "baf4c722c06d45ac9406672011c2e88b6ee1a4a26aa5303cf7ef2943c94f5de2",
+    "node": "v22.13.1"
+  },
+  "guest": {
+    "id": "b2101630-bec9-46f4-aff5-e643f0cdef2a",
+    "receipt": ".zeus\\evaluations\\sandbox-sessions\\b2101630-bec9-46f4-aff5-e643f0cdef2a\\host-lifecycle-4bf6a635-b69a-418b-9ebe-7e3c5c019944.json",
+    "receipt_sha256": "c17647a55a045772e6e5557a1ea48564ed237a693a91a38ca0bad77f4bed08b3",
+    "result_sha256": "f1fca8faca4e2acecb1f0654c7c0cd2c8f1b71d1c457ca0d515bc3b8a179f54d",
+    "checks": {
+      "different_computer": true,
+      "input_read": true,
+      "input_read_only": true,
+      "host_private_unavailable": true,
+      "network_disabled": true,
+      "writable_output": true,
+      "fresh_guest_disk": true,
+      "runtime_smoke": true,
+      "host_file_transport": true
+    },
+    "owned_host_processes_gone": true,
+    "independent_hcs_disposal": null,
+    "runtime_bundle": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+  },
+  "transport": {
+    "file": ".zeus\\evaluations\\sandbox-sessions\\b2101630-bec9-46f4-aff5-e643f0cdef2a\\private\\transport.json",
+    "sha256": "3c49d0a462dba26d2449eed64812e9413824a18765e6614c04243d70f490d063",
+    "mock_provider_requests": 2,
+    "fixture_requests": 3,
+    "total_bytes": 58380,
+    "fixture_ledger": ".zeus\\evaluations\\sandbox-sessions\\b2101630-bec9-46f4-aff5-e643f0cdef2a\\private\\fixture-ledger.json",
+    "fixture_ledger_sha256": "9bc16dbfcb2b0f2d9c5fb99f2694db243a45e9ee69e24217255621800f2f1050",
+    "browser_interaction": "unobserved"
+  },
+  "validation": {
+    "file": ".zeus/evaluations/regression-receipts/f6bc95bd-897e-4b70-b689-04745614867b.json",
+    "sha256": "df297ff9f5ab40a80b62efca70bccfdb0d48cca5931d59a508d8a48eda233f6f",
+    "checks": {
+      "javascript": 112,
+      "graders": 70,
+      "rust": 126,
+      "browser_service": 23,
+      "desktop": 124,
+      "handoff": 3,
+      "total": 458
+    },
+    "stage_output": [
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-1.stdout.log",
+          "bytes": 25094,
+          "truncated": false,
+          "sha256": "7cb9ad276ea8b991ed91d37388989bb2379ec8bbfbadb587bc83242003d4e779"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-1.stderr.log",
+          "bytes": 0,
+          "truncated": false,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-2.stdout.log",
+          "bytes": 11887,
+          "truncated": false,
+          "sha256": "5782a9476c93b39df473c9fd25411db3bb2a3923be06083714c884bf36e982ff"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-2.stderr.log",
+          "bytes": 0,
+          "truncated": false,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-3.stdout.log",
+          "bytes": 11123,
+          "truncated": false,
+          "sha256": "b90dfa8528ece5ee91a6889cec409ba3bc6e8197a7229dff23bb978322dc9530"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-3.stderr.log",
+          "bytes": 163,
+          "truncated": false,
+          "sha256": "c7ce46a727df9ff54f04a433b62fbc5ea7a6f128cc77dcd7f0032f7b896efcaa"
+        }
+      },
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-4.stdout.log",
+          "bytes": 1626,
+          "truncated": false,
+          "sha256": "2ad3308dbca8f9dd8a83754ba80ca7fb3dd2acb35d3b0dd51336e188b1a9fb0d"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-4.stderr.log",
+          "bytes": 6063,
+          "truncated": false,
+          "sha256": "e5a75125041d1f8fd56717e2ae90f2daf41354baf58e26e134ad5ca9e03c3d9d"
+        }
+      },
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-5.stdout.log",
+          "bytes": 19596,
+          "truncated": false,
+          "sha256": "6b118aef41a9d36a044c7a96036c0252d7ccdca652b6f9c20ab07641b332b2bd"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-5.stderr.log",
+          "bytes": 539,
+          "truncated": false,
+          "sha256": "46abb7608939e232d9aa7a6ced5f15cd9b53ad446781ab0e55f7dc0c1bac1aba"
+        }
+      },
+      {
+        "stdout": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-6.stdout.log",
+          "bytes": 361,
+          "truncated": false,
+          "sha256": "4fea3ee97713505d5951c11b637a9c0b89ef09019c47f627852d303945d104d6"
+        },
+        "stderr": {
+          "file": ".zeus\\evaluations\\regression-logs\\f6bc95bd-897e-4b70-b689-04745614867b\\stage-6.stderr.log",
+          "bytes": 0,
+          "truncated": false,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    ],
+    "retained_unexplained_unit_failure": {
+      "file": ".zeus/evaluations/regression-receipts/c2886451-710a-43c3-8fa2-a366d436df6b.json",
+      "sha256": "a9ae479d178c3b11e99bd3109d00bb2f77990d0b473f0554c1c3ce61021d09c9",
+      "status": "failed",
+      "exact_test_unknown": true,
+      "tracking": "ZA-014"
+    },
+    "controls": [
+      "Exact route/method/query contracts and path/header/checkpoint rejection",
+      "Once-only committed note after publication failure",
+      "Ledger write failure prevents fixture effect",
+      "Mixed provider IDs above 32, altered ledger and response rejection",
+      "Actual ticket UI through framed exchange",
+      "Actual filtered CSV download and filename/hash through framed exchange",
+      "Actual draft correction and submit UI through framed exchange",
+      "Actual recovery-ticket note/status UI through framed exchange"
+    ]
+  },
+  "code_sha256": {
+    "scripts/run_regression.js": "15b37ddbf97fb7ea83f5f8fcd8b33deec8c8bf30b17575fad34eb6e562e1dd56",
+    "scripts/eval_harness/sandbox/file_rpc.mjs": "391c37ab8d57191c3a409d88aeb9a2339be2606e10ff6aa9606115c2d9f1a5b3",
+    "scripts/eval_harness/sandbox/mission_rpc.mjs": "1b33837655117f2e754a3af1a4475bf7e2d01104d577b5ac4b8ff47b55883153",
+    "scripts/eval_harness/sandbox/mission_fixture.mjs": "6d70e97baf99e8005e590cb3089433ed30328ab08ab1aee9f8aee439e1b9e6d9",
+    "scripts/eval_harness/sandbox/provider_relay.mjs": "82dbcd09bd1662949309334cfa56a21eba05e7b1b92c0e23008d5c8ee894ac75",
+    "scripts/eval_harness/sandbox/session.js": "c7ba4dce7e389ddca1499707bd2ae55dab7b975e1f5f6e0cfacb792e05a6c086",
+    "scripts/eval_harness/sandbox/host_transport.mjs": "872b97010b6470f4f77e103847b3619060f75de8c28271c8065ffdc68e95e667",
+    "scripts/eval_harness/sandbox/guest_smoke.mjs": "0dce7a5e1ee0dea21f08f62d1c7c224ed935fb0064e61938d193a3c1ca85ddf3",
+    "scripts/eval_harness/sandbox/probe.js": "786a3d5cc929024d393de1ce37893c8388efd244899075afc5ac6ae61fa48d8c",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "44f34f6557f8090817df109c35ab60b52f66110de05d1f2b1a74c32aa3642045",
+    "tests/unit/mission_transport.test.js": "e2b90016720e1f03e5067465d8d53615e0d2b697f421265b1210310a9bb5d7fb"
+  },
+  "provider_inference_requests": 0,
+  "physical_input": false,
+  "production_source_changed": false,
+  "isolation_validated": false,
+  "limitations": [
+    "The guest smoke navigates the orders fixture; the complete CSV download is checked by the separate local real-browser control.",
+    "Host HTTP effects do not independently prove browser interaction; fixture ledger deliberately records unobserved.",
+    "Isolated actor orchestration, bounded artifact export and paid relay integration remain incomplete; full core dispatch stays gated.",
+    "Independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated.",
+    "One aggregate unit failure has not reproduced and lacked original stdout/stderr; logging retention is fixed, cause unconfirmed."
+  ]
+}

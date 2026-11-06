@@ -414,12 +414,65 @@ The [reviewed relay record](benchmarks/provider-relay-20261106.json) records the
 catalogue and validation hashes. Actual hosted inference is still **zero**.
 No production app code changed and core paid dispatch remains gated.
 
+## Mission-fixture file transport
+
+Implemented after `eda1aa8`. Browser fixture state and controller checkpoints
+remain host-owned. The network-disabled guest receives only framed requests and
+responses; no fixture-state or correction/reset API is exposed to it.
+
+Decisions compared with the one-route synthetic smoke:
+
+- Select an exact B01/B02/B03/M02 HTTP route contract on the host, including
+  ordinary fixture JSON, intended mutations and the real orders CSV attachment.
+  Keep the old smoke's one-route validator and smaller limits as its default.
+- Permit up to 4,096 shared fixture/provider messages and 64 MiB aggregate
+  transport bytes for this explicit contract, while retaining 1 MiB decoded
+  bodies. Provider calls keep their separate request/output/token-estimate caps;
+  a high shared message ID does not create an extra paid-call allowance.
+- Preserve `Content-Disposition` only for the declared `orders.csv` attachment;
+  no arbitrary headers, remote URLs, path normalization or redirects are exposed.
+- Persist mutation intent and completed response/state hashes before publication.
+  Repeated IDs or a failed publication cannot append the same committed note
+  again. Missing state after an interruption remains an error, not a reset.
+- Keep fixture HTTP activity separate from evidence of browser interaction. The
+  host ledger explicitly says `unobserved` until an independent browser reader
+  supplies that evidence; sending the right HTTP request alone cannot earn it.
+- Retain regression stdout/stderr and hashes as well as exit statuses. One
+  aggregate unit stage failed without retained diagnostics; subsequent focused
+  and full unit checks passed unchanged. ZA-014 tracks the undiagnosed failure.
+
+Four real headless-browser controls pass through the framed exchange: ticket
+edit, filtered CSV download with the exact retained hash/filename, later draft
+correction/submission, and recovery-ticket note/status changes. Other controls
+reject undeclared routes, changed ledgers/responses, duplicate mutation effects
+and ledger-write failures. The first M02 test used the wrong accessible label;
+the test was corrected to the existing `Ticket status` field.
+
+Fresh guest `b2101630-bec9-46f4-aff5-e643f0cdef2a` passed all nine runtime and
+host-transport checks: the real Zeus app/Python/managed Chromium, two synthetic
+provider requests and three host fixture requests, immutable exchange/fixture
+hashes, fresh storage, disabled network and zero remaining owned processes.
+This guest smoke navigates the orders fixture; the complete CSV interaction is
+covered by the separate real-browser control. Neither is a model capability run.
+
+Final full regression passed **458 checks**: 112 JavaScript, 70 graders, 126 Rust,
+23 browser-service, 124 desktop and 3 private-desktop handoff checks. Receipt
+`f6bc95bd-897e-4b70-b689-04745614867b.json` retains untruncated hashed stdout/stderr
+for every stage. The earlier failed aggregate receipt remains failed; the cause
+has not been established. The
+[reviewed fixture record](benchmarks/mission-fixture-transport-20261106.json)
+retains source, lifecycle, host transport/fixture and validation hashes.
+Hosted inference remains **zero**; no production app source changed. Independent
+HCS disposal/CPU/disk quotas, isolated actor integration and the full core live
+baseline remain incomplete.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Connect the host provider relay to the isolated actor. Implement all-mission
-fixture/artifact transport and isolated mission orchestration.
+Connect the host provider relay and mission-fixture transport to the isolated
+actor. Implement bounded mission input/artifact export and isolated workflow
+orchestration, including compaction and confirmed-checkpoint restart.
 Preserve the current synthetic transport as a
 no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.
 Then freeze/review a live

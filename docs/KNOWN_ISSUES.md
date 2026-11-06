@@ -244,6 +244,24 @@ The [reviewed 4C record](benchmarks/phase4c-acceptance-20261105.json) retains
 both builds, raw usage, per-cell times, rejection counts and receipt hashes;
 the [work log](PHASE_4C_WORK_LOG.md) states comparison limits.
 
+## ZA-014 — Intermittent aggregate unit-stage failure lacked retained output
+
+**Priority: medium. Status: diagnostic retention fixed; cause remains unconfirmed.**
+
+During fixture-transport validation, receipt
+`c2886451-710a-43c3-8fa2-a366d436df6b.json` retained a failed unit stage followed
+by 70 passing graders. Console truncation left the exact failing test unavailable;
+the receipt had no stdout/stderr references. The focused eight transport checks
+and the immediate full 112-unit rerun passed without a source change, so this is
+not a confirmed fixture defect or a diagnosed flaky test.
+
+The regression runner now streams output and also retains per-stage stdout/stderr
+(8 MiB each, explicitly marked if truncated), hashes and paths in its receipt.
+Do not erase or retroactively relabel the failed run. If it repeats, inspect those
+files before retrying or changing a timeout. The initial M02 control's separate
+wrong-label timeout was corrected to the existing `Ticket status` label; it is
+not evidence explaining this later aggregate failure.
+
 ## Chat/replay usability follow-up — 2026-11-01
 
 The user's next manual review identified replay seek flashes and delayed highlighting, gaps during playback, accumulated playback delays, scrolling modal headers, hidden expanded-draft images, permanent prompt truncation in titles, and a completed plan displayed at 0%. These are addressed in the [chat workflow follow-up](CHAT_WORKFLOW_REFINEMENT.md), with explicit decisions and regression coverage. The plan failure was `[Done]` being parsed as pending; it is not evidence that semantic goal verification is solved. Playback rate remains limited by actual image validation/decoding/rendering. General task-state reliability, arbitrary-site recovery and broader UI polish remain tracked work.

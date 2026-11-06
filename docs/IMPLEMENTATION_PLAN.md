@@ -45,12 +45,15 @@ hashed assessments. Generated-submission grading now runs in a fresh guest under
 a separate non-admin account, with protected grader files, host-pinned signed
 results and actual positive/negative/forgery controls for executable missions.
 The fixed host provider relay has local HTTP/failure controls and successful
-catalogue-only preflight; it has not dispatched hosted inference. Relay-to-actor
-integration, isolated mission orchestration, all-mission transport,
+catalogue-only preflight; it has not dispatched hosted inference. Host-owned
+browser-fixture transport also has four real-browser workflow controls and an
+actual guest/real-Zeus navigation check, with independent state/byte hashes.
+Relay/fixture integration with the isolated actor, bounded artifact export,
+isolated mission orchestration,
 remaining lifecycle/resource validation and repeated live measurements remain
 incomplete. No full baseline is claimed yet.
-Current combined regression coverage is **450 distinct checks**, from a complete
-442-check run and a final 104-unit/70-grader follow-up, plus actual Sandbox boundary/runtime probes;
+Current regression coverage is **458 distinct checks**, from a complete
+passing run with retained stage output, plus actual Sandbox boundary/runtime probes;
 the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency
@@ -128,7 +131,7 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 450 distinct checks plus actual Sandbox probes; see the full-v1 work log for full-run and follow-up receipts |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current validated coverage is 458 distinct checks plus actual Sandbox probes; see the full-v1 work log for receipts and retained stage output |
 | 2A — mission contracts/graders | All twelve authored; grader controls delivered | Six original plus B02/B03/C03/M01/M02/R01, with 70 reference/negative controls; these are grader tests, not twelve live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
