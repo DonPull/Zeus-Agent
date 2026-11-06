@@ -48,6 +48,31 @@ $result['runtime_inventory']=[ordered]@{
     node_available=[bool](Get-Command node.exe -ErrorAction SilentlyContinue)
     python_available=[bool](Get-Command python.exe -ErrorAction SilentlyContinue)
 }
+if ($job.runtime_smoke) {
+    try {
+        $manifestFile='C:\Zeus\RuntimeInput\bundle.json'
+        if ((Get-FileHash -LiteralPath $manifestFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $job.runtime_smoke.manifest_sha256) { throw 'Runtime manifest hash changed.' }
+        $bundle=Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
+        if ($bundle.kind -ne 'public-sandbox-runtime-bundle' -or $bundle.files.Count -gt 20000 -or $bundle.bytes -gt 2147483648) { throw 'Invalid runtime bundle bounds.' }
+        Copy-Item -LiteralPath 'C:\Zeus\RuntimeInput\runtime' -Destination 'C:\Zeus\Runtime' -Recurse
+        foreach ($file in $bundle.files) {
+            if ($file.path -match '(^[/\\]|(^|[/\\])\.\.([/\\]|$)|:)') { throw 'Invalid relative runtime path.' }
+            $localFile=Join-Path 'C:\Zeus\Runtime' $file.path
+            if ((Get-FileHash -LiteralPath $localFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256) { throw ('Copied runtime hash mismatch: '+$file.path) }
+        }
+        # Sandbox's default user is elevated. WebView2 >=150 intentionally
+        # ignores environment/HKCU debugging switches in that context. Configure
+        # only this guest's test executable through the documented HKLM policy.
+        $debugPolicy='HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+        New-Item -Path $debugPolicy -Force | Out-Null
+        New-ItemProperty -LiteralPath $debugPolicy -Name 'zeus-evaluation.exe' -PropertyType String -Value '--remote-debugging-port=19223 --disable-background-timer-throttling --disable-renderer-backgrounding' -Force | Out-Null
+        $result['runtime_control_transport']='guest-only per-application WebView2 policy'
+        $controlProcess=Start-Process -FilePath 'C:\Zeus\Runtime\node\node.exe' -ArgumentList 'C:\Zeus\Input\guest_smoke.mjs' -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput 'C:\Zeus\runtime-console.txt' -RedirectStandardError 'C:\Zeus\runtime-errors.txt'
+        $result['runtime_smoke']=Get-Content -LiteralPath 'C:\Zeus\runtime-report.json' -Raw | ConvertFrom-Json
+    } catch {
+        $result['runtime_smoke']=[ordered]@{status='failed'; error=$_.Exception.Message}
+    }
+}
 $result['completed_at'] = [DateTime]::UtcNow.ToString('o')
 $temporary = Join-Path $outputDirectory 'probe-result.tmp'
 $destination = Join-Path $outputDirectory 'probe-result.json'

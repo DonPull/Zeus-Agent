@@ -52,8 +52,9 @@ Read-only inspection found Windows 11 Pro 23H2 (22631), firmware virtualization
 and SLAT enabled, about 13 GB free memory, no WindowsSandbox executable, no
 vmcompute service, no Docker/Hyper-V/VirtualBox tool and no ready WSL runtime.
 The initial process was not administrator. The later user-approved UAC setup
-enabled the Sandbox component with `-NoRestart` and returned restart required;
-the host has not been restarted by this workflow.
+enabled the Sandbox component with `-NoRestart` and returned restart required.
+The user's later normal restart activated Sandbox and the hypervisor; no restart
+was initiated by the workflow.
 
 Prepare a reviewable Windows Sandbox setup using supported .wsb configuration,
 with narrowly scoped input/output mappings, no personal profile or repository
@@ -111,9 +112,12 @@ Candidate manifests enumerate the exact twelve-mission/72-attempt matrix and
 default to one D01/Solo pilot cell. They cannot dispatch inference. Sandbox
 configuration/data-reader controls and actual guest probes are implemented.
 The user's normal restart activated Sandbox; two fresh protocol-2 probes passed
-all seven checks and ownership-scoped host-process cleanup. The guest has no
-Python/Node/WebView2, so a pinned runtime bundle is next. Isolated actor and separate executable-grader
-runtimes, provider/fixture transport and lifecycle validation still remain;
+all seven checks and ownership-scoped host-process cleanup. A pinned public
+runtime bundle now runs the real Zeus app, Python and managed Chromium in the
+guest against a synthetic local fixture. It checks exact versions, actual HTTP
+navigation, two mock requests and zero remaining owned browser processes.
+This uses no hosted inference. Isolated mission orchestration, a separate executable
+grader, provider/fixture transport and remaining lifecycle validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

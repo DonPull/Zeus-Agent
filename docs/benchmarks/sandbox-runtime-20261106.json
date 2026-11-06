@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "checkpoint": "pinned-synthetic-guest-runtime",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "b5c845b1e6254dcacd08ee5f1c715f760f1d4606",
+    "dirty": true,
+    "diff_hash": "e1fa54f4a0aefa206fb19c20b635822364dbca2ada83b735ab2cb91523948823",
+    "node": "v22.13.1"
+  },
+  "runtime": {
+    "bundle_manifest": ".zeus/evaluations/sandbox-runtime/bundle-06f39324-456e-4162-9f8e-40e4fff69edb/bundle.json",
+    "bundle_manifest_sha256": "114b9095fa92768cbb1fdbaaf76375b2d6cd58e6eb9149753c0b66da5e6523de",
+    "content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777",
+    "versions": {
+      "python": "3.11.0",
+      "node": "v22.13.1",
+      "playwright": "1.62.0",
+      "chromium": "151.0.7922.34",
+      "chromium_revision": "1234",
+      "webview2": "157.0.4341.42",
+      "microsoft_crt": "14.51.36247.0"
+    },
+    "files": 2864,
+    "bytes": 1484169987,
+    "microsoft_crt_signatures": [
+      {
+        "name": "msvcp140.dll",
+        "status": "Valid",
+        "subject": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+        "version": "14.51.36247.0"
+      },
+      {
+        "name": "vcruntime140.dll",
+        "status": "Valid",
+        "subject": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+        "version": "14.51.36247.0"
+      },
+      {
+        "name": "vcruntime140_1.dll",
+        "status": "Valid",
+        "subject": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+        "version": "14.51.36247.0"
+      }
+    ]
+  },
+  "webview2_cabinet": {
+    "source": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b7b22a57-b321-483e-9855-d260b076f1a7/Microsoft.WebView2.FixedVersionRuntime.157.0.4341.42.x64.cab",
+    "sha256": "cedaf8f3d12202c8803bdbae727b01c1be34540b78e8f0a10c6b401c2a8be97d",
+    "bytes": 310801569
+  },
+  "probes": [
+    {
+      "id": "409a0fc7-653f-4d7e-8975-9906d68759ed",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\409a0fc7-653f-4d7e-8975-9906d68759ed\\host-lifecycle-af226009-e447-4077-a68d-f05a500c429e.json",
+      "receipt_sha256": "a47dfa9eb30329d56cb63ffa6f61e83955799be85c67f8c5e6d098498977cc33",
+      "guest_result_sha256": "c93bbe113baaa87a5c053dd23d84a20d19753eed56893539a14961e530a3f238",
+      "checks": null,
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "882a3903-b950-4680-b42c-a4b2d76988d6",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\882a3903-b950-4680-b42c-a4b2d76988d6\\host-lifecycle-462a7a4e-44c1-41be-bb0a-ef55e97732bb.json",
+      "receipt_sha256": "698672b7b2411ad614d64f942a04c03480cb8a0cc340e4fa74077c8945ba246c",
+      "guest_result_sha256": "817bde100ccb40e8e0c9a2dbf9de61662d69b146227774cc5c7a8ebbb93f1e3c",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "7dbf2b78-69e4-4f2e-a61e-0509d975eac4",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\7dbf2b78-69e4-4f2e-a61e-0509d975eac4\\host-lifecycle-3289ba8f-e02d-4a05-a982-ebe564dcb848.json",
+      "receipt_sha256": "97cf78595484d84aebae923b56827da10aeb026f910cca8c218f140d71f75c7c",
+      "guest_result_sha256": "ca5afd0b304ba023db178c3d5738624c28fd014f7275ac7d9e666aad5acb8ef4",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "61455632-cff0-4284-b3df-54a6cec96f95",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\61455632-cff0-4284-b3df-54a6cec96f95\\host-lifecycle-12e83069-e616-4379-a61f-a7fd0afcc7fe.json",
+      "receipt_sha256": "ee45fe42d0815a457ef9d88605a5ca606784514e80bfa33a1d3f3e5c9bcb8c46",
+      "guest_result_sha256": "05faf142ceb2929b79790c48e5ad26008b369547cf1ee241553b1e5284df188f",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "80ac2179-b202-4d0f-9636-30ff93961bfa",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\80ac2179-b202-4d0f-9636-30ff93961bfa\\host-lifecycle-7f91bb47-03ff-4c3f-b09b-49233ac1dd11.json",
+      "receipt_sha256": "4b338efcad9b4f158a3950ed1f706588c93e4591b7c6f2a5c39fccf1b9de0844",
+      "guest_result_sha256": "33a562d2a2bedf4edffccd0f1a650fa102215687f969a285e65bdaf4459687df",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "74d97f72-4a7c-485b-815e-262865a1b050",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\74d97f72-4a7c-485b-815e-262865a1b050\\host-lifecycle-b45816cd-e6e3-450a-8b10-da4e401d1dc2.json",
+      "receipt_sha256": "ad7a0beb1799a4817ed36375e6ef25f9c4961acb7e1fc0e38ff5aeda65ac7781",
+      "guest_result_sha256": "141f4704d9ad033d19be07b725be04da0988d0bc180639a068cbe3be0c150ea8",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "90839eb6-8dde-49f7-9dec-007ae6b06561",
+      "status": "failed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\90839eb6-8dde-49f7-9dec-007ae6b06561\\host-lifecycle-d23406e6-23e8-44ca-92af-c9fcd19839fa.json",
+      "receipt_sha256": "d5cdc7cccb523d1274b78d914e948126e8640a24c4524e479a8d7a0adde08b36",
+      "guest_result_sha256": "7ab0e45e1f4a42b7d0243c70b998fe5166ded166c4df59f3895443c20442725d",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": false
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "00948e5c-e4c0-42f5-8a24-57c7bf9e6a49",
+      "status": "probe_observed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\00948e5c-e4c0-42f5-8a24-57c7bf9e6a49\\host-lifecycle-dfe61c8f-a885-435c-8488-5c126f3e19ed.json",
+      "receipt_sha256": "072aa87ca14ccfc8c499864f7dea824e4988bfb99da1b30458d392510eca4930",
+      "guest_result_sha256": "4d239e4d79cad727d837a676366e8d5c8255e15048fdf5849de030e5bef13d26",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": true
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    },
+    {
+      "id": "bc91bc3e-0eae-4c19-b1b8-57bd1b38163a",
+      "status": "probe_observed",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\bc91bc3e-0eae-4c19-b1b8-57bd1b38163a\\host-lifecycle-8757a90a-0dfe-49d7-8f2c-866aa3a16346.json",
+      "receipt_sha256": "c92e68ea876573e2ef9d9e3407eac59f4e598323f0014903e0107591ce3539ff",
+      "guest_result_sha256": "02113ffc3e37aac9dbb22ed4d8cacd97c8f19be087ebfccea423a0b8437f14ea",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "runtime_smoke": true
+      },
+      "owned_host_processes_gone": true,
+      "independent_hcs_disposal": null
+    }
+  ],
+  "validation": {
+    "unit_checks": 79,
+    "grader_checks": 70,
+    "receipt": ".zeus/evaluations/regression-receipts/0abfaf8b-d751-4531-80f3-d61e7dfd5741.json",
+    "receipt_sha256": "c0437eaebda88ee916e783b4c98715bf72158329d6891a92caa1f13f45c276e5",
+    "combined_distinct_with_earlier_full_run": 425
+  },
+  "code_sha256": {
+    "scripts/eval_harness/sandbox/prepare_runtime.py": "751a14c516d654630b3f1ec12c89b0b281024e6c9b5d3ff3a8325bb606e13bfc",
+    "scripts/eval_harness/sandbox/session.js": "9ec416e6a155ea68bfff33b44641589f73c9de167902e59f621d09fdd66214cf",
+    "scripts/eval_harness/sandbox/probe.js": "4947cb1a636168d890400244eae7e5a16e9f2deaa4fdc4e99c37f092b1880f55",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "bf9eff981c9ff02daffb3cf1f8567195ee3d3d0c9cadc0c71d05c1519805982d",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "5476eafb3c5458296bcfa47735f754fc66fb42ccd9bd457da7b5484e763b1738",
+    "scripts/eval_harness/sandbox/guest_smoke.mjs": "7d444aaec8d8d02b966d14daa2d9949699ec9b88bb7ddd5af64c80d2270c12eb",
+    "scripts/eval_harness/sandbox/guest_diagnostics.ps1": "06e0cdaba9aa8f05bae3bf68c0d878d0d3c299eb2c05b83149b57280b167b61d",
+    "tests/unit/sandbox_runtime.test.js": "6648563aa0b05e0c5cb66c14da897219aadf8abad5b02521f97f57c0b5ce578a",
+    "tests/unit/sandbox_session.test.js": "2b45be5ba2fc31368dab14fd6c9020f2a3125784c473248f195cdac12fbfe1f7"
+  },
+  "provider_inference_requests": 0,
+  "physical_input": false,
+  "host_installers_executed": 0,
+  "host_registry_changes": 0,
+  "isolation_validated": false,
+  "limitations": [
+    "Scripted runtime checks are not live-model capability outcomes.",
+    "Independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated.",
+    "Bounded provider/fixture/artifact transport, mission orchestration and separate executable grading remain incomplete.",
+    "Earlier runtime failures and restricted EPERM validation receipts remain retained."
+  ]
+}

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync,spawn} from 'node:child_process';
 import {withScratch} from '../benchmarks/mission_kit.js';
-import {sandboxConfiguration,prepareProbe,inspectProbe,readBoundedFile} from '../../scripts/eval_harness/sandbox/session.js';
+import {sandboxConfiguration,prepareProbe,inspectProbe,readBoundedFile,runtimeSmokeMatches} from '../../scripts/eval_harness/sandbox/session.js';
 
 test('Sandbox config has only disjoint input/output mappings, network and redirection off',()=>{
   const xml=sandboxConfiguration({input:'C:\\bench & test\\input',output:'C:\\bench & test\\output'});
@@ -14,6 +14,10 @@ test('Sandbox config has only disjoint input/output mappings, network and redire
   assert.match(xml,/<ProtectedClient>Enable<\/ProtectedClient>/);
   assert.match(xml,/bench &amp; test/);assert.match(xml,/<ReadOnly>true<\/ReadOnly>/);
   assert.match(xml,/<MemoryInMB>4096<\/MemoryInMB>/);
+  const runtime=sandboxConfiguration({input:'C:\\bench\\input',output:'C:\\bench\\output',runtime:'C:\\public-runtime'});
+  assert.equal((runtime.match(/<MappedFolder>/g)||[]).length,3);
+  assert.equal((runtime.match(/<ReadOnly>true<\/ReadOnly>/g)||[]).length,2);
+  assert.throws(()=>sandboxConfiguration({input:'C:\\bench\\input',output:'C:\\bench\\output',runtime:'C:\\bench'}),/disjoint/);
   for(const [input,output] of [['C:\\same','C:\\same'],['C:\\parent','C:\\parent\\child'],['relative','C:\\output'],['\\\\server\\share','C:\\output'],['//server/share','C:\\output'],['C:\\','D:\\output'],['C:\\%USERPROFILE%','C:\\output']]){
     assert.throws(()=>sandboxConfiguration({input,output}));
   }
@@ -31,6 +35,20 @@ test('Sandbox exchange reads bounded data and rejects traversal, device syntax, 
 }));
 
 const windows={skip:process.platform!=='win32'};
+test('guest runtime claims require exact dependency versions, successful fixture I/O and cleanup',()=>{
+  const versions={python:'3.11.0',node:'v22.13.1',playwright:'1.62.0',chromium:'151.0.7922.34',webview2:'157.0.4341.42'};
+  const smoke={status:'passed',provider_inference_requests:0,mock_requests:2,
+    browser_runtime:{sdk:versions.playwright,browser:versions.chromium,cleanup:{owned_processes_remaining:0}},
+    webview2_version:versions.webview2,python_version:versions.python,node_version:versions.node,
+    observed:{run:{status:'completed'}},usage:{requests:2,unknown_requests:0},fixture_requests:1,
+    navigation:{url:'http://127.0.0.1:19222/',http_status:200}};
+  assert.equal(runtimeSmokeMatches(smoke,versions),true);
+  for(const change of [s=>s.status='failed',s=>s.provider_inference_requests=1,s=>s.browser_runtime.browser='wrong',
+    s=>s.browser_runtime.cleanup.owned_processes_remaining=1,s=>s.observed.run.status='failed',s=>s.usage.unknown_requests=1,
+    s=>s.fixture_requests=0,s=>s.navigation.http_status=404,s=>s.navigation.url='http://other/']){
+    const invalid=structuredClone(smoke);change(invalid);assert.equal(runtimeSmokeMatches(invalid,versions),false);
+  }
+});
 function fakeReport(root,manifest){
   const report={schema_version:2,id:manifest.id,nonce:manifest.nonce,computer:'SYNTHETIC-GUEST-'+manifest.host_name,
     challenge_sha256:manifest.inputs['challenge.txt'],input_write_denied:true,private_read_denied:true,

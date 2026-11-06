@@ -25,15 +25,18 @@ export function unlinkedDirectory(location,{create=false}={}){
   return absolute;
 }
 
-export function sandboxConfiguration({input,output,memoryMB=4096}){
-  // This generator intentionally supports exactly two mappings. The repository,
-  // real profile, host credentials and evaluator state are never mapped.
+export function sandboxConfiguration({input,output,memoryMB=4096,runtime=null}){
+  // Two exchange mappings plus an optional readonly public runtime. The
+  // repository, real profile, host credentials and evaluator state stay unmapped.
   if(!Number.isInteger(memoryMB)||memoryMB<2048||memoryMB>8192)throw Error('Sandbox memory must be 2048..8192 MiB');
-  for(const value of [input,output]){
+  const mappings=[input,output,...(runtime?[runtime]:[])];
+  for(const value of mappings){
     if(typeof value!=='string'||!path.win32.isAbsolute(value)||/[\x00\r\n%]/.test(value)||!/^[a-z]:\\$/i.test(path.win32.parse(value).root)||path.win32.resolve(value)===path.win32.parse(value).root)throw Error('Use absolute local Windows mapping folders');
   }
-  const a=path.win32.resolve(input).toLowerCase(),b=path.win32.resolve(output).toLowerCase();
-  if(a===b||a.startsWith(b+'\\')||b.startsWith(a+'\\'))throw Error('Sandbox mappings must be disjoint');
+  for(let i=0;i<mappings.length;i++)for(let j=i+1;j<mappings.length;j++){
+    const a=path.win32.resolve(mappings[i]).toLowerCase(),b=path.win32.resolve(mappings[j]).toLowerCase();
+    if(a===b||a.startsWith(b+'\\')||b.startsWith(a+'\\'))throw Error('Sandbox mappings must be disjoint');
+  }
   return '<?xml version="1.0" encoding="utf-8"?>\n<Configuration>\n'+
     '  <vGPU>Disable</vGPU>\n  <Networking>Disable</Networking>\n  <ProtectedClient>Enable</ProtectedClient>\n'+
     '  <AudioInput>Disable</AudioInput>\n  <VideoInput>Disable</VideoInput>\n'+
@@ -41,6 +44,7 @@ export function sandboxConfiguration({input,output,memoryMB=4096}){
     '  <MemoryInMB>'+memoryMB+'</MemoryInMB>\n  <MappedFolders>\n'+
     '    <MappedFolder><HostFolder>'+xml(input)+'</HostFolder><SandboxFolder>C:\\Zeus\\Input</SandboxFolder><ReadOnly>true</ReadOnly></MappedFolder>\n'+
     '    <MappedFolder><HostFolder>'+xml(output)+'</HostFolder><SandboxFolder>C:\\Zeus\\Output</SandboxFolder><ReadOnly>false</ReadOnly></MappedFolder>\n'+
+    (runtime?'    <MappedFolder><HostFolder>'+xml(runtime)+'</HostFolder><SandboxFolder>C:\\Zeus\\RuntimeInput</SandboxFolder><ReadOnly>true</ReadOnly></MappedFolder>\n':'')+
     '  </MappedFolders>\n  <LogonCommand><Command>powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\\Zeus\\Input\\probe.ps1</Command></LogonCommand>\n</Configuration>\n';
 }
 
@@ -62,8 +66,17 @@ export function readBoundedFile(root,name,limit=1024*1024){
   }finally{fs.closeSync(fd);}
 }
 
-export function prepareProbe(parent){
+export function prepareProbe(parent,{runtimeBundle=null}={}){
   if(process.platform!=='win32')throw Error('The .wsb probe requires a Windows host');
+  let runtimeInfo=null;
+  if(runtimeBundle){
+    runtimeBundle=unlinkedDirectory(runtimeBundle);
+    const runtimeParent=path.resolve(directory,'../../../.zeus/evaluations/sandbox-runtime');
+    if(canonical(path.dirname(runtimeBundle))!==canonical(runtimeParent)||!/^bundle-[0-9a-f-]{36}$/.test(path.basename(runtimeBundle)))throw Error('Use a staged public runtime bundle');
+    const bytes=readBoundedFile(runtimeBundle,'bundle.json',4*1024*1024),bundle=JSON.parse(bytes);
+    if(bundle.kind!=='public-sandbox-runtime-bundle'||bundle.status!=='staged-unproven'||!Array.isArray(bundle.files)||bundle.files.length>20000||bundle.bytes>2*1024**3)throw Error('Invalid runtime bundle identity');
+    runtimeInfo={path:runtimeBundle,manifest_sha256:hash(bytes),content_sha256:bundle.content_sha256,versions:bundle.versions};
+  }
   const base=unlinkedDirectory(parent,{create:true}),id=crypto.randomUUID(),root=path.join(base,id);
   fs.mkdirSync(root);const input=path.join(root,'input'),output=path.join(root,'output'),privateDir=path.join(root,'private');
   for(const folder of [input,output,privateDir])fs.mkdirSync(folder);
@@ -72,18 +85,29 @@ export function prepareProbe(parent){
   fs.writeFileSync(privateFile,sentinel,{flag:'wx'});
   const challenge=Buffer.from('Synthetic boundary challenge '+nonce+'\n');
   const job={schema_version:2,id,nonce,private_host_path:privateFile,host_name:os.hostname()};
+  if(runtimeInfo)job.runtime_smoke={manifest_sha256:runtimeInfo.manifest_sha256};
   const inputs={'job.json':Buffer.from(JSON.stringify(job,null,2)),'challenge.txt':challenge,'probe.ps1':fs.readFileSync(path.join(directory,'probe_guest.ps1'))};
+  if(runtimeInfo)for(const name of ['guest_smoke.mjs','guest_diagnostics.ps1'])inputs[name]=fs.readFileSync(path.join(directory,name));
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
-  const wsb=sandboxConfiguration({input,output});
+  const wsb=sandboxConfiguration({input,output,runtime:runtimeBundle});
   fs.writeFileSync(path.join(root,'probe.wsb'),wsb,{flag:'wx'});
   const manifest={schema_version:2,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
     host_name:os.hostname(),nonce,input,output,private_file:privateFile,private_sha256:hash(sentinel),
     inputs:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,hash(bytes)])),configuration_sha256:hash(wsb),
-    memory_mb:4096,networking:'disabled',mappings:2,provider_requests:0,launch_requested:false,
+    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,provider_requests:0,launch_requested:false,
     limitations:['Prepared configuration is not evidence of guest execution or isolation validation.',
       'Memory is configured; CPU, writable mapping disk quota and full actor/grader containment are not validated.']};
   fs.writeFileSync(path.join(root,'session.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
   return {root,manifest};
+}
+
+export function runtimeSmokeMatches(smoke,versions){
+  return smoke?.status==='passed'&&smoke.provider_inference_requests===0&&smoke.mock_requests===2
+    &&smoke.browser_runtime?.sdk===versions.playwright&&smoke.browser_runtime?.browser===versions.chromium
+    &&smoke.webview2_version===versions.webview2&&smoke.python_version===versions.python&&smoke.node_version===versions.node
+    &&smoke.browser_runtime?.cleanup?.owned_processes_remaining===0&&smoke.observed?.run?.status==='completed'
+    &&smoke.usage?.requests===2&&smoke.usage?.unknown_requests===0&&smoke.fixture_requests>0
+    &&smoke.navigation?.url==='http://127.0.0.1:19222/'&&smoke.navigation.http_status===200;
 }
 
 /** Diagnostic claims remain claims until an external lifecycle check is supplied.
@@ -100,12 +124,15 @@ export function inspectProbe(root){
   if(hash(readBoundedFile(privateDir,'host-only.bin'))!==manifest.private_sha256)throw Error('Unmapped host sentinel changed');
   const names=fs.readdirSync(output);
   if(names.length!==1||names[0]!=='probe-result.json')throw Error('Probe requires exactly one declared result file');
-  const bytes=readBoundedFile(output,'probe-result.json',16384),guest=JSON.parse(bytes);
+  const bytes=readBoundedFile(output,'probe-result.json',65536),guest=JSON.parse(bytes);
   if(guest.id!==manifest.id||guest.nonce!==manifest.nonce||guest.schema_version!==2)throw Error('Guest result identity mismatch');
   const checks={different_computer:typeof guest.computer==='string'&&guest.computer!==manifest.host_name,
     input_read:guest.challenge_sha256===manifest.inputs['challenge.txt'],input_read_only:guest.input_write_denied===true,
     host_private_unavailable:guest.private_read_denied===true,network_disabled:guest.active_nonloopback_adapters===0,
     writable_output:guest.output_written===true,fresh_guest_disk:guest.marker_preexisting===false&&guest.marker_created===true};
+  if(manifest.runtime_bundle){
+    checks.runtime_smoke=runtimeSmokeMatches(guest.runtime_smoke,manifest.runtime_bundle.versions);
+  }
   return {id:manifest.id,status:Object.values(checks).every(Boolean)?'probe_claims_consistent':'probe_failed',
     checks,guest,result_sha256:hash(bytes),isolation_validated:false,
     note:'No VM lifecycle evidence has been checked. This report cannot authorize an isolated benchmark run.'};

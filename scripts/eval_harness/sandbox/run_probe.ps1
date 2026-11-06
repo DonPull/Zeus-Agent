@@ -87,11 +87,10 @@ try {
         if (-not $clientProof -or -not (Test-Path -LiteralPath (Join-Path $sessionRoot 'output\probe-result.json'))) { throw 'Guest probe deadline expired.' }
         $inspectionText=& $node $probeScript --inspect $sessionRoot
         $inspectionExit=$LASTEXITCODE
-        if ($inspectionExit -ne 2) { throw 'Independent probe inspection did not accept the guest observations.' }
         $inspection=$inspectionText | ConvertFrom-Json
-        if ($inspection.status -ne 'probe_claims_consistent') { throw 'Guest boundary observations failed.' }
         Save-Json (Join-Path $sessionRoot 'host-inspection.json') $inspection
         $record.inspection=[ordered]@{status=$inspection.status; checks=$inspection.checks; result_sha256=$inspection.result_sha256}
+        if ($inspectionExit -ne 2 -or $inspection.status -ne 'probe_claims_consistent') { throw 'Independent probe inspection did not accept the guest observations.' }
         $record.status='probe_observed'
         $exitStatus=0
     } else {

@@ -3,7 +3,9 @@
 Status, 6 November: the user's normal restart activated Sandbox and the hypervisor,
 with no component restart pending. Two consecutive protocol-2 guest probes passed
 all seven boundary/fresh-storage checks and closed their owned host processes.
-The actor/grader runtime is still incomplete; this is not a validated full executor.
+A pinned public bundle now runs the real Zeus app, Python and managed Chromium
+against a synthetic guest-local fixture. Mission orchestration and the separate
+grader remain incomplete; this is not a validated full executor.
 
 The current host is Windows 11 Pro 23H2 with firmware virtualization and SLAT,
 and the Windows Sandbox component was initially absent. The reviewed prerequisite is
@@ -81,3 +83,32 @@ on the next fresh guest. The guest runtime inventory found no Python, Node or
 WebView2. `prepare_runtime.py --catalogue` retains Microsoft's public metadata;
 `--catalogue-from <retained-page.html>` parses it offline without JavaScript
 execution. Neither mode downloads or runs a runtime installer.
+
+## Pinned synthetic runtime check
+
+Explicit `prepare_runtime.py` modes download one exact Microsoft x64 cabinet,
+verify its retained hash, expand it using Windows `expand.exe`, and verify the
+runtime's Microsoft signature/version. `--build-bundle <verified-webview-directory>`
+copies selected public dependencies, the evaluation executable and built frontend.
+It excludes user profiles, the repository, credentials, global site packages and
+Python startup customizations. Every copied file has a size/hash inventory.
+
+The current bundle pins Python 3.11.0, Node 22.13.1, Playwright 1.62.0, Chromium
+151.0.7922.34, WebView2 157.0.4341.42 and signature-verified Microsoft C++ libraries
+14.51.36247.0. The latter include MSVCP140.dll, required by greenlet; no runtime
+installer runs on the host. These versions describe this checkpoint, not an
+automatic upgrade policy.
+
+`probe.js --runtime-bundle <owned-bundle-directory>` adds one readonly public
+runtime mapping. The guest copies dependencies locally and verifies their hashes
+before execution. Small trusted control scripts remain separate readonly inputs.
+The elevated Sandbox account needs a guest-only, per-executable HKLM WebView2
+debugging policy; no host registry setting changes. The check uses the real
+bridge, normal policy, a bounded synthetic provider and an actual local browser
+navigation. It requires two mock requests, known usage, exact dependency versions,
+successful navigation and zero remaining owned browser processes.
+
+This is a scripted runtime check with **zero hosted inference requests**, not a
+capability score. Its JSON still cannot certify isolation. Provider/fixture file
+transport, separate executable grading and resource/lifecycle gates remain open.
+Keep failed probes and their hashes alongside the successful receipt.

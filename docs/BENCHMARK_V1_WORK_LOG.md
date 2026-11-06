@@ -202,11 +202,54 @@ firewall, whereas this packet fixes networking disabled at the .wsb boundary.
 Retain the existing OS-supported configuration while implementing bounded file
 transport; no new sandbox SDK or network policy was installed.
 
+## Pinned guest runtime checkpoint
+
+The default guest has no installed Python, Node or WebView2. A public dependency
+bundle now pins Python 3.11.0, Node 22.13.1, Playwright 1.62.0, Chromium
+151.0.7922.34, WebView2 157.0.4341.42 and Microsoft C++ libraries 14.51.36247.0.
+Microsoft's cabinet metadata, download hash and executable signature are retained;
+the public bundle has a complete per-file hash inventory. No installer ran on
+the host. No user profile, credentials or repository mapping is included.
+
+Decisions compared with the earlier preparer:
+
+- Metadata-only preparation now stages and tests an actual portable runtime.
+- Copy the fixed WebView2 runtime to guest-local storage before executing it;
+  [Microsoft documents that UNC/network execution is unsupported](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution).
+- Use a guest-only, per-executable HKLM debugging policy. The initial environment
+  switch was ignored by the elevated Sandbox account under WebView2 157;
+  [Microsoft explains this security change](https://github.com/MicrosoftEdge/WebView2Feedback/issues/5645).
+  Host registry and network configuration are unchanged.
+- Include the signature-verified app-local C++ dependencies required by greenlet.
+  The initial portable Python omitted MSVCP140.dll; the retained traceback and
+  binary import table identified the missing dependency.
+- Keep the small trusted control scripts separate from the readonly dependency
+  bundle. Edits to diagnostics no longer require recopying 1.48 GB on the host.
+- Retain failed guest observations even when inspection fails; successful app
+  completion alone cannot satisfy the browser navigation/cleanup check.
+
+The final fresh guest `bc91bc3e-0eae-4c19-b1b8-57bd1b38163a` passed all eight
+checks, including actual HTTP 200 navigation to its synthetic fixture, the real
+Zeus bridge/Python/managed browser, exact dependency versions, two mock requests,
+known usage and zero remaining owned browser processes. Owned Sandbox client and
+launcher exited. Independent HCS disposal remains unknown. An earlier repaired
+runtime probe also passed; all preceding runtime failures remain on disk.
+These are scripted runtime observations, **not agent capability outcomes**.
+
+Final focused validation passed **79 JavaScript + 70 grader checks**, receipt
+`0abfaf8b-d751-4531-80f3-d61e7dfd5741.json`. Two restricted validation attempts
+retained Windows temp-path EPERM failures; the explicit approved unrestricted
+rerun passed. No production app/UI code changed. Combined distinct coverage with
+the earlier complete run is **425 checks**, plus the actual OS guest probes.
+The [reviewed runtime record](benchmarks/sandbox-runtime-20261106.json) retains
+the successful and failed probe hashes, dependency identity and tested code hashes.
+Hosted inference: **zero**. The full benchmark remains in progress.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Implement and validate the isolated actor, bounded provider/fixture/artifact
+Implement and validate isolated mission orchestration, bounded provider/fixture/artifact
 transport, separate executable grader and OS lifecycle/cleanup controls.
 Then freeze/review a live
 pilot manifest and use its resource evidence for the repeated full Solo/Team run.
