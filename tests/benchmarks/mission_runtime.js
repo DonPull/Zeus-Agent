@@ -7,7 +7,7 @@ import { gradeMission } from './mission_graders/outcomes.js';
 import { resolveBenchmarkConfig, taskSettings, assertEffectiveSettings, fingerprint } from './benchmark_config.js';
 import { appendScore, atomicWrite } from './score_recorder.js';
 import { runTrial } from './trial_runner.js';
-import { agentDuration, browserMeasurements } from './mission_measurements.js';
+import { agentDuration, browserMeasurements, contextMeasurements } from './mission_measurements.js';
 
 const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
 export const hashBytes = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -91,7 +91,8 @@ export function missionConfiguration({architecture='solo',models={},executionPro
 export async function runMissionTrial({id, page, appWorkspace, output, experimentId, build, models={},architecture='solo',
   evaluationKind='scripted_runtime', executionProfile='reference-offline', scriptedFiles={},
   beforeSend=async()=>{}, decide, stopActor=async()=>{}, portal=null, browserObservation=null, timeoutMs=60000,
-  evaluationLimits=null,expectedProviderOrigin=null,supervisionPolicy='external-review',afterExecute=async()=>{}}) {
+  evaluationLimits=null,expectedProviderOrigin=null,supervisionPolicy='external-review',afterExecute=async()=>{},
+  runWorkflow=null,collectionTimeoutMs=10000}) {
   const {task,dir}=mission(id), trial=crypto.randomUUID(), interventions=[];
   if(!evaluationLimits)throw new Error('Mission trials require an explicit evaluation-limit manifest');
   if(!['scripted_runtime','capability'].includes(evaluationKind))throw new Error('Invalid evaluation kind');
@@ -99,8 +100,10 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
   if(evaluationKind!=='scripted_runtime'&&Object.keys(scriptedFiles).length)throw new Error('Reference execution trust cannot be attached to a live trial');
   const configuration=missionConfiguration({architecture,models,executionProfile,supervisionPolicy,evaluationLimits,timeoutMs});
   const artifactsDir=path.join(output,'artifacts',trial);
-  let outcome=null,runId=null,usage=null,limits=null,messages=[],stopped=false;
-  const row=await runTrial({suiteTitle:'Zeus mission diagnostics',suiteDir:dir,promptSpec:{...task,name:task.name},timeoutMs,
+  let outcome=null,runId=null,usage=null,limits=null,messages=[],stopped=false,workflowEvidence={},workflowWall=null;
+  const runSnapshots=[];
+  const processLogs=new Map();
+  const row=await runTrial({suiteTitle:'Zeus mission diagnostics',suiteDir:dir,promptSpec:{...task,name:task.name},timeoutMs,collectionTimeoutMs,
     runMeta:{trial_id:trial,experiment_id:experimentId,build,configuration,configuration_fingerprint:configuration.configuration_fingerprint,
       model_set:Object.fromEntries(Object.entries(configuration.roles).map(([role,value])=>[role,value.model])),architecture,suite_id:'zeus-missions-v1',suite_version:'1.0.0',
       evaluation_kind:evaluationKind,execution_profile:executionProfile},
@@ -119,7 +122,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       context.workspace=path.join(appWorkspace,'tasks',tid,'workspace');
       context.manifest=deployMission(id,context.workspace);
       let prompt=task.prompt;context.attachments=[];
-      if(portal)prompt+=`\nTicket portal URL: ${portal.url}`;
+      if(portal)prompt+=`\n${id==='B01'?'Ticket':'Task'} portal URL: ${portal.url}`;
       if(id==='V01'){
         for(const name of fs.readdirSync(path.join(dir,'inputs'))){
           const base64=fs.readFileSync(safeFile(context.workspace,name)).toString('base64');
@@ -133,8 +136,28 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       await beforeSend(context);
     },
     execute:async context=>{
-      await sendWithApprovals(page,context.task.id,context.prompt,{signal:context.signal,decide,attachmentIds:context.attachments.map(file=>file.id),onIntervention:value=>interventions.push(value)});
-      await afterExecute({...context,recordIntervention:value=>interventions.push(value)});
+      const started=Date.now();
+      const send=async(prompt,attachmentIds=[])=>{
+        const result=await sendWithApprovals(page,context.task.id,prompt,{signal:context.signal,decide,attachmentIds,onIntervention:value=>interventions.push(value)});
+        const run=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),context.task.id);
+        if(run&&!runSnapshots.some(value=>value.id===run.id))runSnapshots.push(run);
+        // Keep the latest process-local snapshot before a controlled restart
+        // loses its ring buffer. Repeated user turns must not double-count it.
+        processLogs.set(page,await page.evaluate(id=>window.__ZEUS_BRIDGE__.getDebugLog(id),context.task.id));
+        if(run?.status!=='completed')throw new Error(`Agent turn ended with ${run?.status??'unknown'}`);
+        return result;
+      };
+      if(runWorkflow){
+        workflowEvidence=await runWorkflow({...context,send,getPage:()=>page,replaceActor:fresh=>{
+          if(context.signal.aborted)throw context.signal.reason;
+          if(!fresh?.page||!fresh?.workspace||fs.realpathSync(fresh.workspace)!==fs.realpathSync(appWorkspace))throw infrastructure('A workflow restart must retain its exact owned workspace');
+          page=fresh.page;
+        },recordIntervention:value=>interventions.push(value)})??{};
+      }else{
+        await send(context.prompt,context.attachments.map(file=>file.id));
+        await afterExecute({...context,recordIntervention:value=>interventions.push(value)});
+      }
+      workflowWall=(Date.now()-started)/1000;
       const state=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getTaskRunState(id),context.task.id);
       runId=state?.id??null;
       if(state?.status!=='completed')throw new Error(`Agent run ended with ${state?.status??'unknown'}`);
@@ -151,7 +174,9 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
         if(body&&body.status!=='pending'&&!interventions.some(value=>value.message_id===intervention.message_id&&value.decision===body.status))
           interventions.push({message_id:intervention.message_id,decision:body.status,source:'external-ui',note:body.note??null});
       }
-      const measurements={agent_duration_seconds:agentDuration(state),browser:null};
+      const durations=runSnapshots.map(agentDuration);
+      const measurements={agent_duration_seconds:durations.length&&durations.every(value=>value!==null)?durations.reduce((a,b)=>a+b,0):agentDuration(state),browser:null};
+      if(runWorkflow){measurements.workflow_wall_seconds=workflowWall;measurements.root_runs=runSnapshots.length;}
       context.observation={unitsUsed:usage?.unknown_requests===0?spend.spent_credits:null,messageCount:messages.length,
         runMeta:{task_id:tid,run_id:runId,usage,evaluation_limits:limits,interventions,measurements}};
       const browserEvidence=typeof browserObservation==='function'?await browserObservation():browserObservation;
@@ -207,6 +232,13 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       }
       atomicWrite(path.join(artifactsDir,'messages.json'),JSON.stringify(messages,null,2));
       const debug=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getDebugLog(id),tid);
+      processLogs.set(page,debug);
+      measurements.context=contextMeasurements([...processLogs.values()],messages);
+      for(const [index,log] of [...processLogs.values()].entries()){
+        const name='process-'+index+'-debug.log',file=path.join(artifactsDir,name);
+        atomicWrite(file,String(log).slice(-2_000_000));
+        context.artifacts.push({path:path.relative(output,file),sha256:hashBytes(fs.readFileSync(file))});
+      }
       atomicWrite(path.join(artifactsDir,'debug.log'),String(debug).slice(-2_000_000));
       await page.screenshot({path:path.join(artifactsDir,'desktop.png')});
       for(const file of ['deployment.json','messages.json','debug.log','desktop.png']){
@@ -217,7 +249,7 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       const exported=path.join(artifactsDir,'submission');
       const files=exportMission(id,context.workspace,exported);
       atomicWrite(path.join(artifactsDir,'export.json'),JSON.stringify(files,null,2));
-      const executable=['C01','C02','D02'].includes(id);
+      const executable=['C01','C02','C03','D02'].includes(id);
       let trustedExecution=false;
       if(executable&&evaluationKind==='scripted_runtime'){
         const artifact=task.artifacts[0],file=files.find(f=>f.name===artifact);
@@ -225,7 +257,12 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
       }
       if(executable&&!trustedExecution){
         outcome={mission_id:id,outcome_status:'not_evaluated',criteria:[{id:'isolated_grading',status:'not_evaluated',evidence:'No isolated executor or exact known-control hash; exported code was not executed'}]};
-      }else outcome=await gradeMission(id,exported,{trustedExecution,portal,browserObservation:browserEvidence});
+      }else outcome=await gradeMission(id,exported,{trustedExecution,portal,browserObservation:browserEvidence,
+        memoryEvidence:workflowEvidence.memoryEvidence,restartEvidence:workflowEvidence.restartEvidence,screenshotDirectory:id==='C03'?path.join(artifactsDir,'rendered-app'):null});
+      if(runWorkflow){
+        atomicWrite(path.join(artifactsDir,'workflow.json'),JSON.stringify({runs:runSnapshots,evidence:workflowEvidence},null,2));
+        context.artifacts.push({path:path.relative(output,path.join(artifactsDir,'workflow.json')),sha256:hashBytes(fs.readFileSync(path.join(artifactsDir,'workflow.json')))});
+      }
       atomicWrite(path.join(artifactsDir,'assessment.json'),JSON.stringify(outcome,null,2));
       for(const file of ['export.json','assessment.json']){
         const full=path.join(artifactsDir,file);context.artifacts.push({path:path.relative(output,full),sha256:hashBytes(fs.readFileSync(full))});

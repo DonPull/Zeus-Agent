@@ -190,7 +190,10 @@ pub(super) fn collect(
                         .into(),
                 );
             }
-            row["path"] = json!(identity.path);
+            // Return the verified handle's canonical path. On Windows this
+            // retains the extended-length prefix required by Python file I/O
+            // when task/session/download names exceed MAX_PATH.
+            row["path"] = json!(actual);
         }
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         conn.execute("INSERT INTO managed_browser_transfers(id,session_id,direction,status,metadata,updated_at) VALUES(?1,?2,'download',?3,?4,?5) ON CONFLICT(id) DO UPDATE SET status=excluded.status,metadata=excluded.metadata,updated_at=excluded.updated_at WHERE managed_browser_transfers.session_id=excluded.session_id AND managed_browser_transfers.status!='completed'",params![id,session,row["status"].as_str(),row.to_string(),crate::db::now_iso()]).map_err(|e|e.to_string())?;

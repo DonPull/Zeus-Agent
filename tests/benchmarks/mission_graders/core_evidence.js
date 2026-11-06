@@ -14,8 +14,9 @@ export function captureContinuity(before,after){
     receipts:structuredClone(receipts)});
   captures.add(evidence);return evidence;
 }
-export function captureRestart({oldProcess,newProcess,oldWorkspace,newWorkspace,checkpoint}){
+export function captureRestart({oldProcess,newProcess,oldWorkspace,newWorkspace,checkpoint,beforeRestart}){
   const evidence=Object.freeze({kind:'restart',real_restart:Number.isInteger(oldProcess)&&oldProcess>0&&Number.isInteger(newProcess)&&newProcess>0&&oldProcess!==newProcess&&typeof oldWorkspace==='string'&&oldWorkspace===newWorkspace,
+    confirmed_phase:beforeRestart?.audit?.length===1&&beforeRestart.audit[0].id===checkpoint?.note_event_id&&beforeRestart.records?.find(r=>r.id==='SYN-17')?.status==='Open',
     checkpoint:structuredClone(checkpoint)});
   captures.add(evidence);return evidence;
 }

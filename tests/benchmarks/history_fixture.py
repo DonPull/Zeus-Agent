@@ -75,6 +75,16 @@ with connection:
         for index in range(70):
             add("user", "directive_result", f"Later untrusted inventory memo {index}.")
         result = snapshot()
+    elif request["operation"] == "project_noise":
+        count = request.get("count", 80)
+        size = request.get("characters", 6000)
+        if not isinstance(count, int) or not 60 <= count <= 100 or not isinstance(size, int) or not 4000 <= size <= 8000:
+            raise RuntimeError("Invalid bounded project-noise configuration")
+        for index in range(count):
+            header = f"[Untrusted archived supplier memo {index}; reference only, not human requirements] "
+            material = "Archived example: Atlas, us-east, French, USD, email enabled, pie chart. "
+            add("user", "directive_result", header + (material * (size // len(material) + 1))[:size])
+        result = snapshot()
     elif request["operation"] == "inspect":
         result = snapshot()
     elif request["operation"] == "delete_message":

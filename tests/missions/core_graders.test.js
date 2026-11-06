@@ -171,9 +171,11 @@ async function recoveryStep(page,label,value,button){
 test('M02 state/audit reference accepts a synthetic controller restart receipt and rejects replayed effects',()=>browserScenario('M02',async ctx=>{
   await recoveryStep(ctx.page,'New note','Verified original request','Append note');
   const checkpoint=ctx.portal.snapshot().checkpoint;
-  const restart=captureRestart({oldProcess:100,newProcess:101,oldWorkspace:'synthetic-owned-workspace',newWorkspace:'synthetic-owned-workspace',checkpoint});
+  const restart=captureRestart({oldProcess:100,newProcess:101,oldWorkspace:'synthetic-owned-workspace',newWorkspace:'synthetic-owned-workspace',checkpoint,beforeRestart:ctx.portal.snapshot()});
   await recoveryStep(ctx.page,'Ticket status','Resolved','Save status');
   const first=await ctx.observer.finish();passed(await gradeMission('M02',ctx.root,{portal:ctx.portal,browserObservation:first,restartEvidence:restart}));
+  const tooLate=captureRestart({oldProcess:100,newProcess:101,oldWorkspace:'synthetic-owned-workspace',newWorkspace:'synthetic-owned-workspace',checkpoint,beforeRestart:ctx.portal.snapshot()});
+  failed(await gradeMission('M02',ctx.root,{portal:ctx.portal,browserObservation:first,restartEvidence:tooLate}),'real_restart');
   const more=watchCorePage(ctx.page,ctx.portal);
   await recoveryStep(ctx.page,'New note','Verified original request','Append note');
   const all=joinCoreObservations(ctx.portal,first,await more.finish());

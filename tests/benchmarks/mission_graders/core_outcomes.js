@@ -61,7 +61,7 @@ export async function gradeRecoveryMission(options){
   const {before,after,checkpoint,browser}=snapshots;
   const result=gradeRecovery(before,after,checkpoint);
   return [check('committed_checkpoint',result.checks.controller_confirmed_checkpoint&&result.checks.note_committed_before_restart,{before,checkpoint}),
-    isCoreEvidence(evidence,'restart')?check('real_restart',evidence.real_restart&&equal(evidence.checkpoint,checkpoint),evidence):unmeasured('real_restart','No actual process/workspace restart receipt'),
+    isCoreEvidence(evidence,'restart')?check('real_restart',evidence.real_restart&&evidence.confirmed_phase&&equal(evidence.checkpoint,checkpoint),evidence):unmeasured('real_restart','No actual process/workspace restart receipt'),
     ...['original_event_preserved','exactly_one_note','exactly_one_later_status','final_state','no_other_mutations'].map(id=>check(id,result.checks[id],{after})),
     browser?check('browser_interaction',true,browser):unmeasured('browser_interaction','No independently observed browser operations')];
 }

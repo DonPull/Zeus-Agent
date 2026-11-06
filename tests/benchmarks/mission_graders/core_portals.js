@@ -113,9 +113,29 @@ export function watchCorePage(page,portal){
 }
 export function joinCoreObservations(portal,...parts){
   if(!fixtures.has(portal)||parts.some(p=>!observations.has(p)||p.identity!==portal.identity))throw Error('Invalid browser observation');
-  const joined=Object.freeze({identity:portal.identity,source:'external-playwright',
+  const sources=[...new Set(parts.map(p=>p.source))];
+  const joined=Object.freeze({identity:portal.identity,source:sources.length===1?sources[0]:'combined-controller-observations',sources,
     requests:parts.flatMap(p=>p.requests),downloads:parts.flatMap(p=>p.downloads)});
   observations.add(joined);return joined;
+}
+/** Called only by the external controller with ownership-checked Rust readers. */
+export function observeManagedCore(portal,snapshot,transferRows=[]){
+  if(!fixtures.has(portal))throw Error('Unknown fixture');
+  const requests=[],downloads=[];
+  const result=snapshot?.ok===true&&snapshot.session_id&&snapshot.result?.tab_id?snapshot.result:null;
+  if(result){
+    let origin;try{origin=new URL(result.url).origin;}catch{}
+    if(origin===portal.url)for(const event of (result.network_events??[]).slice(0,32)){
+      let url;try{url=new URL(event.url);}catch{continue;}
+      if(url.origin===portal.url&&event.tab_id===result.tab_id&&['POST','PUT','PATCH','DELETE'].includes(event.method))requests.push({method:event.method,path:url.pathname,query:url.search,status:event.status,body_sha256:event.body_sha256});
+    }
+  }
+  for(const row of transferRows.slice(0,100)){
+    const meta=row.metadata;
+    if(row.session_id&&row.direction==='download'&&row.status==='completed'&&meta?.status==='completed'&&typeof meta.source==='string'&&meta.source.startsWith(portal.url+'/')&&/^[0-9a-f]{64}$/.test(meta.sha256??''))downloads.push({url:meta.source,sha256:meta.sha256,bytes:meta.bytes,transfer_id:row.id,session_id:row.session_id});
+  }
+  if(!requests.length&&!downloads.length)return null;
+  const capture=Object.freeze({identity:portal.identity,source:'managed-browser-controller',requests,downloads});observations.add(capture);return capture;
 }
 const observed=(portal,observation)=>fixtures.has(portal)&&observations.has(observation)&&observation.identity===portal.identity;
 function saw(portal,observation,row,route){

@@ -1,6 +1,6 @@
 # Reliability issues and manual-test findings
 
-Updated: 2026-11-05. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3C](PHASE_3C_WORK_LOG.md), [Phase 3D](PHASE_3D_EXECUTION_DESIGN.md) and [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) preserve repairs and live failures. Shared browsing, live/replay, native handoff and verified transfers are delivered; general goal completion, arbitrary-site recovery, benchmark coverage and broader UI improvements remain open.
+Updated: 2026-11-06. This is the active stabilization backlog. Passing regressions cover their tested cases, not universal production stability. The [stabilization patch](STABILIZATION_PATCH_1.md), [Phase 3C](PHASE_3C_WORK_LOG.md), [Phase 3D](PHASE_3D_EXECUTION_DESIGN.md) and [browser reliability follow-up](BROWSER_RELIABILITY_FOLLOWUP.md) preserve repairs and live failures. Shared browsing, live/replay, native handoff and verified transfers are delivered; general goal completion, arbitrary-site recovery, benchmark coverage and broader UI improvements remain open.
 
 ## ZA-001 — Native stack overflow during stored-image follow-up
 
@@ -202,6 +202,19 @@ transport remains a separate measured decision.
 The subsequent [browser UX follow-up](BROWSER_UX_FOLLOWUP.md) addresses relative file links unloading chat, active-session Replay affordances, freshness/status presentation, centered replay jumps/playback and generic readiness/input overhead. It removes the normal recording-export button while retaining a separate maintainer CLI. Fixed viewed capture targets 8 FPS/quality 80, with no load-based throttling and no corresponding increase in archive frequency. Native document rendering, compression, conversation transfer, comprehensive UI polish and browser hydration on arbitrary sites remain outside this patch. The work log retains the exact validation and limits; these controls alone do not establish faster or more reliable live-model task completion.
 
 Phase 3C passed **257 offline checks plus seven optimized checks**, frontend build and production compile. Its two bounded live attempts retain one false tool-unavailability reply and one independently correct workflow/final summary with recorded history and clean shutdown. Authorization is still partially evaluated; no fully verified isolated baseline is claimed. The earlier 3B/stabilization results remain historical and are not retroactively upgraded. Next browser design is 3D; deterministic initiation/task state/completion/memory remains high priority, as does a mixed-task live acceptance pack with frozen settings and retained failures. Remote CI remains unverified.
+
+## ZA-013 — Python could not reopen a long managed download path
+
+**Priority: high. Status: reproduced and repaired in the core-v1 runtime work.**
+
+B02's actual browser download completed and retained correct bytes, but the
+returned unprefixed Windows path reached 260 characters. Python's ordinary file
+reader raised FileNotFoundError despite the file existing. The native transfer
+reader now returns the ownership-verified handle's canonical extended path.
+The actual SDK download/copy workflow and existing upload/download ownership
+regression pass. The [benchmark work log](BENCHMARK_V1_WORK_LOG.md) retains the
+initial failure and validation receipts. This does not imply all Windows path
+limits or transfer failures are resolved.
 
 ## ZA-012 — Context/protocol overhead in the Phase 4 comparison
 

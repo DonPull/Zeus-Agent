@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "checkpoint": "core-v1-native-workflows-and-isolation-preparation",
+  "date": "2026-11-06",
+  "completion": "partial; isolated actor/grader and live baseline pending",
+  "coverage": {
+    "distinct_checks": 421,
+    "javascript": 75,
+    "mission_controls": 70,
+    "rust": 126,
+    "browser_service": 23,
+    "desktop": 124,
+    "private_desktop_handoff": 3,
+    "basis": "411-check full run plus final focused workflow and 75-unit follow-ups; not a single 421-check invocation"
+  },
+  "regression_receipts": [
+    {
+      "path": ".zeus/evaluations/regression-receipts/36a67dcc-002b-450c-a2a6-f7273d0f04aa.json",
+      "sha256": "a1e78dfc85dc9e7b9fc9234d7041551545c1085988d8661fc04035db9bce1510",
+      "source": {
+        "source_commit": "053a4e01b1cf91ee6738c5ec4934c8354aaf2e97",
+        "dirty": true,
+        "diff_hash": "3f7a3dbe9143cc78e1af2e7e1c184f87db6a2e6e33c3d4c274460615119d38aa",
+        "node": "v22.13.1"
+      },
+      "selection": [],
+      "child_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": ".zeus/evaluations/regression-receipts/4405608b-effc-47d4-91a8-7c43e028e112.json",
+      "sha256": "487088cca68532a0185066fe5aacc5226bb3ceb1de60f7014e70e3fc6247dfdc",
+      "source": {
+        "source_commit": "053a4e01b1cf91ee6738c5ec4934c8354aaf2e97",
+        "dirty": true,
+        "diff_hash": "fb01626983274b7766d48b954e2322d8cb20c925820fd4b53ad099d2a2e5868b",
+        "node": "v22.13.1"
+      },
+      "selection": [
+        "--unit",
+        "--missions",
+        "--ui-files",
+        "core_missions,mission_runtime,browser_transfers"
+      ],
+      "child_exit_codes": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": ".zeus/evaluations/regression-receipts/4feef9ec-c154-4795-b1aa-071636b8b7b3.json",
+      "sha256": "b1f43d9c5a8a47c2dbf6dcd479ce9c2b1922aa187115a330f009322aeb7ce249",
+      "source": {
+        "source_commit": "053a4e01b1cf91ee6738c5ec4934c8354aaf2e97",
+        "dirty": true,
+        "diff_hash": "51955f2b39d9dd92cf5e840103cfa4454c85402d2589ee803c837ee7ada5630e",
+        "node": "v22.13.1"
+      },
+      "selection": [
+        "--unit"
+      ],
+      "child_exit_codes": [
+        0
+      ]
+    }
+  ],
+  "frontend_build": {
+    "command": "npm.cmd run build",
+    "exit_code": 0
+  },
+  "scripted_new_workflows": [
+    {
+      "mission": "B02",
+      "path": ".zeus/evaluations/core-runtime-B02-54be28b7-c3a8-47e9-bbe6-2c3e4aa15ed8/trials/887c21fd-88d9-4924-adf0-aa0be9e686e2.json",
+      "sha256": "639a3565c2ec453683b7996c818d1fb655aee99a1734c99bb7463675f1585b7d",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 1,
+      "unknown_requests": 0,
+      "process_log_samples": 3
+    },
+    {
+      "mission": "B03",
+      "path": ".zeus/evaluations/core-runtime-B03-40eb5f12-49d3-498f-ac31-26c73c3e649a/trials/3eb270d7-cf98-4136-b75a-7972063ccce0.json",
+      "sha256": "14814732bb082db9947706db72671f6ac8876a67d31c11c56392af6173538265",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 2,
+      "unknown_requests": 0,
+      "process_log_samples": 4
+    },
+    {
+      "mission": "C03",
+      "path": ".zeus/evaluations/core-runtime-C03-166ca751-5a40-4d9c-b872-4e8d5d2730eb/trials/81372834-7b32-4939-bf9c-7b2909bd899f.json",
+      "sha256": "5734a660f5ce9e78109e89bb6ae3f1af203c1197016b85d0dbb20af1153779f5",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 1,
+      "unknown_requests": 0,
+      "process_log_samples": 2
+    },
+    {
+      "mission": "M01",
+      "path": ".zeus/evaluations/core-runtime-M01-88623de2-ded5-4dea-a366-8e962a8f9e0c/trials/2005b6e8-5a27-4ebb-9c89-5f6b751b9697.json",
+      "sha256": "2e3e664bae0dce9916b4ae8d5123abfbfdf6637a56eb7b9d95ad5302de33904a",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 3,
+      "unknown_requests": 0,
+      "process_log_samples": 5
+    },
+    {
+      "mission": "M02",
+      "path": ".zeus/evaluations/core-runtime-M02-7c6c2e2e-7ec4-42a4-a6df-c8c62522313d/trials/c8b278a8-076e-4259-b321-82cf6620bb9d.json",
+      "sha256": "fca274e0aba1815f64684e740e31ded0380ccd177067080ec320b87793550d4f",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 2,
+      "unknown_requests": 0,
+      "process_log_samples": 4
+    },
+    {
+      "mission": "R01",
+      "path": ".zeus/evaluations/core-runtime-R01-577aea1a-e796-45ee-a422-e9b1203b22ff/trials/c4868543-73ec-4392-9f7c-83c06f26eb04.json",
+      "sha256": "c034f4454b4fcf39b2acd89056ed82e712fb2bf321ddfdac5b488d8b1d2d29f4",
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "evaluation_kind": "scripted_runtime",
+      "root_runs": 1,
+      "unknown_requests": 0,
+      "process_log_samples": 2
+    }
+  ],
+  "tested_code_sha256": {
+    "scripts/eval_harness/core_benchmark.js": "abfbe94660d13bda94e717274944d115a2367946d51ece596249ae8784afbe19",
+    "scripts/eval_harness/sandbox/probe.js": "ecbcf9785a03e1855395c11536254e41eac68d2d4fcccc66b181aa2559604f02",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "95a3557915bbf65a7141fb0a672bb3f34070bea1454e1d7397753dfdf7c6de53",
+    "scripts/eval_harness/sandbox/session.js": "b80c137d5d86c6777b08e700d70edff6b254396b5e60df4020f9bb67140421c1",
+    "src-tauri/src/browser_transfers.rs": "c7201bb8f99cc479318d016b58055594092d5a13d1dd55fef12288bf79b25dd3",
+    "tests/benchmarks/core_plan.js": "bc57b8ce43c7af255a28d9238130275ce502f5cd979570c85678c8d2e6e635bf",
+    "tests/benchmarks/core_workflows.js": "ab3ae907db66eef744e12afd6d0796d39302d1c055fc3d6577831f30e42f1919",
+    "tests/benchmarks/history_fixture.py": "3c19702958150a8a51144e3ca5426b6c57d695fff599fb42b66ba993e86c15cd",
+    "tests/benchmarks/mission_graders/core_evidence.js": "20bfa3e7d13d865b7bc97096aeb34bd949dc3bcd6606cf3818f860be4fba7ed7",
+    "tests/benchmarks/mission_graders/core_outcomes.js": "feca32332d5a5b433fb93bfdb0e86ef8250ec8205204b5821dd324b77b979b73",
+    "tests/benchmarks/mission_graders/core_portals.js": "c3f8d258fd0466df0317c1903ec9bde88cb1c1a67c568a669e48020e82db5293",
+    "tests/benchmarks/mission_measurements.js": "5019c90ae7fd0a084cb33b975a460b574dda0bb632ece944ba6fb32b32592027",
+    "tests/benchmarks/mission_runtime.js": "eb330bac3ae1ef9e5625bf26f7a774914a463a269cc5906767717961d02c030f",
+    "tests/benchmarks/trial_runner.js": "e89213fb3d326b7a5741daf79316707f60a693bb7e439fd52ad96259a674d836",
+    "tests/missions/core_graders.test.js": "81fe94de66f729db6e9cdc81ab27f1dbbbb0cb8dd335f7701afc3a4553f97fca",
+    "tests/regression/browser_transfers.spec.js": "4bda2e259fe31d7176175ce52120dbb17cf77c52dd273a82d47add6f93e975ee",
+    "tests/regression/core_missions.spec.js": "ca6e3b258de36149800377ad5b8ae7e048352fb81c42ea31e5c822d7d710e97f",
+    "tests/unit/core_plan.test.js": "69c413c6eb2dbf7c30694a30b17aa502bbe2ad7b1a9626f61588ffc7d8033178",
+    "tests/unit/core_workflows.test.js": "afc2979c0fddca8f97c64b106ccd4b81f01e62cd09a8d69f95610e934c96f71a",
+    "tests/unit/mission_measurements.test.js": "fd81e8cded0de1d1ba803bafa4391272c73ede9b64724e41d61c88f581a7936c",
+    "tests/unit/sandbox_session.test.js": "ae54cdc0f6b7cb2471fb8360327e345d3ff53e5cfdb1282dd07ca575662ba053"
+  },
+  "sandbox_setup": {
+    "path": ".zeus/evaluations/sandbox-setup/639edc67-8b57-46f3-8b82-3d63b110802b.json",
+    "sha256": "633f49553bd5e48a2848e6da3d5b03bfd232e025332d82fe58803978ea4787f4",
+    "status": "restart_required",
+    "restart_needed": true,
+    "automatic_restart": false
+  },
+  "prepared_probe": {
+    "id": "c7b6250a-de19-415b-90bf-67d58eccce3e",
+    "executed": false,
+    "isolation_validated": false
+  },
+  "hosted_inference_requests": 0,
+  "limitations": [
+    "Scripted replies validate software, not agent capability.",
+    "Host executable grading is restricted to exact known reference/control bytes.",
+    "Manual Windows restart is required before guest validation.",
+    "Candidate caps are provisional, not spending authorization.",
+    "Isolated actor, separate executable grader, full lifecycle controls and repeated live baseline remain incomplete."
+  ]
+}

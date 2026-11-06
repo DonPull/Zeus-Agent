@@ -29,7 +29,9 @@ test('managed transfers verify real bytes, reject outside-task uploads and retai
         const [session]=await page.evaluate(id=>window.__ZEUS_BRIDGE__.getManagedBrowserSessions(id),task.id),actions=await page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserActions(task,session),{task:task.id,session:session.session_id});
         expect(actions.map(action=>action.status)).toEqual(['succeeded','succeeded','denied','failed','succeeded']);expect(uploaded).toBe('frozen upload bytes');
         const file=JSON.parse(actions.at(-1).response).result.download;
-        expect(file.status).toBe('completed');expect(path.resolve(file.path).startsWith(path.resolve(workspace)+path.sep)).toBe(true);expect(fs.readFileSync(file.path,'utf8')).toBe(csv);expect(file.bytes).toBe(Buffer.byteLength(csv));
+        const ownedRoot=path.toNamespacedPath(fs.realpathSync(workspace))+path.sep;
+        const storedParent=path.toNamespacedPath(fs.realpathSync(path.dirname(file.path)));
+        expect(file.status).toBe('completed');expect(storedParent.startsWith(ownedRoot)).toBe(true);expect(fs.readFileSync(file.path,'utf8')).toBe(csv);expect(file.bytes).toBe(Buffer.byteLength(csv));
         expect(session.runtime.cleanup.owned_processes_remaining).toBe(0);
         const records=await page.evaluate(({task,session})=>window.__ZEUS_BRIDGE__.getManagedBrowserTransfers(task,session),{task:task.id,session:session.session_id});
         expect(records.map(row=>row.status).sort()).toEqual(['completed','denied','selected']);

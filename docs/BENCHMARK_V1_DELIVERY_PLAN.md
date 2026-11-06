@@ -51,7 +51,9 @@ are public development tasks, not a secret held-out set or an external benchmark
 Read-only inspection found Windows 11 Pro 23H2 (22631), firmware virtualization
 and SLAT enabled, about 13 GB free memory, no WindowsSandbox executable, no
 vmcompute service, no Docker/Hyper-V/VirtualBox tool and no ready WSL runtime.
-The current process is not administrator. No Windows feature was enabled.
+The initial process was not administrator. The later user-approved UAC setup
+enabled the Sandbox component with `-NoRestart` and returned restart required;
+the host has not been restarted by this workflow.
 
 Prepare a reviewable Windows Sandbox setup using supported .wsb configuration,
 with narrowly scoped input/output mappings, no personal profile or repository
@@ -98,9 +100,19 @@ starts with Windows 11 24H2; this host's 23H2 plan must not depend on that CLI.
    report all-scheduled outcomes and raw usage, disclose actual worker activity,
    retain interruptions/unknowns and review committed summaries for private data.
 
-Current status: repository clean at start on df6e43d; environment inspection
-complete; twelve contracts authored and 70 grader controls passed. Runtime
-integration/isolation is next; see the [work log](BENCHMARK_V1_WORK_LOG.md).
+Current status: twelve contracts and 70 grader controls are delivered, with
+all twelve native scripted runtime paths checked. New controls exercise real
+downloads, later user corrections, compaction and an actual Zeus process restart.
+M02 version 1.0.1 explicitly pauses after the confirmed note and restarts before
+the later status stage. It is confirmed-checkpoint recovery, not a lost-ACK or
+mid-command crash test. This authoring clarification precedes any live core run.
+
+Candidate manifests enumerate the exact twelve-mission/72-attempt matrix and
+default to one D01/Solo pilot cell. They cannot dispatch inference. Sandbox
+configuration/data-reader controls are implemented, but the actual guest probe
+needs the manual Windows restart. Isolated actor and separate executable-grader
+runtimes, provider/fixture transport and lifecycle validation still remain;
+see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each
 validated checkpoint before any reboot or interruption.

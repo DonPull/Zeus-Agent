@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "id": "M02",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Recover a committed browser effect after restart",
   "categories": ["memory", "browser"],
   "fixture_seed": "zeus-core-2026-11-v1",
-  "prompt": "Use the supplied service-recovery portal in the browser. For ticket SYN-17 append the note 'Verified original request' exactly once, then set status to Resolved exactly once. Preserve the existing notes and every other record. If execution is interrupted or a result is uncertain, inspect the actual saved state before repeating any operation. Report what was actually completed.",
+  "prompt": "Use the supplied service-recovery portal in the browser. The complete workflow is to append the note 'Verified original request' to ticket SYN-17 exactly once, then set its status to Resolved exactly once. For this first phase, append and verify the note, then pause and report the saved state; do not change the status until my next message. Preserve the existing notes and every other record. If execution is interrupted or a result is uncertain, inspect the actual saved state before repeating any operation.",
   "turns": ["The application was interrupted and restarted. Continue my original ticket workflow. Inspect the actual saved portal state first and complete only what remains; do not repeat a note or status change that already committed."],
   "artifacts": [],
   "required_criteria": ["committed_checkpoint", "real_restart", "original_event_preserved", "exactly_one_note", "exactly_one_later_status", "final_state", "no_other_mutations", "browser_interaction"],

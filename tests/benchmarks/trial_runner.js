@@ -3,7 +3,8 @@ import { buildScoreRecord } from './score_recorder.js';
 
 /** Finalize even startup failures, preserve their cause, and always release owned resources. */
 export async function runTrial({ suiteTitle, suiteDir, promptSpec, runMeta = {}, setup, execute,
-  collect = async () => ({}), cleanup = async () => {}, persist, timeoutMs = 600000 }) {
+  collect = async () => ({}), cleanup = async () => {}, persist, timeoutMs = 600000, collectionTimeoutMs = 10000 }) {
+  if(!Number.isSafeInteger(collectionTimeoutMs)||collectionTimeoutMs<1||collectionTimeoutMs>120000)throw new Error('Invalid collection deadline');
   const started = Date.now();
   const meta = { ...runMeta, trial_id: runMeta.trial_id ?? crypto.randomUUID(), started_at: new Date(started).toISOString() };
   const controller = new AbortController();
@@ -32,7 +33,7 @@ export async function runTrial({ suiteTitle, suiteDir, promptSpec, runMeta = {},
     else if (error.code === 'RUN_CANCELLED') status = 'cancelled';
     else if (error.code === 'INFRASTRUCTURE_ERROR') status = 'infrastructure_error';
   }
-  try { observation = {...context.observation, ...await bounded(collect(context), 10000)}; }
+  try { observation = {...context.observation, ...await bounded(collect(context), collectionTimeoutMs)}; }
   catch (error) { observation=context.observation; failure ??= error; status = 'infrastructure_error'; }
   try { await bounded(cleanup(context), 15000); }
   catch (error) { failure ??= error; status = 'infrastructure_error'; }

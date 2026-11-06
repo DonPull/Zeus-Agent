@@ -1,6 +1,6 @@
 # Zeus Agent: stabilization and development plan
 
-Updated: **5 November 2026. This is the canonical live implementation roadmap.**
+Updated: **6 November 2026. This is the canonical live implementation roadmap.**
 Current status and delivery order below take precedence over historical milestone
 tables and the dated delivery notes later in this file. Update the current
 checkpoint, status table and relevant focused packet when scope or delivery
@@ -22,7 +22,7 @@ usage and comparison limits.
 and **four successful live history probes**, including old-fact/image retrieval
 after repeated compaction and restart. See the [4B work log](PHASE_4B_WORK_LOG.md)
 for decisions, retained development failures, usage and limits. 4C completion
-evidence is delivered: current coverage is **370 distinct automated checks**,
+evidence is delivered with **370 distinct automated checks** at that checkpoint;
 six matched native outcomes and two post-repair reviewer controls passed. Its
 [contract](PHASE_4C_COMPLETION_DESIGN.md) and [work log](PHASE_4C_WORK_LOG.md)
 retain the initial reviewer abstention, validation limits and all usage.
@@ -30,8 +30,14 @@ retain the initial reviewer abstention, validation limits and all usage.
 The user has authorized full v1 implementation. Its
 [active delivery packet](BENCHMARK_V1_DELIVERY_PLAN.md) and
 [work log](BENCHMARK_V1_WORK_LOG.md) now track twelve authored contracts and
-70 passing reference/negative controls. Full runtime wiring, validated isolation
-and repeated measurements remain in progress; no full baseline is claimed yet.
+70 passing reference/negative controls and all twelve native scripted workflow
+paths. Actual new controls cover downloads, corrections, compaction and process
+restart. Candidate pilot/repeated manifests and a Sandbox boundary probe are
+prepared. The approved Windows feature setup needs a manual restart; isolated
+actor/grader runtimes, guest lifecycle validation and repeated live measurements
+remain incomplete. No full baseline is claimed yet.
+Current combined regression coverage is **421 distinct checks**, from a complete
+411-check run and focused follow-ups; the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency
 is explicitly open work, not a claimed improvement.
@@ -108,8 +114,8 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current validated coverage is 370 distinct checks; see the 4C work log for full-run and follow-up receipts |
-| 2A — mission contracts/graders | Initial six delivered | B01, C01, C02, D01, D02, V01 references and negative controls; these are grader tests, not six live capability results |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 421 distinct checks; see the full-v1 work log for full-run and follow-up receipts |
+| 2A — mission contracts/graders | All twelve authored; grader controls delivered | Six original plus B02/B03/C03/M01/M02/R01, with 70 reference/negative controls; these are grader tests, not twelve live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |
 | 2C — small matched reference checkpoint | Delivered for three native missions | Six pilot plus 18 repeated D01/B01/V01 attempts; 17/18 repeated outcomes, retained protocol failure, actual role use and unknown provider credits |
@@ -137,7 +143,7 @@ Phase 4 so the new functionality has direct acceptance checks as it lands.
 
 | Required for full core v1 | Remaining work |
 |---|---|
-| 12 core missions | Complete B02/B03 multi-step browser work, C03 application work, M01/M02 memory/recovery and R01 source-grounded research; retain the six existing contracts |
+| 12 core missions | All twelve contracts and native scripted paths authored; retain them while completing actual isolated execution and live validation |
 | Every mission actually runnable and gradeable | Enable C01/C02/D02 submitted-program grading in a validated benchmark environment; finish browser/download/restart/research drivers and independent controls |
 | Independent evaluator and stated authorization coverage | Prepare/validate benchmark-only isolated actor and executable-grader boundaries, clean resets and protected fixtures before claiming isolated or verified results; do not wait for product Phase 10 |
 | Repeated matched Solo/Team measurements | Freeze current architecture/model/policy/limits and task versions; retain failures and report actual role usage even if Team does not delegate or outperform Solo |

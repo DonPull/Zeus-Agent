@@ -193,6 +193,28 @@ The combined report is written to `.zeus/evaluations/dashboard/index.html`. Miss
 
 Phase 1 made no hosted calls. Phase 2 adds independently checked missions and a small native diagnostic; isolated execution, authorization graders, held-out cases, and a repeated baseline remain pending. Neither the legacy suites nor the native diagnostic are that baseline.
 
+## Full core-v1 implementation
+
+`node scripts/eval_harness/core_benchmark.js --dry-run` prepares one candidate
+D01/Solo pilot manifest without inference. `--stage repeated` enumerates the
+complete twelve-mission, three-repetition Solo/Team schedule (72 attempts), with
+exact model/role settings, source/task/fixture/grader hashes and aggregate caps.
+`--output <fresh-json-file>` retains the candidate without overwriting history.
+Pilot selection accepts `--missions B02,B03` and `--architectures solo,team`;
+the repeated schedule cannot be relabelled around a partial portfolio.
+
+These are explicitly **non-dispatchable candidate** manifests. `--live` fails
+before starting any provider request: the isolated actor, separate executable
+grader, runtime/lifecycle controls and catalogue preflight are not delivered.
+Candidate aggregate maxima are not a spending authorization, predicted usage
+or subscription-credit conversion. Start with the one-cell pilot after those
+gates; review actual consumption before freezing the repeated envelope.
+
+The [Sandbox preparation](sandbox/README.md) and
+[delivery/work log](../../docs/BENCHMARK_V1_WORK_LOG.md) retain the manual-restart
+requirement and current acceptance status. This work does not replace or upgrade
+historical native baseline records.
+
 ## Phase 4B history stress controls
 
 `node scripts/eval_harness/diagnose_history.js` is dry by default. Its explicit
