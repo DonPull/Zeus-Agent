@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "checkpoint": "protected-generated-submission-grading",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "1397eae5d61317f45683d5fc8bcdd75155bd54c9",
+    "dirty": true,
+    "diff_hash": "e8e1424a422c6aa88a99bc708f87c846c406cb8ba50214dd07ea648bf1a9ac91",
+    "node": "v22.13.1"
+  },
+  "controls": [
+    {
+      "id": "5c7da4ae-c1b1-44e8-a6ed-a9fbdf508280",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\5c7da4ae-c1b1-44e8-a6ed-a9fbdf508280\\host-lifecycle-a675583b-4dcc-471c-b46a-5c3d19b877e6.json",
+      "receipt_sha256": "4ac56b3f43a1bcf2c404e44b1e45ed4b432a6ab0e9537fb0f119f3db50bdd373",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "2e56a942af3f8f7d80d1c0ed712ca0948fe36d022ac633aaa1c2687853fb7f25",
+      "authentication_sha256": "6868af0d440683a09ce16ef110ad8ab13c321a737f183157936b6b29e49f1342",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C01",
+      "variant": "reference",
+      "outcome_status": "passed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "c0c726da1267e153d1f5521af41c4441883380cda8a4569fac8d35519a5fc34c",
+      "packet_sha256": "95529577036db223dddcefae8c69b8703ce0513ad34ffb483a97f9f029824563",
+      "source_files": [
+        {
+          "name": "flattener.py",
+          "file": "submission/flattener.py",
+          "sha256": "cb36c1fab00e6d496954f6522ccfbacac20da427ead0f3dbe17c7289a7cc40dd",
+          "status": "retained"
+        },
+        {
+          "name": "test_examples.py",
+          "file": "submission/test_examples.py",
+          "sha256": "e4fdc4c240ea11cb8e4616d475a7638d427c448d1f6803151e920406e2cc06ae",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "054d37ce-fabe-4eaa-bb9a-6642f0f06737",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\054d37ce-fabe-4eaa-bb9a-6642f0f06737\\host-lifecycle-2314f71b-e633-463b-9305-0777cce9c38f.json",
+      "receipt_sha256": "e35123b6bf16112181b80515f6c8c1542f186a4c6de6ad7d5125f591970f02c1",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "99d78df0003093e1aa9b32b368c83bf796868b42d3b4328f3f052db2d8a5c366",
+      "authentication_sha256": "3494edb40eff2f4230e212394ab3355b7878cc8709da04197e6ed440c2394a43",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C02",
+      "variant": "reference",
+      "outcome_status": "passed",
+      "task_hash": "947330dab6a3a19eb378791e9b5d9594fc3e3341727204c0c8d80733e7096f09",
+      "fixture_hash": "221c328573b3063860639c48c5718635eb9151db28eeebbb6170fa41cdda3674",
+      "grader_version": "da6a37ed42beb5cd89ea5ad50b4ab958d9de935b70ee02edade619f828b1e62f",
+      "packet_sha256": "f7c97f0275b2d228c3e2dc5dfaf41462510f8995fbf09aba8f7fe4f04cfddb7f",
+      "source_files": [
+        {
+          "name": "catalog.py",
+          "file": "submission/catalog.py",
+          "sha256": "4dbc2046d2b6cf7b36138b4a96e49a396a789381353d53a02fd78d1e612c4d27",
+          "status": "retained"
+        },
+        {
+          "name": "records.json",
+          "file": "submission/records.json",
+          "sha256": "bfdfbb815b7f67968e383164d8eeda35802cf8b618f302e59e837c9319ddf6bf",
+          "status": "retained"
+        },
+        {
+          "name": "service.py",
+          "file": "submission/service.py",
+          "sha256": "6683fbc8743f2ba3c2b11242de36d0b2dff71c9270c9d968d34919eec14e157f",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "e6bcebe8-6aa9-4c61-82d7-980007c70299",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\e6bcebe8-6aa9-4c61-82d7-980007c70299\\host-lifecycle-352d1361-7049-4437-b9cb-b4050478ad7a.json",
+      "receipt_sha256": "9f01b2f4c8231fb62e7f295d57cc7a249ff79144cc740647e25875d9ad28fa77",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "58a03ad9f5eb8fa7b5afb90ee43d61042ac5cab35fbc0085735a92ef0ae791e0",
+      "authentication_sha256": "2ff2131cf9609186464eb2fea558f8f1eb80136f7c1104aceed9b183c0902876",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C03",
+      "variant": "reference",
+      "outcome_status": "passed",
+      "task_hash": "ca2a7111d32bd7fe569af52fe8cbf26bfa027660286913a4f910c197f6c5df7a",
+      "fixture_hash": "f875d7de8219549ef746beff72f685c206a41228e07b1b9b05b9c9c60c737c4a",
+      "grader_version": "e1e167d3d5df9ae2366d28a7200c304be6dba10ed2654db0daa24a81177a74d4",
+      "packet_sha256": "1be6c15898a9ea028a64b5f16c396637cf4c24185f4bda77e9768a8a4155a8a1",
+      "source_files": [
+        {
+          "name": "tasks.json",
+          "file": "submission/tasks.json",
+          "sha256": "b2ce9e5fcd05ae43353ad24e69de28f30b6a5fea6ad9254d050a3f9ac5493ffa",
+          "status": "retained"
+        },
+        {
+          "name": "index.html",
+          "file": "submission/index.html",
+          "sha256": "5d7e1e3873cca1c178fe5f1446bb007a54b23165eb4a11e6e8bbb83ef507721e",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "7696fa60-33a5-4d36-8333-7edb14f3533b",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\7696fa60-33a5-4d36-8333-7edb14f3533b\\host-lifecycle-37c0e636-50fe-40f2-a5f0-33b0ec7389dc.json",
+      "receipt_sha256": "1c6681b9b38db99788209fb7e6b364896da5c70112d414f0a98e9ebd21212ac0",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "b8fb379dd6cb248f222b2a58373d490433610d0aad270e6b81c2e0039baa9901",
+      "authentication_sha256": "9fc21ac3774d00e01ca34d08e57cac0b3deef5d8f119c97418978a58931b335a",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "D02",
+      "variant": "reference",
+      "outcome_status": "passed",
+      "task_hash": "e48f250f2b49891dd54e0d76ac1ddc30c1954434533b34159ad2f7a3d04319f0",
+      "fixture_hash": "515293bc8e88af2a06d0723024b375562322b9049fc82b06cb7413f42f5a10c8",
+      "grader_version": "3f40289e54b92dfdaa0fbbe7cd7b90e22693ee2244884f87225db19e28b29d78",
+      "packet_sha256": "c812c1c14e143437be3b4c96464f9567fb5f23e1862ee8858eb51f237a3f6ba2",
+      "source_files": [
+        {
+          "name": "ingest.py",
+          "file": "submission/ingest.py",
+          "sha256": "d871688aca56d48b7a27a519beb24d4672df05efa26dfd1624e03268dc923a79",
+          "status": "retained"
+        },
+        {
+          "name": "raw_feedback.json",
+          "file": "submission/raw_feedback.json",
+          "sha256": "3ab8e14a9b00d006f2b845b041c0ebdc3b59fb64dbc72798cc5dc190284c07b2",
+          "status": "retained"
+        },
+        {
+          "name": "seed.json",
+          "file": "submission/seed.json",
+          "sha256": "69f60b314b30861aabce2a4ef245a80e4cfd2dc45a888d9fbe79cbbee6dc568a",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "beb58ed0-9d9c-4190-a4f5-5997b0cc277c",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\beb58ed0-9d9c-4190-a4f5-5997b0cc277c\\host-lifecycle-427300f0-a6c3-4e63-bf8e-63a1eb7f40a9.json",
+      "receipt_sha256": "735ec000d13846cd0c3b9f189f724476a199443410de88698ef491060b286a62",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "c6cd5406fc83db50d91cc9c9899e4861d2058ab2c978d93c4dbb6fed775f1126",
+      "authentication_sha256": "5823ee602a1496bf84df4ee3b83b800fd3d4a057052f32b45791cc5d3efce2f4",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C01",
+      "variant": "negative",
+      "outcome_status": "failed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "c0c726da1267e153d1f5521af41c4441883380cda8a4569fac8d35519a5fc34c",
+      "packet_sha256": "e0a763e202392b2e9e97f97ccd36ddf3206f6092adf37df889638585ccc81c92",
+      "source_files": [
+        {
+          "name": "flattener.py",
+          "file": "submission/flattener.py",
+          "sha256": "7cbfb6d6b99918c944647b049b76bd0fe701f115884c1e1e0ebb7f280089b8fe",
+          "status": "retained"
+        },
+        {
+          "name": "test_examples.py",
+          "file": "submission/test_examples.py",
+          "sha256": "e4fdc4c240ea11cb8e4616d475a7638d427c448d1f6803151e920406e2cc06ae",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "2db89fe4-d414-43b7-95cf-47851abfabf6",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\2db89fe4-d414-43b7-95cf-47851abfabf6\\host-lifecycle-cd5356b9-d2b5-417f-87a5-457e1d6966d8.json",
+      "receipt_sha256": "7249fef1b6a3b59197ed95f2b5e0fd2607892e24f31c8b601471019c346fe029",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "30ea6e1028f6ec96db6f33dea84a630e0fa8fe12f86447643f2f4f62e5ef8e18",
+      "authentication_sha256": "862a1196a3a7ec3ab3f3a49890e1682edf72b000cc1bc65441387c73ee379a8a",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C02",
+      "variant": "negative",
+      "outcome_status": "failed",
+      "task_hash": "947330dab6a3a19eb378791e9b5d9594fc3e3341727204c0c8d80733e7096f09",
+      "fixture_hash": "221c328573b3063860639c48c5718635eb9151db28eeebbb6170fa41cdda3674",
+      "grader_version": "da6a37ed42beb5cd89ea5ad50b4ab958d9de935b70ee02edade619f828b1e62f",
+      "packet_sha256": "6c62527e360266b05abcae31623f18ff0ebf6d921cb534a3a597249086d6e1ea",
+      "source_files": [
+        {
+          "name": "catalog.py",
+          "file": "submission/catalog.py",
+          "sha256": "edafe654db02e99ed21b796b73d9162c11216ef49911eee1c20757c06b0c3c34",
+          "status": "retained"
+        },
+        {
+          "name": "records.json",
+          "file": "submission/records.json",
+          "sha256": "bfdfbb815b7f67968e383164d8eeda35802cf8b618f302e59e837c9319ddf6bf",
+          "status": "retained"
+        },
+        {
+          "name": "service.py",
+          "file": "submission/service.py",
+          "sha256": "6683fbc8743f2ba3c2b11242de36d0b2dff71c9270c9d968d34919eec14e157f",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "7d1a5f2a-77b1-4af9-bd08-d9a38aea4cfe",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\7d1a5f2a-77b1-4af9-bd08-d9a38aea4cfe\\host-lifecycle-cc5b176b-bf02-4533-8666-768f886dd4ca.json",
+      "receipt_sha256": "622aa14b8e32470c612646550d9975a959846fede994fdaf3a747320a4bde772",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "b722ddbddea472338bfaf55fd6f9d9975fcf5fe043b46161759f77a13376a615",
+      "authentication_sha256": "569f69f99d145fd65b38b3f8c930c49cfcaafe0989569692c2be95966b4b34d3",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C03",
+      "variant": "negative",
+      "outcome_status": "failed",
+      "task_hash": "ca2a7111d32bd7fe569af52fe8cbf26bfa027660286913a4f910c197f6c5df7a",
+      "fixture_hash": "f875d7de8219549ef746beff72f685c206a41228e07b1b9b05b9c9c60c737c4a",
+      "grader_version": "e1e167d3d5df9ae2366d28a7200c304be6dba10ed2654db0daa24a81177a74d4",
+      "packet_sha256": "4094ea6c96ed8f03e02d5913ae488e4ecfceee2d467a06d54501f2c045fd2473",
+      "source_files": [
+        {
+          "name": "tasks.json",
+          "file": "submission/tasks.json",
+          "sha256": "b2ce9e5fcd05ae43353ad24e69de28f30b6a5fea6ad9254d050a3f9ac5493ffa",
+          "status": "retained"
+        },
+        {
+          "name": "index.html",
+          "file": "submission/index.html",
+          "sha256": "0b02b6b5f18eb920253331394b7fb3288f839df21986925e8b8b1f21cad4d59c",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "002455af-a3df-478d-9287-0f2df8ea7809",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\002455af-a3df-478d-9287-0f2df8ea7809\\host-lifecycle-2ca7cb06-ce28-4543-a889-cb52e4cee5ee.json",
+      "receipt_sha256": "8a69906e16e8ff9cefd52e8ab826429bc76ffedd1f4f55490b7a51728141180e",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "9d9cf9d1f3e237700801057796d7adfa9b08f95282bcf20f39eb75cb14be268b",
+      "authentication_sha256": "f5defa4ac7552ff8d0e28012b72ce1c83045696d4c4e47ba33bf22aa422edb70",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "D02",
+      "variant": "negative",
+      "outcome_status": "failed",
+      "task_hash": "e48f250f2b49891dd54e0d76ac1ddc30c1954434533b34159ad2f7a3d04319f0",
+      "fixture_hash": "515293bc8e88af2a06d0723024b375562322b9049fc82b06cb7413f42f5a10c8",
+      "grader_version": "3f40289e54b92dfdaa0fbbe7cd7b90e22693ee2244884f87225db19e28b29d78",
+      "packet_sha256": "708bcc57c210cbc480c55d267319b22de0e4590f72af4fccbacc273fd0874c09",
+      "source_files": [
+        {
+          "name": "ingest.py",
+          "file": "submission/ingest.py",
+          "sha256": "a460e9fb63a38df66d692bfc26720afdeff4f75d671ac2b3c1f2ce356cb94b36",
+          "status": "retained"
+        },
+        {
+          "name": "raw_feedback.json",
+          "file": "submission/raw_feedback.json",
+          "sha256": "3ab8e14a9b00d006f2b845b041c0ebdc3b59fb64dbc72798cc5dc190284c07b2",
+          "status": "retained"
+        },
+        {
+          "name": "seed.json",
+          "file": "submission/seed.json",
+          "sha256": "69f60b314b30861aabce2a4ef245a80e4cfd2dc45a888d9fbe79cbbee6dc568a",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    },
+    {
+      "id": "a2de8f41-9405-40ce-8dad-9593e607f55a",
+      "receipt": ".zeus\\evaluations\\sandbox-sessions\\a2de8f41-9405-40ce-8dad-9593e607f55a\\host-lifecycle-12ff5d4a-c418-444e-bec3-417328e34759.json",
+      "receipt_sha256": "4dc5267fd6f5dafb242e908910f9e64789652c30156d2db5b4b8b45648a90663",
+      "status": "probe_observed",
+      "owned_host_processes_gone": true,
+      "result_sha256": "161b89e46390087a562ede54c8d499e2e21f6a1648ab145dc43514193c1ec7e9",
+      "authentication_sha256": "074211e19dde7a9e3e702d2fceb948228599965eaf478eb4cf612a9b5d043877",
+      "authentication_status": "verified",
+      "independent_hcs_disposal": null,
+      "mission": "C01",
+      "variant": "final-reference",
+      "outcome_status": "passed",
+      "task_hash": "2fe01e85da2491e7dfc7f654da3eadcac5e000ac46c2e5bf192c262e2b8d60a2",
+      "fixture_hash": "9ccfb7cf2266814b2839f8c9cf0ecf85ed25e891b253bdfe9e731dbf4c20bd82",
+      "grader_version": "c0c726da1267e153d1f5521af41c4441883380cda8a4569fac8d35519a5fc34c",
+      "packet_sha256": "95529577036db223dddcefae8c69b8703ce0513ad34ffb483a97f9f029824563",
+      "source_files": [
+        {
+          "name": "flattener.py",
+          "file": "submission/flattener.py",
+          "sha256": "cb36c1fab00e6d496954f6522ccfbacac20da427ead0f3dbe17c7289a7cc40dd",
+          "status": "retained"
+        },
+        {
+          "name": "test_examples.py",
+          "file": "submission/test_examples.py",
+          "sha256": "e4fdc4c240ea11cb8e4616d475a7638d427c448d1f6803151e920406e2cc06ae",
+          "status": "retained"
+        }
+      ],
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "submission_grading": true
+      },
+      "runtime_content_sha256": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+    }
+  ],
+  "forgery": {
+    "id": "494fa63c-2441-4ee2-9968-caae7fe48e28",
+    "receipt": ".zeus\\evaluations\\sandbox-sessions\\494fa63c-2441-4ee2-9968-caae7fe48e28\\host-lifecycle-e7f519c2-ce77-437f-ac8d-803c593985c0.json",
+    "receipt_sha256": "29c488e7a5e361cbf4896ae82554227488f446c86ec8e88d7f5baf98f8b5460c",
+    "status": "failed",
+    "owned_host_processes_gone": true,
+    "result_sha256": "691ed9184985ff996f96be2d032fa9d4feecc84b944cf240745a463fc0595e1b",
+    "authentication_sha256": "57327873e99c12d3a0b4eca62dcb54b773fd4ede5c99a99d79dada4c9237d1ab",
+    "authentication_status": "failed",
+    "independent_hcs_disposal": null,
+    "expected_rejection": "Missing signed grading result"
+  },
+  "boundary": {
+    "id": "9d561cf1-1b86-402e-b458-cc374c77bdf4",
+    "receipt": ".zeus\\evaluations\\sandbox-sessions\\9d561cf1-1b86-402e-b458-cc374c77bdf4\\host-lifecycle-23d1e000-cf26-4a45-8dc5-a170529175ce.json",
+    "receipt_sha256": "afa8f6808515ebf7c1e15dbb681fb07a111ab334d07e8c1ea84d12abf869b0b0",
+    "status": "probe_observed",
+    "owned_host_processes_gone": true,
+    "result_sha256": "2fce4fc448e205ce8976eb73e8344870ef6605f89426c19124cc60dbecb63db4",
+    "authentication_sha256": "a0c0999c93e1e60db0c2daa5be17c9c8b14e0dd1f5b6e422c8c02bfba63ebb15",
+    "authentication_status": "verified",
+    "independent_hcs_disposal": null,
+    "checks": {
+      "different_computer": true,
+      "input_read": true,
+      "input_read_only": true,
+      "host_private_unavailable": true,
+      "network_disabled": true,
+      "writable_output": true,
+      "fresh_guest_disk": true,
+      "authenticated_controller": true,
+      "candidate_boundary": true
+    }
+  },
+  "retained_development_failures": [
+    {
+      "id": "171d9add-7d43-44f3-b2e7-eef6702519c5",
+      "reason": "Mapped input/output remained accessible to the separate account; strict output inspection rejected its canary."
+    },
+    {
+      "id": "d8e18ad6-72f3-4119-b1ba-242f317c40ce",
+      "reason": "Copied runtime still writable before guest-local ACL reset."
+    },
+    {
+      "id": "e900b89f-6307-4a07-a926-21dbf4c16a9b",
+      "reason": "Grading completed, but PowerShell rejected a valid empty JSON property name; original failed Run receipt remains ineligible."
+    }
+  ],
+  "validation": {
+    "checks": {
+      "javascript": 96,
+      "mission_graders": 70,
+      "rust": 126,
+      "browser_service": 23,
+      "desktop": 124,
+      "handoff": 3,
+      "total": 442
+    },
+    "full": {
+      "file": ".zeus/evaluations/regression-receipts/3bc7206e-ab0b-4f4c-b1bd-74f9ae3e79ef.json",
+      "sha256": "73d851c993e78ea025f193b72ddc35ffdffcd3709d21f0ba8d620e1315c88c68"
+    },
+    "final_unit": {
+      "checks": 96,
+      "file": ".zeus/evaluations/regression-receipts/bafb1347-104a-4f43-a5f8-de2b75790ee4.json",
+      "sha256": "3fab0d396304553d73570143427629158caa8b49909fd481420dda78a9f5f04a"
+    }
+  },
+  "code_sha256": {
+    "scripts/eval_harness/sandbox/candidate_boundary.py": "adcc0e0e96919d96de3edf25e5634f63baafb89ba174636720178ff1dea56eb2",
+    "scripts/eval_harness/sandbox/candidate_gate.py": "f50ef588de43fecdc2fac15729bffed3d357dba96569be45e4a483c1b92c6559",
+    "scripts/eval_harness/sandbox/candidate_python.cs": "05b2eea15d4331af3066f700fcdf4410a5d6076faa582da1be4d34fc776f2eff",
+    "scripts/eval_harness/sandbox/enable_windows_sandbox.ps1": "93317c72693ef0890e7c1dd67f92394ac340fec7f6db7c3e2f3df77ae9ad2aeb",
+    "scripts/eval_harness/sandbox/exchange_files.mjs": "f4c3f92fcde89142f46e8dab7e16d4fe0a016773b222788201463d86c04c7c93",
+    "scripts/eval_harness/sandbox/file_rpc.mjs": "a6bd76a46ef0c7b152d7361733ef0efea8875215935a2bc198109eb410170ec8",
+    "scripts/eval_harness/sandbox/grader_packet.mjs": "74f6aa684e98b12cc8266236d948d506a7e9cfa47b83176b95ca7d4b37a52226",
+    "scripts/eval_harness/sandbox/grading_auth.mjs": "4d2fcbb8db8000e6ceb200da8566321b81365a7b43850f575da04d401fdb265a",
+    "scripts/eval_harness/sandbox/guest_candidate_probe.mjs": "b1cac3c12ff76e23d6d0ba7352deda0397cdb90becfe064b09dae219bd127f4d",
+    "scripts/eval_harness/sandbox/guest_diagnostics.ps1": "06e0cdaba9aa8f05bae3bf68c0d878d0d3c299eb2c05b83149b57280b167b61d",
+    "scripts/eval_harness/sandbox/guest_grading.mjs": "9ad19caf80e02013f081bf5b437ddb0fcf6049820e304c5c865ff6fa949a300a",
+    "scripts/eval_harness/sandbox/guest_smoke.mjs": "64cb61db504d03a9481c3c5473c0b24d0551e74f0965e3291c5c4718570beea7",
+    "scripts/eval_harness/sandbox/guest_submission.mjs": "b3bde450abefa332cf9feb3550a637e1594064da7f386cd44eb2d872bf742da2",
+    "scripts/eval_harness/sandbox/host_grading_auth.mjs": "20e870530ca05a1f03d6df3ffbaf221ea704077bcdbf7e92f41cde0247fbb6d1",
+    "scripts/eval_harness/sandbox/host_transport.mjs": "a9caf0505464cc3e285ec80905c60d41097a2bb37685157d0ec72e7c59445629",
+    "scripts/eval_harness/sandbox/isolated_grader.mjs": "a18d312943c4540217f641a289f1d6d166e22a50b697ecc9d8614f0a54d012ef",
+    "scripts/eval_harness/sandbox/prepare_candidate.ps1": "6007414e78e4774435bd6078e442742c5752b0907c059a0a3f9e0f36fb9ada83",
+    "scripts/eval_harness/sandbox/prepare_runtime.py": "751a14c516d654630b3f1ec12c89b0b281024e6c9b5d3ff3a8325bb606e13bfc",
+    "scripts/eval_harness/sandbox/probe.js": "9d5e9ac970dfbb2eae7b65e154dbe7086c4f85b542dc905fc24dee7d27a7d139",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "29a3e6732fc512d9931210a6dbbaa1acad63f8fe34923e2a9c833941b292c364",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "5f9f1246675986bfa7f862eeda84b1ff33013bf6502c3e122696706aec5be4a5",
+    "scripts/eval_harness/sandbox/session.js": "11195a7913d9409779a9527e8832a6a5a64ff0dc884d31c2942bd08729bd7429",
+    "scripts/eval_harness/sandbox/stop_candidate.ps1": "1f6f77b807a95741b1f141f4f1f969fd93edf0ea7d4fa9bb94a5c947c61a8d34",
+    "scripts/eval_harness/grade_submission.js": "1475a0e971b4316b0b609a81d52a022d3f6e8784f3cee66f0fee099944ef2f9e",
+    "tests/benchmarks/candidate_execution.js": "4de37d4cf6ac3a538cfdf81c50dbcf9c36bb70062e25926ce77bed79868927c4",
+    "tests/benchmarks/mission_kit.js": "6a9166e6f7630aefa50b2531bd5e72449dc46eeb2350619aa63985af04f17a53",
+    "tests/benchmarks/mission_runtime.js": "7405885d846d0a8952206b84751281e0aa6f83b65b04b7c49beab5a41b15efb4",
+    "tests/benchmarks/mission_graders/dashboard.js": "2665690eb136880be4aeac56f3736e73326663c4f1b925ac68c14bfa8bfa7242",
+    "tests/benchmarks/mission_graders/outcomes.js": "8f87fd979c1f5bd24a3aa763da32fe98ccb2a960f61fba5a10b671187af4b0d4",
+    "tests/benchmarks/mission_graders/service.js": "81234dca42ac4250c4a765a409a151942ba772dae3a27d714a7512e129b44f1b",
+    "tests/unit/grading_auth.test.js": "cb0a8e0befcdd4a0aa6b8cd708a72e0de15a945da3993042490bade4704d0b61",
+    "tests/unit/submission_grading.test.js": "153e9fb9cc85b31f6e65c9ef3e4e54352ec0a16f56e793f535503ef240bcb8fc",
+    "tests/unit/sandbox_session.test.js": "d922c9911399132dd204976e023f7b78775876263e4af915f9a07b9f30bf2e0c"
+  },
+  "provider_inference_requests": 0,
+  "physical_input": false,
+  "isolation_validated": false,
+  "limitations": [
+    "Independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated.",
+    "No hostile WMI-escape process test was performed; owned jobs and exact account-token cleanup were tested for normal descendants/timeouts.",
+    "Full isolated actor orchestration, hosted provider wiring and all-mission transport remain incomplete; core live dispatch stays gated."
+  ]
+}

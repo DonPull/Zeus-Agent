@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { fingerprint } from './benchmark_config.js';
+import {candidateCommand,candidateScript} from './candidate_execution.js';
 
 export const missionRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'missions/v1');
 export const missionIds = Object.freeze(['B01', 'B02', 'B03', 'C01', 'C02', 'C03', 'D01', 'D02', 'M01', 'M02', 'R01', 'V01']);
@@ -61,9 +62,9 @@ export function treeHash(root) {
   return fingerprint(files);
 }
 
-export function python(script, args = [], { input, cwd, trustedExecution = false } = {}) {
+export function python(script, args = [], { input, cwd, trustedExecution = false, candidateExecution = false } = {}) {
   if (!trustedExecution) throw new Error('Phase 2A only executes explicitly trusted reference/control code; an isolated executor is required for agent submissions');
-  const result = spawnSync('python', ['-I', '-B', script, ...args], { input, cwd, encoding: 'utf8',
+  const result = spawnSync(candidateExecution?candidateCommand():'python', ['-I', '-B', candidateExecution?candidateScript(script):script, ...args], { input, cwd, encoding: 'utf8',
     timeout: 10000, maxBuffer: 1024 * 1024, windowsHide: true, shell: false });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new SubmissionError(`Program exited ${result.status}: ${result.stderr.slice(-2000)}`);

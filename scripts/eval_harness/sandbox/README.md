@@ -110,7 +110,7 @@ successful navigation and zero remaining owned browser processes.
 
 This is a scripted runtime check with **zero hosted inference requests**, not a
 capability score. Its JSON still cannot certify isolation. Live provider wiring,
-all-mission fixture/artifact transport, separate executable grading and remaining
+all-mission fixture/artifact transport, isolated actor integration and remaining
 resource/lifecycle gates remain open.
 Keep failed probes and their hashes alongside the successful receipt.
 
@@ -157,5 +157,33 @@ outcome. A runtime success label alone is insufficient.
 The dashboard grader uses the pinned `playwright-core` SDK and full Chromium
 channel. No provider connection, API key, repository mapping or physical input is
 needed. This mode validates only known controls and leaves the untrusted host
-execution guard and core live-dispatch gates unchanged. Arbitrary generated
-submissions still need their reviewed isolated adapter and failure controls.
+execution guard and core live-dispatch gates unchanged.
+
+## Generated-submission grading
+
+`node scripts/eval_harness/grade_submission.js --mission C01 --submission
+<export-directory> --runtime-bundle <owned-bundle-directory>` prepares a bounded
+snapshot without executing submitted code. Add `--run` explicitly to launch a
+fresh Windows Sandbox. C01, C02, C03 and D02 are supported. Artifacts are limited
+to declared names, 2 MiB per file and 8 MiB per packet; links and device paths
+are rejected. Reference solutions are omitted from the guest packet.
+
+The trusted controller creates a disposable non-admin account for candidate
+programs. Grader files, private credentials, controller memory and the copied
+runtime are protected from that account. Each candidate Python process starts
+behind an activation gate in an owned Windows job; normal descendants and
+timeouts are tested. Cleanup disables the account and checks exact token SIDs
+for remaining candidate processes before signing a result.
+
+Actual experiments found that WSB mapped folders remain accessible to the
+candidate account despite local ACL restrictions. Consequently mapped output
+JSON is never trusted on its own: the host pins a fresh Ed25519 public key before
+acknowledging candidate startup, then verifies the signed job/nonce/packet and
+assessment. A real submitted program that replaced the result file was rejected.
+Raw assessments remain Node JSON; PowerShell receives metadata only, including
+when a valid assessment contains an empty property name.
+
+These controls validate this grading adapter, not a complete isolation
+certificate. Independent HCS disposal, CPU and writable-mapping disk quotas
+remain unvalidated. The full core live driver is still gated; this CLI neither
+calls a provider nor enables paid dispatch.

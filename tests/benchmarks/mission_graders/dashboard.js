@@ -99,7 +99,7 @@ export async function gradeDashboard(root,options={}){
   let browser;
   try{
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
-    browser=await chromium.launch({headless:true,channel:'chromium'});
+    browser=await chromium.launch({headless:true,channel:'chromium',chromiumSandbox:true});
     const page=await browser.newPage(),origin='http://127.0.0.1:'+server.address().port;
     await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
     const checks=await probeDashboard(page,origin,{screenshotDirectory:options.screenshotDirectory});

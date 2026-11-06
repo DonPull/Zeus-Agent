@@ -8,6 +8,7 @@ import { resolveBenchmarkConfig, taskSettings, assertEffectiveSettings, fingerpr
 import { appendScore, atomicWrite } from './score_recorder.js';
 import { runTrial } from './trial_runner.js';
 import { agentDuration, browserMeasurements, contextMeasurements } from './mission_measurements.js';
+import {isIsolatedGrader} from '../../scripts/eval_harness/sandbox/isolated_grader.mjs';
 
 const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
 export const hashBytes = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -92,9 +93,11 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
   evaluationKind='scripted_runtime', executionProfile='reference-offline', scriptedFiles={},
   beforeSend=async()=>{}, decide, stopActor=async()=>{}, portal=null, browserObservation=null, timeoutMs=60000,
   evaluationLimits=null,expectedProviderOrigin=null,supervisionPolicy='external-review',afterExecute=async()=>{},
-  runWorkflow=null,collectionTimeoutMs=10000}) {
+  runWorkflow=null,collectionTimeoutMs=null,isolatedGrader=null}) {
   const {task,dir}=mission(id), trial=crypto.randomUUID(), interventions=[];
   if(!evaluationLimits)throw new Error('Mission trials require an explicit evaluation-limit manifest');
+  if(isolatedGrader&&!isIsolatedGrader(isolatedGrader))throw new Error('Use the verified isolated-grader factory');
+  collectionTimeoutMs??=isolatedGrader?120000:10000;
   if(!['scripted_runtime','capability'].includes(evaluationKind))throw new Error('Invalid evaluation kind');
   if(evaluationKind==='capability'&&executionProfile!=='native-supervised')throw new Error('This driver currently supports native supervised diagnostics only');
   if(evaluationKind!=='scripted_runtime'&&Object.keys(scriptedFiles).length)throw new Error('Reference execution trust cannot be attached to a live trial');
@@ -255,7 +258,9 @@ export async function runMissionTrial({id, page, appWorkspace, output, experimen
         const artifact=task.artifacts[0],file=files.find(f=>f.name===artifact);
         trustedExecution=file?.status==='retained'&&scriptedFiles[artifact]===file.sha256;
       }
-      if(executable&&!trustedExecution){
+      if(executable&&!trustedExecution&&isolatedGrader){
+        outcome=await isolatedGrader({id,submission:exported,signal:context.signal});
+      }else if(executable&&!trustedExecution){
         outcome={mission_id:id,outcome_status:'not_evaluated',criteria:[{id:'isolated_grading',status:'not_evaluated',evidence:'No isolated executor or exact known-control hash; exported code was not executed'}]};
       }else outcome=await gradeMission(id,exported,{trustedExecution,portal,browserObservation:browserEvidence,
         memoryEvidence:workflowEvidence.memoryEvidence,restartEvidence:workflowEvidence.restartEvidence,screenshotDirectory:id==='C03'?path.join(artifactsDir,'rendered-app'):null});

@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mission, missionRoot, readArtifact, safeFile, python, withScratch, SubmissionError } from '../mission_kit.js';
 import { check, equal } from './outcomes.js';
+import {candidateCommand} from '../candidate_execution.js';
 
 async function stop(child) {
   if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
@@ -19,7 +20,7 @@ export async function gradeService(submission, options) {
     const fixture = path.join(mission('C02').dir,'inputs');
     for (const name of ['service.py','records.json']) fs.copyFileSync(safeFile(fixture,name),path.join(root,name));
     fs.copyFileSync(safeFile(submission,'catalog.py'),path.join(root,'catalog.py'));
-    const child = spawn('python',['-I','-B',path.join(root,'service.py'),'--port','0','--data',path.join(root,'records.json')],
+    const child = spawn(candidateCommand(),['-I','-B',path.join(root,'service.py'),'--port','0','--data',path.join(root,'records.json')],
       {cwd:root,windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
     let stderr='', stdout='', timer;
     child.stderr.on('data',chunk=>{stderr=(stderr+chunk).slice(-2000);});
@@ -58,7 +59,7 @@ export async function gradeService(submission, options) {
       const health=await get('/health'), missing=await get('/missing');
       const args=[seed,{}];
       const result=JSON.parse(python(path.join(missionRoot,'../../mission_graders/function_probe.py'),[path.join(root,'catalog.py'),'select_items'],
-        {...options,input:JSON.stringify([args])}).trim().split(/\r?\n/).at(-1));
+        {...options,candidateExecution:true,input:JSON.stringify([args])}).trim().split(/\r?\n/).at(-1));
       return [check('filter_and_sort',first.status===200&&equal(first.body,expected(sorted,0,2))&&filtered.status===200&&equal(filtered.body,expected(hardware,0,3)),
           {observed:{first,filtered},expected:{first:expected(sorted,0,2),filtered:expected(hardware,0,3)}}),
         check('pagination',second.status===200&&equal(second.body,expected(hardware,1,2))&&beyond.status===200&&equal(beyond.body,expected(sorted,999,2)),

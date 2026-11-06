@@ -11,7 +11,8 @@ export const unmeasured = (id, evidence) => ({ id, status: 'not_evaluated', evid
 export function assessment(id, criteria, error = null) {
   const source=mission(id);
   return { mission_id: id, mission_version: source.task.version, task_hash:fingerprint(source.task), fixture_hash:treeHash(path.join(source.dir,'inputs')),
-    grader_version:fingerprint({code:treeHash(path.join(missionRoot, '../../mission_graders')),mission:treeHash(source.dir)}),
+    grader_version:fingerprint({code:treeHash(path.join(missionRoot, '../../mission_graders')),task:fingerprint(source.task),fixture:treeHash(path.join(source.dir,'inputs')),
+      dependencies:Object.fromEntries(['mission_kit.js','candidate_execution.js','benchmark_config.js','memory_core_controls.js'].map(name=>[name,fingerprint(fs.readFileSync(path.join(missionRoot,'../..',name),'utf8'))]))}),
     outcome_status: error ? 'error' : criteria.some(c => c.status === 'failed') ? 'failed' : criteria.some(c => c.status !== 'passed') ? 'not_evaluated' : 'passed',
     criteria, error, authorization_status: 'not_evaluated' };
 }
@@ -34,7 +35,7 @@ const flattenCases = [
 function gradeFlatten(submission, options) {
   let actual;
   try { actual = JSON.parse(python(path.join(missionRoot, '../../mission_graders/function_probe.py'),
-    [safeFile(submission, 'flattener.py'), 'flatten'], { ...options, input: JSON.stringify(flattenCases.map(c => c.args)) }).trim().split(/\r?\n/).at(-1)); }
+    [safeFile(submission, 'flattener.py'), 'flatten'], { ...options, candidateExecution:true, input: JSON.stringify(flattenCases.map(c => c.args)) }).trim().split(/\r?\n/).at(-1)); }
   catch(error) { if(error instanceof SyntaxError) throw new SubmissionError('Invalid function probe output'); throw error; }
   if (!Array.isArray(actual) || actual.length !== flattenCases.length) throw new SubmissionError('Invalid function results');
   return [...new Set(flattenCases.map(c => c.criterion))].map(id => check(id,
@@ -108,11 +109,13 @@ function gradeDatabase(submission, options) {
     const fixture = path.join(mission('D02').dir,'inputs'), database = path.join(root,'feedback.db');
     python(path.join(missionRoot,'../../mission_graders/database.py'),['create',database,path.join(fixture,'seed.json')],{trustedExecution:true});
     const implementation = safeFile(submission,'ingest.py');
-    const run = input => python(implementation,['--db',database,'--input',input],{...options,cwd:root});
+    const suppliedInput=path.join(root,'raw_feedback.json');
+    fs.copyFileSync(path.join(fixture,'raw_feedback.json'),suppliedInput);
+    const run = input => python(implementation,['--db',database,'--input',input],{...options,candidateExecution:true,cwd:root});
     const snapshot = () => JSON.parse(python(path.join(missionRoot,'../../mission_graders/database.py'),['read',database],{trustedExecution:true}));
     const initial = snapshot();
-    run(path.join(fixture,'raw_feedback.json')); const first = snapshot();
-    run(path.join(fixture,'raw_feedback.json')); const second = snapshot();
+    run(suppliedInput); const first = snapshot();
+    run(suppliedInput); const second = snapshot();
     const seed = readArtifact(fixture,'seed.json'), original = first.rows.filter(r => r.id <= 3).map(({id,text,note}) => ({id,text,note}));
     const expectedCategories = ['Billing','Technical','General','Billing','Technical'];
     const expectedRows=[...seed,...readArtifact(fixture,'raw_feedback.json').filter(row=>!seed.some(old=>old.id===row.id))]

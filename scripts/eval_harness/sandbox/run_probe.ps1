@@ -63,11 +63,12 @@ try {
     if ($Mode -eq 'Run') {
         if ((Test-Path -LiteralPath $launchFile) -or (Get-Process -Name WindowsSandbox,WindowsSandboxClient -ErrorAction SilentlyContinue)) { throw 'The session was already launched or a foreign Sandbox is open.' }
         if (@(Get-ChildItem -LiteralPath (Join-Path $sessionRoot 'output') -Force).Count) { throw 'Probe output must be empty before launch.' }
-        if ($manifest.transport_smoke) {
-            if ($manifest.transport_smoke -ne 'synthetic-file-v1') { throw 'Unknown transport mode; hosted inference is not available.' }
-            $brokerScript=Join-Path $PSScriptRoot 'host_transport.mjs'
+        if ($manifest.transport_smoke -or $manifest.grading_auth) {
+            if ($manifest.transport_smoke -and $manifest.transport_smoke -ne 'synthetic-file-v1') { throw 'Unknown transport mode; hosted inference is not available.' }
+            $brokerName=if ($manifest.grading_auth) { 'host_grading_auth.mjs' } else { 'host_transport.mjs' }
+            $brokerScript=Join-Path $PSScriptRoot $brokerName
             $record['transport_code_sha256']=[ordered]@{}
-            foreach ($source in @('host_transport.mjs','file_rpc.mjs','session.js')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
+            foreach ($source in @($brokerName,'file_rpc.mjs','session.js','grading_auth.mjs')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
             $broker=Start-Process -FilePath $node -ArgumentList @(('"'+$brokerScript+'"'),('"'+$sessionRoot+'"')) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sessionRoot 'transport-stdout.log') -RedirectStandardError (Join-Path $sessionRoot 'transport-stderr.log')
             # Retain the native handle before the redirected child can exit.
             $null=$broker.Handle
@@ -107,7 +108,7 @@ try {
             $record['transport_exit']=[ordered]@{waited=$brokerWaited;exit_code=$broker.ExitCode}
             if (-not $brokerWaited -or $broker.ExitCode -ne 0) { throw 'Synthetic host transport did not complete successfully; see transport_exit and its private receipt.' }
         }
-        $inspectionText=& $node $probeScript --inspect $sessionRoot
+        $inspectionText=& $node $probeScript --inspect-summary $sessionRoot
         $inspectionExit=$LASTEXITCODE
         $inspection=$inspectionText | ConvertFrom-Json
         Save-Json (Join-Path $sessionRoot 'host-inspection.json') $inspection

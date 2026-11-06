@@ -326,12 +326,63 @@ plus actual OS guest probes. No production app/UI code changed. Hosted inference
 **zero**. [The reviewed record](benchmarks/sandbox-grading-20261106.json) retains
 source, packet, evidence, validation and lifecycle hashes.
 
+## Protected generated-submission grading
+
+Delivered after `1397eae`, with zero hosted inference. Executable mission exports
+can now be graded in separate fresh guests through an explicit developer CLI
+and the existing mission runtime adapter. The normal host execution guard and
+core live-driver gate remain in place.
+
+Decisions compared with known-control grading:
+
+- Snapshot declared exported bytes as data; never execute submitted programs on
+  the host. Remove reference solutions from the generated-submission packet.
+- Separate candidate programs from the trusted grader using a disposable guest
+  standard account and protected private/runtime directories. Verify actual
+  identity, ACL and controller-process access rather than trusting environment
+  variables or a profile label. No host accounts, policies or credentials change.
+- Start candidate Python behind an activation gate in an owned Windows job.
+  Verify exact exit codes, normal descendant cleanup and timeout cleanup; disable
+  the account and check its process-token SIDs before accepting the assessment.
+- Actual experiments found mapped input readable and output writable by the
+  candidate account. Replace trust in output JSON with a fresh Ed25519 key pinned
+  by the host before candidate startup and signed job/nonce/packet assessments.
+  Runtime files initially remained writable too; reset only the copied guest
+  runtime's ACLs and repeat the actual boundary check.
+- Keep complete assessments in Node JSON. Send metadata-only inspection to
+  PowerShell: a legitimate empty JSON property name caused a real failed launch
+  receipt even though grading completed. Preserve that failed receipt rather
+  than accepting it retroactively after fixing the reader.
+- Fingerprint grader code, helpers, contracts and fixtures independently of
+  reference implementations. Future comparisons must freeze the new identity.
+
+Four generated-submission reference controls passed (C01/C02/C03/D02), and all
+four corresponding faulty submissions failed. A separate submitted program read
+the visible job identity and replaced `probe-result.json`; the host rejected it
+with `Missing signed grading result`, retained the failed run and cleaned up its
+owned processes. A final fresh C01 check passed after the last identity-guard
+change. The account probe also verified private-file/runtime/controller-memory
+protection and exact exit/descendant/timeout behavior. These are runtime and
+grader controls, **not model intelligence outcomes**.
+
+Full regression passed **442 checks**: 96 JavaScript, 70 mission graders, 126
+Rust, 23 browser-service, 124 desktop and 3 private-desktop handoff checks.
+Receipt: `3bc7206e-ab0b-4f4c-b1bd-74f9ae3e79ef.json`. Final focused unit validation
+passed all **96**, receipt `bafb1347-104a-4f43-a5f8-de2b75790ee4.json`, including
+the actual-identity guard and empty-property-name inspection regression.
+Production app/UI code is unchanged. The
+[reviewed record](benchmarks/protected-submission-grading-20261106.json) retains
+positive/negative/forgery results, earlier failures, source and receipt hashes.
+
+This is not a full isolation certificate: independent HCS disposal, CPU and
+writable-mapping disk quotas remain unvalidated. No full core live baseline or
+paid dispatch is enabled. The user interruption did not lose source or evidence.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Wire generated submissions into separate fresh grading jobs with explicit
-failure controls. Implement the live provider broker with host-only credentials/
+Implement the live provider broker with host-only credentials/
 caps, all-mission fixture/artifact transport and isolated mission orchestration.
 Preserve the current synthetic transport as a
 no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.

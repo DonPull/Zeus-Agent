@@ -61,10 +61,18 @@ test('Sandbox preparation opens nothing, maps no private state, and guest JSON c
   assert.equal(manifest.launch_requested,false);assert.equal(manifest.provider_requests,0);
   assert.equal(fs.readdirSync(path.join(root,'output')).length,0);
   assert.throws(()=>inspectProbe(root),/exactly one/);
-  fakeReport(root,manifest);const result=inspectProbe(root);
+  const report=fakeReport(root,manifest);
+  // Valid model/grader JSON can contain an empty key; PowerShell cannot parse it.
+  report.raw={'':7};fs.writeFileSync(path.join(root,'output','probe-result.json'),JSON.stringify(report));
+  const result=inspectProbe(root);
   assert.equal(result.status,'probe_claims_consistent');assert.equal(result.isolation_validated,false);
   const cli=spawnSync(process.execPath,[path.resolve('scripts/eval_harness/sandbox/probe.js'),'--inspect',root],{encoding:'utf8',windowsHide:true});
   assert.equal(cli.status,2,cli.stderr);assert.equal(JSON.parse(cli.stdout).isolation_validated,false);
+  const summary=spawnSync(process.execPath,[path.resolve('scripts/eval_harness/sandbox/probe.js'),'--inspect-summary',root],{encoding:'utf8',windowsHide:true});
+  assert.equal(summary.status,2,summary.stderr);
+  const metadata=JSON.parse(summary.stdout);assert.equal('guest' in metadata,false);assert.equal('graded_assessment' in metadata,false);
+  const parse=spawnSync('powershell.exe',['-NoProfile','-Command','[Console]::In.ReadToEnd() | ConvertFrom-Json | Out-Null'],{input:summary.stdout,encoding:'utf8',windowsHide:true});
+  assert.equal(parse.status,0,parse.stderr);
   const wsb=fs.readFileSync(path.join(root,'probe.wsb'),'utf8');
   assert.ok(!wsb.includes(manifest.private_file));assert.ok(!wsb.includes('<HostFolder>'+parent+'</HostFolder>'));
 }));
