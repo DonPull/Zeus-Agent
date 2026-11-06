@@ -116,8 +116,11 @@ all seven checks and ownership-scoped host-process cleanup. A pinned public
 runtime bundle now runs the real Zeus app, Python and managed Chromium in the
 guest against a synthetic local fixture. It checks exact versions, actual HTTP
 navigation, two mock requests and zero remaining owned browser processes.
-This uses no hosted inference. Isolated mission orchestration, a separate executable
-grader, provider/fixture transport and remaining lifecycle validation still remain;
+This uses no hosted inference. A further actual guest check passes through bounded
+file transport to a host-controlled synthetic provider/fixture, with independent
+request hashes and zero handler calls for an undeclared-route negative control.
+Live provider wiring, isolated mission orchestration, a separate executable
+grader, all-mission fixture/artifact transport and remaining lifecycle validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

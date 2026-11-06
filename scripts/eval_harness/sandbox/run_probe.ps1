@@ -19,6 +19,7 @@ for ($cursor=$sessionRoot; $cursor; $cursor=Split-Path -Parent $cursor) {
 $configuration=Join-Path $sessionRoot 'probe.wsb'
 $launchFile=Join-Path $sessionRoot 'host-launch.json'
 $clientFile=Join-Path $sessionRoot 'host-client.json'
+$transportFile=Join-Path $sessionRoot 'host-transport.json'
 $lifecycleFile=Join-Path $sessionRoot ('host-lifecycle-'+[Guid]::NewGuid().ToString()+'.json')
 $node=(Get-Command node.exe -ErrorAction Stop).Source
 $probeScript=Join-Path $PSScriptRoot 'probe.js'
@@ -48,7 +49,10 @@ function Owned-Process($Proof,[string]$Name) {
 $launcher=$null
 $launchProof=$null
 $clientProof=$null
+$broker=$null
+$brokerProof=$null
 $record=[ordered]@{schema_version=1; probe_id=$manifest.id; mode=$Mode; started_at=[DateTime]::UtcNow.ToString('o'); status='running'; inspection=$null; cleanup=$null; provider_requests=0; physical_input=$false; isolation_validated=$false}
+$record['controller_sha256']=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $exitStatus=1
 $slot=New-Object Threading.Mutex($false,'Local\ZeusBenchmarkSandboxV1')
 $ownsSlot=$false
@@ -59,6 +63,17 @@ try {
     if ($Mode -eq 'Run') {
         if ((Test-Path -LiteralPath $launchFile) -or (Get-Process -Name WindowsSandbox,WindowsSandboxClient -ErrorAction SilentlyContinue)) { throw 'The session was already launched or a foreign Sandbox is open.' }
         if (@(Get-ChildItem -LiteralPath (Join-Path $sessionRoot 'output') -Force).Count) { throw 'Probe output must be empty before launch.' }
+        if ($manifest.transport_smoke) {
+            if ($manifest.transport_smoke -ne 'synthetic-file-v1') { throw 'Unknown transport mode; hosted inference is not available.' }
+            $brokerScript=Join-Path $PSScriptRoot 'host_transport.mjs'
+            $record['transport_code_sha256']=[ordered]@{}
+            foreach ($source in @('host_transport.mjs','file_rpc.mjs','session.js')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
+            $broker=Start-Process -FilePath $node -ArgumentList @(('"'+$brokerScript+'"'),('"'+$sessionRoot+'"')) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sessionRoot 'transport-stdout.log') -RedirectStandardError (Join-Path $sessionRoot 'transport-stderr.log')
+            # Retain the native handle before the redirected child can exit.
+            $null=$broker.Handle
+            $brokerProof=Process-Proof $broker
+            Save-Json $transportFile $brokerProof
+        }
         $launcher=Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsSandbox.exe') -ArgumentList ('"'+$configuration+'"') -WindowStyle Hidden -PassThru
         $launchProof=Process-Proof $launcher
         $launchProof['kind']='external-sandbox-launch'
@@ -82,9 +97,16 @@ try {
             }
             if ((Test-Path -LiteralPath (Join-Path $sessionRoot 'output\probe-result.json')) -and $clientProof) { break }
             if ($launcher.HasExited) { throw 'Sandbox launcher exited before guest evidence and ownership were available.' }
+            if ($broker -and $broker.HasExited -and $broker.ExitCode -ne 0) { throw 'Synthetic transport failed; see its retained private receipt or stderr.' }
             Start-Sleep -Milliseconds 200
         }
         if (-not $clientProof -or -not (Test-Path -LiteralPath (Join-Path $sessionRoot 'output\probe-result.json'))) { throw 'Guest probe deadline expired.' }
+        if ($broker) {
+            $brokerWaited=$broker.WaitForExit(5000)
+            $broker.Refresh()
+            $record['transport_exit']=[ordered]@{waited=$brokerWaited;exit_code=$broker.ExitCode}
+            if (-not $brokerWaited -or $broker.ExitCode -ne 0) { throw 'Synthetic host transport did not complete successfully; see transport_exit and its private receipt.' }
+        }
         $inspectionText=& $node $probeScript --inspect $sessionRoot
         $inspectionExit=$LASTEXITCODE
         $inspection=$inspectionText | ConvertFrom-Json
@@ -104,6 +126,10 @@ try {
         if (Test-Path -LiteralPath $clientFile) {
             $clientProof=Get-Content -LiteralPath $clientFile -Raw | ConvertFrom-Json
         }
+        if (Test-Path -LiteralPath $transportFile) {
+            $brokerProof=Get-Content -LiteralPath $transportFile -Raw | ConvertFrom-Json
+            $broker=Owned-Process $brokerProof 'node'
+        }
         $record.status='cleanup_only'
         $exitStatus=0
     }
@@ -111,7 +137,7 @@ try {
     $record.status='failed'
     $record['error']=$_.Exception.Message
 } finally {
-    $cleanup=[ordered]@{method='exact-owned-process-handles'; client_terminated=$false; launcher_terminated=$false; client_gone=$null; launcher_gone=$null; compute_system_gone=$null}
+    $cleanup=[ordered]@{method='exact-owned-process-handles'; client_terminated=$false; launcher_terminated=$false; client_gone=$null; launcher_gone=$null; transport_gone=$null; compute_system_gone=$null}
     try {
         if ($clientProof) {
             if ($clientProof.parent_pid -ne $launchProof.pid) { throw 'Client proof has a different launcher parent.' }
@@ -137,6 +163,18 @@ try {
         $record.status='cleanup_failed'
         $exitStatus=1
     }
+    try {
+        if ($brokerProof) {
+            if (-not $broker) { $broker=Owned-Process $brokerProof 'node' }
+            if ($broker) {
+                if ($broker.StartTime.ToUniversalTime().ToString('o') -ne $brokerProof.started_utc) { throw 'Transport process identity changed.' }
+                if (-not $broker.HasExited) { $broker.Kill() }
+                $cleanup.transport_gone=$broker.WaitForExit(5000)
+            } else { $cleanup.transport_gone=$true }
+            if ($cleanup.transport_gone -ne $true) { throw 'Owned transport process did not exit.' }
+        }
+    } catch { $cleanup['transport_error']=$_.Exception.Message; $record.status='cleanup_failed'; $exitStatus=1 }
+    if ($broker) { $broker.Dispose() }
     if ($launcher) { $launcher.Dispose() }
     $record.cleanup=$cleanup
     $record['completed_at']=[DateTime]::UtcNow.ToString('o')

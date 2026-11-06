@@ -109,6 +109,36 @@ navigation. It requires two mock requests, known usage, exact dependency version
 successful navigation and zero remaining owned browser processes.
 
 This is a scripted runtime check with **zero hosted inference requests**, not a
-capability score. Its JSON still cannot certify isolation. Provider/fixture file
-transport, separate executable grading and resource/lifecycle gates remain open.
+capability score. Its JSON still cannot certify isolation. Live provider wiring,
+all-mission fixture/artifact transport, separate executable grading and remaining
+resource/lifecycle gates remain open.
 Keep failed probes and their hashes alongside the successful receipt.
+
+## Synthetic host/guest file transport
+
+Add `--transport-smoke` when preparing a runtime probe to move the fake provider
+and website fixture to the host. The guest retains networking disabled. Its
+loopback proxies exchange bounded data files with a trusted host broker. This
+broker supports only POST `/chat/completions` for `phase1-mock` and GET `/` for
+the synthetic fixture. It has no provider credentials, external HTTP client,
+shell command or arbitrary-URL interface.
+
+The protocol permits 32 messages, 1 MiB decoded bodies, 2 MiB exchange files and
+16 MiB aggregate exchange bytes. Fresh nonces, exact fields, declared routes,
+immutable request hashes and a host-private receipt bind every request/response.
+The guest cannot write the input mapping. Host replies fill empty files prepared
+before launch; length/hash/completion frames reject partial reads. An actual WSB
+readonly mapping held rename locks, so response publication avoids rename.
+Provider operations are never repeated to recover a publication failure.
+
+The controller retains the broker's exact process handle and creation time,
+checks its real exit code, and tears down only its owned processes. Read-only
+inspection verifies the protected receipt against all exchange bytes, counts and
+identities. A matching guest success message alone cannot satisfy this check.
+
+`--transport-smoke --deny-test` deliberately writes an undeclared external route
+from inside the guest. Its **expected** outcome is a failed probe, zero host
+request handlers and successful owned-process cleanup. It must never be counted
+as a successful model mission. Both actual positive and negative controls are
+retained with the earlier publication/exit-check failures. No paid inference is
+enabled by these modes. Core live dispatch remains unavailable.

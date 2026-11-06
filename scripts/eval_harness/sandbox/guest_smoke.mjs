@@ -15,10 +15,34 @@ if(process.env.USERNAME!=='WDAGUtilityAccount'||control!=='C:\\Zeus\\Input')thro
 let app,browser,frontend,provider,fixture,stderr='',stdout='',providerRequests=0,fixtureRequests=0;
 const result={kind:'scripted-guest-runtime-control',status:'failed',provider_inference_requests:0,physical_input:false};
 const deadline=Date.now()+90000;
+const job=JSON.parse(fs.readFileSync(path.join(control,'job.json'),'utf8'));
 const watchdog=setTimeout(()=>{fs.writeFileSync(reportFile,JSON.stringify({...result,error:'Guest runtime deadline expired'}));process.exit(1);},95000);
 function assert(condition,message){if(!condition)throw Error(message);}
 async function listen(server,port){await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});return server;}
 try{
+  if(job.runtime_smoke.deny_test){
+    // Deliberately bypass the client validator to test the actual host boundary.
+    fs.writeFileSync('C:\\Zeus\\Output\\rpc-request-000001.json',JSON.stringify({schema_version:1,nonce:job.nonce,id:1,channel:'provider',method:'POST',path:'https://example.invalid/',body_base64:''}),{flag:'wx'});
+    await pause(5000);throw Error('Deliberate invalid-route control must not pass');
+  }
+  let rpc=null;
+  if(job.runtime_smoke.transport==='synthetic-file-v1'){
+    const {createFileClient}=await import('./file_rpc.mjs');
+    const read=(folder,name,limit)=>{
+      const file=path.join(folder,name),stat=fs.lstatSync(file);
+      if(!stat.isFile()||stat.isSymbolicLink()||stat.size>limit)throw Error('Invalid readonly response');
+      const bytes=fs.readFileSync(file);if(bytes.length>limit)throw Error('Oversized readonly response');return bytes;
+    };
+    rpc=createFileClient({input:control,output:'C:\\Zeus\\Output',nonce:job.nonce,read});
+  }
+  const forward=async(channel,req,res)=>{
+    try{
+      const chunks=[];let length=0;
+      for await(const chunk of req){length+=chunk.length;if(length>1024*1024)throw Error('Loopback request exceeds its allowance');chunks.push(chunk);}
+      const response=await rpc(channel,req.method,req.url,Buffer.concat(chunks));
+      res.writeHead(response.status,{'Content-Type':response.content_type});res.end(response.body);
+    }catch(error){res.writeHead(502,{'Content-Type':'application/json'});res.end(JSON.stringify({error:String(error.message).slice(0,500)}));}
+  };
   result.python_imports=execFileSync(path.join(root,'browser/venv/Scripts/python.exe'),['-I','-c','import sys, asyncio, greenlet, pyee; from playwright.async_api import async_playwright; print(sys.version); print("Browser dependencies imported")'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],windowsHide:true,timeout:10000}).trim();
   const {chromium}=await import(pathToFileURL(path.join(root,'node_modules/playwright-core/index.mjs')));
   const frontendRoot=path.join(root,'frontend');
@@ -30,11 +54,16 @@ try{
     const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.ttf':'font/ttf'}[path.extname(file)]??'application/octet-stream';
     res.writeHead(200,{'Content-Type':mime});fs.createReadStream(file).pipe(res);
   }),1420);
-  fixture=await listen(http.createServer((req,res)=>{fixtureRequests++;res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><title>Runtime fixture</title><main><h1>Managed browser is working</h1></main>');}),19222);
+  fixture=await listen(http.createServer((req,res)=>{
+    if(req.url!=='/'){res.writeHead(404).end();return;}fixtureRequests++;
+    if(rpc){void forward('fixture',req,res);return;}
+    res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><title>Runtime fixture</title><main><h1>Managed browser is working</h1></main>');
+  }),19222);
   const code='import json\nfrom zeus_browser import call\nprint(json.dumps(call("navigate",url="http://127.0.0.1:19222/")))';
   const replies=[{type:'run_action',action:{language:'python',code,timeout_secs:30},success_criteria:'Inspect the synthetic local browser fixture.'},
     {type:'final_answer',final_answer:{summary:'Synthetic isolated runtime control completed.'}}];
   provider=await listen(http.createServer(async(req,res)=>{
+    if(rpc){providerRequests++;await forward('provider',req,res);return;}
     if(req.method==='GET'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({data:[{id:'phase1-mock'}]}));return;}
     let length=0;for await(const chunk of req){length+=chunk.length;if(length>1024*1024){res.writeHead(413).end();return;}}
     const reply=replies[providerRequests++];

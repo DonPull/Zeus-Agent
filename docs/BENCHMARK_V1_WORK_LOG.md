@@ -245,12 +245,57 @@ The [reviewed runtime record](benchmarks/sandbox-runtime-20261106.json) retains
 the successful and failed probe hashes, dependency identity and tested code hashes.
 Hosted inference: **zero**. The full benchmark remains in progress.
 
+## Bounded synthetic file transport checkpoint
+
+The real Zeus guest now talks through loopback HTTP proxies and bounded file
+messages to a host-controlled fake model provider and website fixture. Networking
+remains disabled at the .wsb boundary. The host broker has no provider key,
+external HTTP client, shell-command or arbitrary-URL interface. This checkpoint
+does not enable paid dispatch or claim all twelve isolated workflows are wired.
+
+Decisions compared with the guest-local smoke:
+
+- Move synthetic provider/fixture handling outside the acting environment and
+  retain a separate, unmapped host receipt for every dispatched request.
+- Bound the exchange to 32 messages, 1 MiB decoded bodies, 2 MiB files and 16 MiB
+  aggregate bytes; accept only the two declared synthetic routes and exact
+  message fields. Preserve nonces, byte hashes and honest failure counts.
+- Reject changed/replayed identities, unrelated routes, oversized/extra files
+  and incomplete/corrupt responses. A publication failure never repeats the
+  provider operation.
+- Actual readonly WSB mappings held persistent rename locks. Precreate empty
+  response slots before launch and publish length/checksum/completion frames
+  once into those files. Partial reads remain pending rather than accepted JSON.
+- Retain the broker's native process handle before exit, refresh its state and
+  check both completion and actual exit code. Cleanup uses exact owned handles.
+
+Two repaired positive guests passed all nine checks. The final one is
+`d94ccb98-e7ca-4257-98c8-154fcbb01523`: two host-observed mock calls, one fixture
+request, unchanged exchange hashes, exact runtime versions, a successful real
+browser navigation and zero remaining owned browser/broker/Sandbox processes.
+The negative guest `9eb63ef5-d0db-40ce-9295-eded9bf7e571` bypassed the client
+validator and wrote an undeclared external URL. The actual host rejected it
+before any provider/fixture handler ran; the expected failed probe and clean
+teardown are retained. It is a negative control, not a successful model mission.
+
+Earlier rename failures and the completed-transport/missing-exit-code rejection
+remain in their original session directories. The controller did not convert
+them into passes. The [reviewed transport record](benchmarks/sandbox-transport-20261106.json)
+retains their receipt hashes and the final source/validation identities.
+Final focused validation passed **87 JavaScript + 70 grader checks**. Combined
+distinct coverage with the earlier complete run is **433 checks**, plus the
+actual guest probes. Production app/UI code is unchanged. Hosted inference:
+**zero**. Independent HCS disposal, CPU and writable-mapping disk quotas remain
+unvalidated. No full isolation certificate or full benchmark baseline is claimed.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Implement and validate isolated mission orchestration, bounded provider/fixture/artifact
-transport, separate executable grader and OS lifecycle/cleanup controls.
+Implement and validate the separate executable-grading environment, live provider
+broker with host-only credentials/caps, all-mission fixture/artifact transport and
+isolated mission orchestration. Preserve the current synthetic transport as a
+no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.
 Then freeze/review a live
 pilot manifest and use its resource evidence for the repeated full Solo/Team run.
 Keep ZA-012 context/protocol efficiency observations alongside those measurements.

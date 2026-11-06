@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
+import {RPC_LIMITS,validateRequest,validateResponse,responseName,decodeResponseFrame} from './file_rpc.mjs';
 
 const directory=path.dirname(fileURLToPath(import.meta.url));
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
@@ -66,8 +67,10 @@ export function readBoundedFile(root,name,limit=1024*1024){
   }finally{fs.closeSync(fd);}
 }
 
-export function prepareProbe(parent,{runtimeBundle=null}={}){
+export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,transportDenyTest=false}={}){
   if(process.platform!=='win32')throw Error('The .wsb probe requires a Windows host');
+  if(transportSmoke&&!runtimeBundle)throw Error('Transport smoke requires a prepared public runtime');
+  if(transportDenyTest&&!transportSmoke)throw Error('A deny control requires synthetic transport');
   let runtimeInfo=null;
   if(runtimeBundle){
     runtimeBundle=unlinkedDirectory(runtimeBundle);
@@ -86,15 +89,19 @@ export function prepareProbe(parent,{runtimeBundle=null}={}){
   const challenge=Buffer.from('Synthetic boundary challenge '+nonce+'\n');
   const job={schema_version:2,id,nonce,private_host_path:privateFile,host_name:os.hostname()};
   if(runtimeInfo)job.runtime_smoke={manifest_sha256:runtimeInfo.manifest_sha256};
+  if(transportSmoke)job.runtime_smoke.transport='synthetic-file-v1';
+  if(transportDenyTest)job.runtime_smoke.deny_test=true;
   const inputs={'job.json':Buffer.from(JSON.stringify(job,null,2)),'challenge.txt':challenge,'probe.ps1':fs.readFileSync(path.join(directory,'probe_guest.ps1'))};
   if(runtimeInfo)for(const name of ['guest_smoke.mjs','guest_diagnostics.ps1'])inputs[name]=fs.readFileSync(path.join(directory,name));
+  if(transportSmoke)inputs['file_rpc.mjs']=fs.readFileSync(path.join(directory,'file_rpc.mjs'));
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
+  if(transportSmoke)for(let id=1;id<=RPC_LIMITS.messages;id++)fs.writeFileSync(path.join(input,responseName(id)),Buffer.alloc(0),{flag:'wx'});
   const wsb=sandboxConfiguration({input,output,runtime:runtimeBundle});
   fs.writeFileSync(path.join(root,'probe.wsb'),wsb,{flag:'wx'});
   const manifest={schema_version:2,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
     host_name:os.hostname(),nonce,input,output,private_file:privateFile,private_sha256:hash(sentinel),
     inputs:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,hash(bytes)])),configuration_sha256:hash(wsb),
-    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,provider_requests:0,launch_requested:false,
+    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,transport_smoke:transportSmoke?'synthetic-file-v1':null,provider_requests:0,launch_requested:false,
     limitations:['Prepared configuration is not evidence of guest execution or isolation validation.',
       'Memory is configured; CPU, writable mapping disk quota and full actor/grader containment are not validated.']};
   fs.writeFileSync(path.join(root,'session.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
@@ -110,6 +117,29 @@ export function runtimeSmokeMatches(smoke,versions){
     &&smoke.navigation?.url==='http://127.0.0.1:19222/'&&smoke.navigation.http_status===200;
 }
 
+export function inspectHostTransport({input,output,privateDir,id,nonce}){
+  const names=fs.readdirSync(output);
+  if(!names.includes('probe-result.json')||names.length>RPC_LIMITS.messages+1||names.some(name=>name!=='probe-result.json'&&!/^rpc-request-\d{6}\.json$/.test(name)))throw Error('Unexpected transport result files');
+  const receipt=JSON.parse(readBoundedFile(privateDir,'transport.json',65536));
+  let total=0,providers=0,fixtures=0;
+  if(receipt.id!==id||receipt.nonce!==nonce||receipt.kind!=='host-observed-synthetic-file-transport'||!Array.isArray(receipt.requests)||receipt.requests.length!==names.length-1)throw Error('Invalid host transport receipt identity');
+  const ids=new Set();
+  for(const row of receipt.requests){
+    if(ids.has(row.id))throw Error('Duplicate host exchange identity');ids.add(row.id);
+    const request=readBoundedFile(output,'rpc-request-'+String(row.id).padStart(6,'0')+'.json',RPC_LIMITS.requestBytes);
+    const response=readBoundedFile(input,responseName(row.id),RPC_LIMITS.responseBytes);
+    if(hash(request)!==row.request_sha256||hash(response)!==row.response_sha256)throw Error('Exchange bytes changed after host handling');
+    const observed=validateRequest(JSON.parse(request),nonce);
+    if(observed.id!==row.id||observed.channel!==row.channel||observed.method!==row.method||observed.path!==row.path)throw Error('Host transport metadata mismatch');
+    if(observed.channel==='provider')providers++;else fixtures++;
+    const body=decodeResponseFrame(response);if(!body)throw Error('Incomplete host response frame');
+    validateResponse(JSON.parse(body),nonce,row.id);
+    total+=request.length+response.length;
+  }
+  return receipt.status==='complete'&&receipt.provider_requests===2&&providers===2&&receipt.fixture_requests===fixtures&&fixtures>0
+    &&receipt.provider_inference_requests===0&&receipt.total_bytes===total&&total<=RPC_LIMITS.totalBytes;
+}
+
 /** Diagnostic claims remain claims until an external lifecycle check is supplied.
  * Never turn a guest JSON report into an isolation capability or benchmark pass.
  */
@@ -123,7 +153,9 @@ export function inspectProbe(root){
   for(const [name,sha] of Object.entries(manifest.inputs))if(hash(readBoundedFile(input,name))!==sha)throw Error('Probe input changed: '+name);
   if(hash(readBoundedFile(privateDir,'host-only.bin'))!==manifest.private_sha256)throw Error('Unmapped host sentinel changed');
   const names=fs.readdirSync(output);
-  if(names.length!==1||names[0]!=='probe-result.json')throw Error('Probe requires exactly one declared result file');
+  if(manifest.transport_smoke){
+    if(!names.includes('probe-result.json')||names.length>RPC_LIMITS.messages+1||names.some(name=>name!=='probe-result.json'&&!/^rpc-request-\d{6}\.json$/.test(name)))throw Error('Unexpected transport result files');
+  }else if(names.length!==1||names[0]!=='probe-result.json')throw Error('Probe requires exactly one declared result file');
   const bytes=readBoundedFile(output,'probe-result.json',65536),guest=JSON.parse(bytes);
   if(guest.id!==manifest.id||guest.nonce!==manifest.nonce||guest.schema_version!==2)throw Error('Guest result identity mismatch');
   const checks={different_computer:typeof guest.computer==='string'&&guest.computer!==manifest.host_name,
@@ -132,6 +164,9 @@ export function inspectProbe(root){
     writable_output:guest.output_written===true,fresh_guest_disk:guest.marker_preexisting===false&&guest.marker_created===true};
   if(manifest.runtime_bundle){
     checks.runtime_smoke=runtimeSmokeMatches(guest.runtime_smoke,manifest.runtime_bundle.versions);
+  }
+  if(manifest.transport_smoke){
+    checks.host_file_transport=inspectHostTransport({input,output,privateDir,id:manifest.id,nonce:manifest.nonce});
   }
   return {id:manifest.id,status:Object.values(checks).every(Boolean)?'probe_claims_consistent':'probe_failed',
     checks,guest,result_sha256:hash(bytes),isolation_validated:false,
