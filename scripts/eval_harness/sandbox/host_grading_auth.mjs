@@ -21,7 +21,7 @@ try{
   const deadline=Date.now()+170000;
   while(Date.now()<deadline){
     for(const name of fs.readdirSync(output)){
-      const limit=name==='grading-key.json'||name==='grading-key.json.tmp'?4096:name==='probe-result.json'||name==='probe-result.tmp'?1024*1024:(manifest.candidate_control||manifest.submission_job)&&name==='candidate-write.txt'?128:0;
+      const limit=name==='grading-key.json'||name==='grading-key.json.tmp'?4096:name==='probe-result.json'||name==='probe-result.tmp'?1024*1024:manifest.actor_control&&['actor-export.json','actor-export.json.tmp'].includes(name)?8*1024*1024:(manifest.candidate_control||manifest.actor_control||manifest.submission_job)&&name==='candidate-write.txt'?128:0;
       if(!limit)throw Error('Undeclared grading output file');
       if(fs.lstatSync(path.join(output,name)).size>limit)throw Error('Grading output exceeds its allowance');
     }

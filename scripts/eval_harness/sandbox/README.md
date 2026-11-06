@@ -240,3 +240,25 @@ The actual guest smoke checks navigation/runtime/transport and process cleanup.
 It uses a fake model and does not report agent intelligence or unlock core live
 dispatch. Bounded artifact export and full isolated workflow orchestration remain
 pending.
+
+## Protected actor and bounded artifact export
+
+`probe.js --runtime-bundle <owned-bundle-directory> --actor-probe` prepares the
+protected actor control. Explicit Run opens a fresh guest and uses a scripted
+fake provider. The real Zeus app, Python and managed browser run under the
+standard account; the collector and intermediate report stay private. Its key
+is pinned before startup. Profile paths come from the actual user token.
+
+After normal execution, the controller stops the account/processes and snapshots
+the declared input/output files. The signed result binds the export hash. The
+host validates the job/nonce/names/hashes and retains bytes without loading them
+as code or HTML. The generic artifact channel permits at most 64 flat names,
+2 MiB per file and 8 MiB encoded total. Missing artifacts remain missing; links,
+device names, stale packets and changed bytes are rejected. Public actor input
+packets are available for all twelve missions, including the initial SQLite DB.
+
+This is a runtime/export prerequisite, not a model benchmark run. Core paid
+dispatch remains gated until complete isolated workflow/provider integration.
+The synthetic probe's short timeout is not the full mission's execution budget.
+Native process status uses a retained handle to avoid intermittently blank
+PowerShell exit-code properties; running status and actual exit 259 are distinct.

@@ -1,8 +1,27 @@
 # Full Benchmark v1 delivery
 
-Updated: 6 November 2026. User authorized the full benchmark after Phase 4C.
+Updated: 7 November 2026. User authorized the full benchmark after Phase 4C.
 This is the active delivery packet for the canonical roadmap's 2D/2E milestone.
 The full milestone remains in progress until the acceptance gates below pass.
+
+## What is complete, and what “in progress” means
+
+| Layer | Current status |
+|---|---|
+| The 12 scenario definitions and grading rules | 12/12 implemented |
+| Reference/alternative/failing controls for those graders | Implemented; 70 checks pass |
+| Scripted execution through the real Zeus app on the host | 12/12 workflows checked |
+| Windows Sandbox runtime, protected executable grading, provider and fixture transport | Components validated, including protected actor startup/export; complete mission/workflow integration in progress |
+| All 12 scenarios through the new isolated live-model runner | Not yet completed |
+| Repeated Solo/Team baseline and comparison report | Not yet collected |
+
+There are twelve **scenarios**, not twelve provider calls. The agreed repeated
+baseline schedules 12 scenarios × 2 modes × 3 attempts = 72 agent attempts.
+Agent failures remain valid measured results; completing the benchmark does not
+mean tuning until every agent attempt succeeds. “In progress” currently refers
+mainly to runner integration, isolation checks and collecting measurements,
+rather than missing scenario definitions. Infrastructure progress is not a model
+capability score. The canonical roadmap remains the same.
 
 ## Tangible differences and decisions
 
@@ -132,8 +151,12 @@ integration and an actual successful catalogue-only check. Browser fixture route
 contracts retain protected host state and mutation/response hashes; four real
 browser workflows and an actual guest/real-Zeus orders navigation pass through
 the framed transport. Hosted inference has not been dispatched through it.
-Connecting those components to the isolated actor, bounded artifact export,
-full isolated workflows and remaining lifecycle/resource validation still remain;
+A further protected-actor check runs the real Zeus app/Python/browser under the
+standard guest account, keeps the signed collector private, stops that account
+and verifies its bounded exported file bytes on the host. Public input/config
+packets now exist for all twelve missions, including D02's initial database.
+Connecting those components into complete isolated mission/workflow execution
+and remaining lifecycle/resource validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

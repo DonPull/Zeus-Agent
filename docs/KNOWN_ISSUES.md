@@ -246,7 +246,7 @@ the [work log](PHASE_4C_WORK_LOG.md) states comparison limits.
 
 ## ZA-014 — Intermittent aggregate unit-stage failure lacked retained output
 
-**Priority: medium. Status: diagnostic retention fixed; cause remains unconfirmed.**
+**Priority: medium. Status: diagnostic retention and an observed native-exit defect repaired; original failure remains unconfirmed.**
 
 During fixture-transport validation, receipt
 `c2886451-710a-43c3-8fa2-a366d436df6b.json` retained a failed unit stage followed
@@ -261,6 +261,14 @@ Do not erase or retroactively relabel the failed run. If it repeats, inspect tho
 files before retrying or changing a timeout. The initial M02 control's separate
 wrong-label timeout was corrected to the existing `Ticket status` label; it is
 not evidence explaining this later aggregate failure.
+
+Subsequent receipt `a16e373f-b636-44f1-85a1-f8e1170c683e.json` retained a concrete
+failure in the redirected-broker process check: PowerShell's `ExitCode` was null
+after a known exit 0. The controller now waits on and reads the retained native
+process handle, without using that adapted property. Running status and exits
+0/37/259 pass; the fresh protected actor/export guest also reports native exit 0
+and verified cleanup. This repairs the observed defect. The older failed run
+still cannot be conclusively attributed to it because its output was not retained.
 
 ## Chat/replay usability follow-up — 2026-11-01
 

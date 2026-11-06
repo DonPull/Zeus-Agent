@@ -119,6 +119,9 @@ for(const mission of ['B01','B02','B03','M02'])test(mission+' actual browser tra
       await row.getByLabel('Ticket status',{exact:true}).selectOption('Resolved');await row.getByRole('button',{name:'Save status'}).click();await page.getByRole('status').filter({hasText:'Saved /api/tickets/SYN-17/status'}).waitFor();
       const state=fixture.portal.snapshot();assert.equal(state.audit.length,2);assert.equal(state.records.find(row=>row.id==='SYN-17').status,'Resolved');assert.ok(state.checkpoint);
     }
+    // These controlled pages reload their records after announcing "Saved".
+    // Read the final ledger after that remaining work, never during its intent row.
+    await page.waitForLoadState('networkidle',{timeout:5000});
     if(pumpError)throw pumpError;
     const retained=JSON.parse(fs.readFileSync(path.join(folders.privateDirectory,'fixture-ledger.json')));
     assert.ok(retained.requests.length>1);assert.ok(retained.requests.every(row=>row.status==='completed'));assert.equal(retained.browser_interaction,'unobserved');

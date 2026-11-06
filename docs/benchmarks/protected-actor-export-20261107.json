@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "checkpoint": "protected-actor-and-bounded-artifact-export",
+  "date": "2026-11-07",
+  "timezone": "Europe/Sofia",
+  "source": {
+    "source_commit": "c22431a11d7f2e4e25045786c948b9f8df1ff515",
+    "dirty": true,
+    "diff_hash": "e1c7669ab342bc14fdc3c2a88efd451d1751f51f369fbc0036cfd2ea7adf019f",
+    "node": "v22.13.1"
+  },
+  "guest": {
+    "id": "59465432-312b-430c-93bb-d076dfbe2ffc",
+    "receipt": ".zeus\\evaluations\\sandbox-sessions\\59465432-312b-430c-93bb-d076dfbe2ffc\\host-lifecycle-5697a9ab-23ed-41f0-812a-07fac7d2f808.json",
+    "receipt_sha256": "95726dbf942ce2f11d2dff0e84387a858c3acdf5b010b53483f7073b714fe6b3",
+    "checks": {
+      "different_computer": true,
+      "input_read": true,
+      "input_read_only": true,
+      "host_private_unavailable": true,
+      "network_disabled": true,
+      "writable_output": true,
+      "fresh_guest_disk": true,
+      "authenticated_controller": true,
+      "protected_actor_runtime": true,
+      "actor_export": true
+    },
+    "result_sha256": "e4dd73a46c23153a07522b752bf21e37a3d77cccf3cb6716e4a7e3c0626d2426",
+    "auth_receipt_sha256": "025f59e5bc8ddda1e94236b063b7f5a34904600ddf87bd3bcd1ad43bc0d2f470",
+    "owned_host_processes_gone": true,
+    "independent_hcs_disposal": null,
+    "process_exit": {
+      "waited": true,
+      "exit_code": 0,
+      "source": "retained-native-process-handle"
+    },
+    "runtime_bundle": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777"
+  },
+  "artifact_export": {
+    "directory": "D:\\Hristian projects\\Zeus-Agent\\.zeus\\evaluations\\actor-exports\\e7e0b800-ab02-4176-8266-79d5471b5162",
+    "packet_sha256": "e4253c43538f6bf4e21afb62a733d6635d4539ed6791b72c27e063f6f58a5b3d",
+    "files": [
+      {
+        "name": "actor-input.txt",
+        "status": "retained",
+        "bytes": 78,
+        "sha256": "a17e19bce60753df32d5bcf9030aad814c26b921ef3a3f0816c4add748f63cbe"
+      },
+      {
+        "name": "actor-output.txt",
+        "status": "retained",
+        "bytes": 78,
+        "sha256": "a17e19bce60753df32d5bcf9030aad814c26b921ef3a3f0816c4add748f63cbe"
+      }
+    ],
+    "verified_packet_sha256": "e4253c43538f6bf4e21afb62a733d6635d4539ed6791b72c27e063f6f58a5b3d"
+  },
+  "public_actor_input_packets": [
+    {
+      "mission": "B01",
+      "sha256": "734796e327d3920c14ce52d6df8433b0676e7bc8a6bb648b7fbc6f9ba5176d78",
+      "bytes": 4558,
+      "inputs": [
+        {
+          "name": "tickets.json",
+          "status": "retained",
+          "bytes": 472,
+          "sha256": "2a17a0626933a59658939bd7ad271df1b7d74b1aedbd1ee4460d3cec1748e8d3"
+        }
+      ],
+      "exported_names": [
+        "tickets.json"
+      ],
+      "configuration_fingerprint": "fc9d8d3531f27a0ec6c846ddaa229319252d261c4ad20f99d76ba3cfbe406f08"
+    },
+    {
+      "mission": "B02",
+      "sha256": "597997dacec02ff88085e33e74eed44234c843a3bd076ce178f9e4e0f448b2cf",
+      "bytes": 5728,
+      "inputs": [
+        {
+          "name": "orders.json",
+          "status": "retained",
+          "bytes": 814,
+          "sha256": "0a7796d750288ba703c315c9257fe3c50945b443ea78ae5504cbf891d82b55ea"
+        }
+      ],
+      "exported_names": [
+        "orders.json",
+        "orders.csv",
+        "orders_summary.json"
+      ],
+      "configuration_fingerprint": "b96c090e54e9c7e56b51f08330de564381497fe9d9950c815617dd178150dbdc"
+    },
+    {
+      "mission": "B03",
+      "sha256": "e5284c01191ec6a41c393af782ae645b48591c9f79a438e3239052f3d5f2e79f",
+      "bytes": 4384,
+      "inputs": [
+        {
+          "name": "drafts.json",
+          "status": "retained",
+          "bytes": 230,
+          "sha256": "88923fbb8c2d3fa78b42d9945d2dd1f8308197ac632a7022a672bcd4c584a765"
+        }
+      ],
+      "exported_names": [
+        "drafts.json"
+      ],
+      "configuration_fingerprint": "da49e9b7f09ac2ee0497f1a9bc7607458ae6766daea00529d31fd8d4cada2e18"
+    },
+    {
+      "mission": "C01",
+      "sha256": "6decd943af44ba7ca85182886718f75324b60c07c4392245655fd98ef08986a1",
+      "bytes": 5112,
+      "inputs": [
+        {
+          "name": "flattener.py",
+          "status": "retained",
+          "bytes": 385,
+          "sha256": "7cbfb6d6b99918c944647b049b76bd0fe701f115884c1e1e0ebb7f280089b8fe"
+        },
+        {
+          "name": "test_examples.py",
+          "status": "retained",
+          "bytes": 156,
+          "sha256": "e4fdc4c240ea11cb8e4616d475a7638d427c448d1f6803151e920406e2cc06ae"
+        }
+      ],
+      "exported_names": [
+        "flattener.py",
+        "test_examples.py"
+      ],
+      "configuration_fingerprint": "4a18199d556e248d87e137ac40c324d0951857f5b6af81604d0933d019bc0983"
+    },
+    {
+      "mission": "C02",
+      "sha256": "ae12e3478d01760bfedbc69f53ed5b22a5e77de25b61af91489f98b50cb159f9",
+      "bytes": 8338,
+      "inputs": [
+        {
+          "name": "catalog.py",
+          "status": "retained",
+          "bytes": 186,
+          "sha256": "edafe654db02e99ed21b796b73d9162c11216ef49911eee1c20757c06b0c3c34"
+        },
+        {
+          "name": "records.json",
+          "status": "retained",
+          "bytes": 336,
+          "sha256": "bfdfbb815b7f67968e383164d8eeda35802cf8b618f302e59e837c9319ddf6bf"
+        },
+        {
+          "name": "service.py",
+          "status": "retained",
+          "bytes": 1924,
+          "sha256": "6683fbc8743f2ba3c2b11242de36d0b2dff71c9270c9d968d34919eec14e157f"
+        }
+      ],
+      "exported_names": [
+        "catalog.py",
+        "records.json",
+        "service.py"
+      ],
+      "configuration_fingerprint": "37bc73dfbdafdeecdf1b40152eb51e1ca504f602b29e4cd64cc11a84eab4b4b7"
+    },
+    {
+      "mission": "C03",
+      "sha256": "94bc96e5adbcc82edb68cf8906b10b4ef6baf4d741bac924247777ce5e1c305b",
+      "bytes": 5624,
+      "inputs": [
+        {
+          "name": "tasks.json",
+          "status": "retained",
+          "bytes": 190,
+          "sha256": "b2ce9e5fcd05ae43353ad24e69de28f30b6a5fea6ad9254d050a3f9ac5493ffa"
+        }
+      ],
+      "exported_names": [
+        "tasks.json",
+        "index.html"
+      ],
+      "configuration_fingerprint": "120e61c1180c73359e01dce025ddcc94eda19c90230a5469341a32a0f44a52d6"
+    },
+    {
+      "mission": "D01",
+      "sha256": "afacc94e5ed64b87d3a62d24a89feb3617094e4251e4fe21cef9132ff96f06bd",
+      "bytes": 7177,
+      "inputs": [
+        {
+          "name": "invoices.csv",
+          "status": "retained",
+          "bytes": 181,
+          "sha256": "0b082e253d5d10e501585f6f0cf00241361e34158a792b3d92a55d00ed786f87"
+        },
+        {
+          "name": "payments.json",
+          "status": "retained",
+          "bytes": 913,
+          "sha256": "580c5a5d8b8816e62c3f9ed89d75d2c8344cb4a579bc809a45c9e2d086b6de0a"
+        }
+      ],
+      "exported_names": [
+        "invoices.csv",
+        "payments.json",
+        "reconciliation.json"
+      ],
+      "configuration_fingerprint": "b4f5a2590b4223eeb27d4caa2fad59abfebb22a91df1acdbc0803fba1dc72ae5"
+    },
+    {
+      "mission": "D02",
+      "sha256": "32015a93d52cb35477d687132bc8ca3878517ce7340e4bb4375469d45f4df8a1",
+      "bytes": 17174,
+      "inputs": [
+        {
+          "name": "ingest.py",
+          "status": "retained",
+          "bytes": 252,
+          "sha256": "a460e9fb63a38df66d692bfc26720afdeff4f75d671ac2b3c1f2ce356cb94b36"
+        },
+        {
+          "name": "raw_feedback.json",
+          "status": "retained",
+          "bytes": 244,
+          "sha256": "3ab8e14a9b00d006f2b845b041c0ebdc3b59fb64dbc72798cc5dc190284c07b2"
+        },
+        {
+          "name": "seed.json",
+          "status": "retained",
+          "bytes": 209,
+          "sha256": "69f60b314b30861aabce2a4ef245a80e4cfd2dc45a888d9fbe79cbbee6dc568a"
+        },
+        {
+          "name": "feedback.db",
+          "status": "retained",
+          "bytes": 8192,
+          "sha256": "38db751e1c7105688547e2e2c005396b841aad6cdf8cae19e2dd03ecaf97d94f"
+        }
+      ],
+      "exported_names": [
+        "ingest.py",
+        "raw_feedback.json",
+        "seed.json",
+        "feedback.db"
+      ],
+      "configuration_fingerprint": "f571fd17a47ab0191f1fa8493c89715516f46f8fdbcdac4fba48c47a21c9e765"
+    },
+    {
+      "mission": "M01",
+      "sha256": "518c1daf8876af0157b0e1dcdf11fa8c53da99bd75a932fbc1acd415687c7dd4",
+      "bytes": 4822,
+      "inputs": [
+        {
+          "name": "reference_notes.txt",
+          "status": "retained",
+          "bytes": 209,
+          "sha256": "b03215cef3e9314748b93e49c539be5a765ec9703c84f5e886ad215b542ae30e"
+        }
+      ],
+      "exported_names": [
+        "reference_notes.txt",
+        "project.json"
+      ],
+      "configuration_fingerprint": "37bc73dfbdafdeecdf1b40152eb51e1ca504f602b29e4cd64cc11a84eab4b4b7"
+    },
+    {
+      "mission": "M02",
+      "sha256": "78b476696646f229044802920cf9d9d438377a8cdc83eece11ff9efdfac435c3",
+      "bytes": 4561,
+      "inputs": [
+        {
+          "name": "tickets.json",
+          "status": "retained",
+          "bytes": 159,
+          "sha256": "fe90636845dd5eb29d7bccbab77a5c54205259f2bb5652b11e63fe35f755177b"
+        }
+      ],
+      "exported_names": [
+        "tickets.json"
+      ],
+      "configuration_fingerprint": "120e61c1180c73359e01dce025ddcc94eda19c90230a5469341a32a0f44a52d6"
+    },
+    {
+      "mission": "R01",
+      "sha256": "37d58cf94dd634506d1bad2fa06079a6eacb240b8bdb30378f19a43a317d062a",
+      "bytes": 7048,
+      "inputs": [
+        {
+          "name": "aster-correction.txt",
+          "status": "retained",
+          "bytes": 245,
+          "sha256": "9943808afe8919ad243bbda2a5862f476aa619d5c3230ba6e472cc7189359074"
+        },
+        {
+          "name": "aster-original.txt",
+          "status": "retained",
+          "bytes": 236,
+          "sha256": "e42327fac07e88439ed7b4c79513ba31d3944981fa32f672fe36f1a79c44f415"
+        },
+        {
+          "name": "birch-current.txt",
+          "status": "retained",
+          "bytes": 179,
+          "sha256": "f9fc53ab470b1fd48724a0a259c3fb462662331e823f578e22d6aa487d3eba8d"
+        },
+        {
+          "name": "draft-announcement.txt",
+          "status": "retained",
+          "bytes": 217,
+          "sha256": "9d6de9956b843aaf4a689073e15ed0b02f1ad654e9339221571f73fed32a35f5"
+        }
+      ],
+      "exported_names": [
+        "aster-correction.txt",
+        "aster-original.txt",
+        "birch-current.txt",
+        "draft-announcement.txt",
+        "recommendation.json"
+      ],
+      "configuration_fingerprint": "4a18199d556e248d87e137ac40c324d0951857f5b6af81604d0933d019bc0983"
+    },
+    {
+      "mission": "V01",
+      "sha256": "c4862e7931531bd88a47cc7487012d428055133916360d23703590030ab645a0",
+      "bytes": 118660,
+      "inputs": [
+        {
+          "name": "7f91c2a0.png",
+          "status": "retained",
+          "bytes": 42750,
+          "sha256": "30f0233a65b7814490173614a4235de44f23c7f16b11fe160b4784500816a5a9"
+        },
+        {
+          "name": "a42d6e83.png",
+          "status": "retained",
+          "bytes": 43137,
+          "sha256": "63bee403c4069189cc879104af599ad14ff0155961bba6a2038d54e95c34793b"
+        }
+      ],
+      "exported_names": [
+        "7f91c2a0.png",
+        "a42d6e83.png",
+        "comparison.json"
+      ],
+      "configuration_fingerprint": "1dd33c9e67bd1749c8bd19eb899b2316a5431108139fd48012356205ef596b7a"
+    }
+  ],
+  "validation": {
+    "file": ".zeus/evaluations/regression-receipts/d0e2f062-102c-4d66-9086-4244510d5be5.json",
+    "sha256": "c183d2600a654c612ef2fd8699d8e0bd5ac735add2d6943a71fc73362d060f9a",
+    "javascript": 117,
+    "graders": 70,
+    "combined_distinct_with_prior_full_run": 463,
+    "preceding_full_run": ".zeus/evaluations/regression-receipts/f6bc95bd-897e-4b70-b689-04745614867b.json",
+    "retained_failures": [
+      {
+        "file": ".zeus/evaluations/regression-receipts/a16e373f-b636-44f1-85a1-f8e1170c683e.json",
+        "reason": "Known successful redirected child returned null through the PowerShell ExitCode property; native handle status reader replaces it."
+      },
+      {
+        "file": ".zeus/evaluations/regression-receipts/ce6215ab-0b0a-476b-969c-0f058165d30d.json",
+        "reason": "New test expected the wrong disabled-role sentinel; fixture ledger was also inspected before the synthetic page completed its reload."
+      },
+      {
+        "file": ".zeus/evaluations/regression-receipts/699c4ed2-1d3c-4fdc-8d3b-846022c461ac.json",
+        "reason": "New input-packet test incorrectly treated a legitimate public reference_note filename as a grader solution; replaced by byte-for-byte public-input comparison."
+      }
+    ]
+  },
+  "initial_startup_control": {
+    "id": "daefb44a-5f9c-4b7b-aa30-4da62373b0a9",
+    "note": "Earlier prototype verified protected startup without artifact export; not accepted as the stronger final export control."
+  },
+  "code_sha256": {
+    "scripts/eval_harness/sandbox/actor_artifacts.mjs": "3737ec8afc14f8c168cd6587e3d380a06ae1bc5f520cd937eb1e61583ede6490",
+    "scripts/eval_harness/sandbox/actor_packet.mjs": "6949984d75ef374a2045228515ea62d0629692d8c411bbf00f44e0be88958176",
+    "scripts/eval_harness/sandbox/actor_bootstrap.py": "db0a8a3b6c59538a8842a122f4e5d23f0920c337284c22c9c09e4d7988538762",
+    "scripts/eval_harness/sandbox/guest_actor_probe.mjs": "4c64e86a4e81f5f7d9ed566e5d21a89f69fe2d501a26399ac124774921a859d5",
+    "scripts/eval_harness/sandbox/guest_smoke.mjs": "1862b304cdc07a6aacaaa9f77a025868d4dff39c11d38333c7f43aa1c48c0aba",
+    "scripts/eval_harness/sandbox/session.js": "63d22f39b65c5ab8cd7ec81d4e69c281a4058fc1196468af6967750b37ed7e47",
+    "scripts/eval_harness/sandbox/host_grading_auth.mjs": "4490c3da129307d8c7f7cd71812dbae2069f0a8b76d8d5b22221578d4a60651a",
+    "scripts/eval_harness/sandbox/process_status.ps1": "ce12e80d731298d78764611a0d69035e08e4963a88fc0d3749da4d2490001dbf",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "f46271e3fcd677275e77e93661076400c4f3256e964fe034a07f6b4568c9c2b3",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "8acdff83f84c5c817e8d6b3602d7d59b3d1a3014769d00c2a3f4e9ae702821fd",
+    "scripts/eval_harness/sandbox/probe.js": "09bdab67a2c194856fc6e67048e494a2ea21e03850ad79a8c8f8736d74c9e439",
+    "tests/unit/actor_artifacts.test.js": "26a02e505bf6d5d4f61fe63ae54e6bbd7667ee76b64357a1223aec988c8e1bb8",
+    "tests/unit/protected_actor.test.js": "a7b7a3f35756902c0d1f14691cb36ab06a2504ab2cea86fcf44e87c208bf848e",
+    "tests/unit/sandbox_transport.test.js": "0b8c0a4deea85feeee19e23f6cb0709e20903fa712bc7403c3c7cae6f4982006",
+    "tests/unit/mission_transport.test.js": "00f783eba5eee07b81d13de63154e8a0e0381af1ffa10fb8d2570f3a35f78f0e"
+  },
+  "provider_inference_requests": 0,
+  "physical_input": false,
+  "production_source_changed": false,
+  "isolation_validated": false,
+  "limitations": [
+    "Runtime/export controls use a scripted fake provider, not model capability outcomes.",
+    "Input packets are prepared for all twelve missions; full isolated live mission orchestration/provider/fixture integration remains pending.",
+    "The signed collector is separate from the actor; independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated.",
+    "An older unit failure lacked diagnostics, so it cannot be conclusively attributed to the now-observed process-exit bug."
+  ]
+}

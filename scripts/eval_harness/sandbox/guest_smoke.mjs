@@ -8,7 +8,8 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 
 const control=path.dirname(fileURLToPath(import.meta.url));
 const root='C:\\Zeus\\Runtime';
-const reportFile='C:\\Zeus\\runtime-report.json';
+const protectedActor=process.env.ZEUS_GUEST_ACTOR_LAUNCHER;
+const reportFile=protectedActor?'C:\\Zeus\\GraderPrivate\\actor-runtime.json':'C:\\Zeus\\runtime-report.json';
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 if(process.env.USERNAME!=='WDAGUtilityAccount'||control!=='C:\\Zeus\\Input')throw Error('Run this control only from the readonly disposable guest input');
@@ -20,6 +21,7 @@ const watchdog=setTimeout(()=>{fs.writeFileSync(reportFile,JSON.stringify({...re
 function assert(condition,message){if(!condition)throw Error(message);}
 async function listen(server,port){await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});return server;}
 try{
+  if(protectedActor&&protectedActor!=='C:\\Zeus\\GraderPrivate\\candidate-python.exe')throw Error('Unexpected actor launcher');
   if(job.runtime_smoke.deny_test){
     // Deliberately bypass the client validator to test the actual host boundary.
     fs.writeFileSync('C:\\Zeus\\Output\\rpc-request-000001.json',JSON.stringify({schema_version:1,nonce:job.nonce,id:1,channel:'provider',method:'POST',path:'https://example.invalid/',body_base64:''}),{flag:'wx'});
@@ -61,7 +63,7 @@ try{
     if(rpc){void forward('fixture',req,res);return;}
     res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><title>Runtime fixture</title><main><h1>Managed browser is working</h1></main>');
   }),19222);
-  const code='import json\nfrom zeus_browser import call\nprint(json.dumps(call("navigate",url="http://127.0.0.1:19222/")))';
+  const code='import json\nfrom zeus_browser import call\n'+(protectedActor?'from pathlib import Path\nPath("actor-output.txt").write_bytes(Path("actor-input.txt").read_bytes())\n':'')+'print(json.dumps(call("navigate",url="http://127.0.0.1:19222/")))';
   const replies=[{type:'run_action',action:{language:'python',code,timeout_secs:30},success_criteria:'Inspect the synthetic local browser fixture.'},
     {type:'final_answer',final_answer:{summary:'Synthetic isolated runtime control completed.'}}];
   provider=await listen(http.createServer(async(req,res)=>{
@@ -73,7 +75,7 @@ try{
     res.writeHead(200,{'Content-Type':'text/event-stream'});
     res.end('data: '+JSON.stringify({choices:[{delta:{content:'```zeus-directive\n'+JSON.stringify(reply)+'\n```'}}],usage:{prompt_tokens:5,completion_tokens:5,total_tokens:10}})+'\n\ndata: [DONE]\n\n');
   }),19221);
-  const workspace='C:\\Zeus\\ActorSmoke';
+  const workspace=protectedActor?'C:\\Zeus\\CandidateScratch\\App':'C:\\Zeus\\ActorSmoke';
   const env={...process.env,PATH:path.join(root,'browser/venv/Scripts')+';'+process.env.PATH,
     PLAYWRIGHT_BROWSERS_PATH:path.join(root,'browsers'),WEBVIEW2_BROWSER_EXECUTABLE_FOLDER:path.join(root,'webview'),
     WEBVIEW2_USER_DATA_FOLDER:path.join(workspace,'webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=19223 --disable-background-timer-throttling --disable-renderer-backgrounding',
@@ -82,9 +84,11 @@ try{
     ZEUS_EVALUATION_LIMITS:JSON.stringify({max_requests:4,max_tokens:100000,max_output_tokens:4096,max_in_flight:1,max_directives:6,wall_time_ms:60000})};
   for(const key of ['ZEUS_EVAL_MODE','ZEUS_AUTO_ALLOW_COMMANDS','ZEUS_AUTO_ALLOW_NEW_FILES','ZEUS_UNLIMITED_BUDGET','ZEUS_UNLIMITED_ITERATIONS'])delete env[key];
   fs.mkdirSync(workspace,{recursive:true});
-  app=spawn(path.join(root,'app/zeus-evaluation.exe'),[],{cwd:workspace,env,windowsHide:true,stdio:['ignore','pipe','pipe']});
+  app=spawn(protectedActor??path.join(root,'app/zeus-evaluation.exe'),protectedActor?['-I','-B','C:\\Zeus\\PublicTools\\actor_bootstrap.py']:[],{cwd:workspace,env,windowsHide:true,stdio:['ignore','pipe','pipe']});
   app.stderr.on('data',chunk=>{stderr=(stderr+chunk).slice(-16000);});
-  app.stdout.on('data',chunk=>{stdout=(stdout+chunk).slice(-16000);});
+  app.stdout.on('data',chunk=>{stdout=(stdout+chunk).slice(-16000);
+    if(protectedActor&&!result.actor_start){const match=/^ZEUS_ACTOR_STARTED:(.+)$/m.exec(stdout);if(match)try{result.actor_start=JSON.parse(match[1]);}catch{}}
+  });
   let startupError=null;app.on('error',error=>{startupError=error;});
   const startupStarted=Date.now();
   while(Date.now()<deadline&&!browser){
@@ -101,6 +105,7 @@ try{
     }
   }
   assert(browser,'WebView2 did not expose the guest control connection');
+  if(protectedActor)assert(result.actor_start?.username?.toLowerCase()==='zeuscandidate'&&result.actor_start.is_admin===false&&Number.isSafeInteger(result.actor_start.pid)&&result.actor_start.pid>0,'Actual non-admin actor startup was not confirmed');
   result.webview2_version=browser.version();
   result.node_version=process.version;
   result.python_version=execFileSync(path.join(root,'browser/venv/Scripts/python.exe'),['-I','-c','import sys; print(sys.version.split()[0])'],{encoding:'utf8',windowsHide:true}).trim();
@@ -113,6 +118,12 @@ try{
     await bridge.updateTaskSettings(task.id,{master_model:'phase1-mock',worker_model:'None',verifier_model:'None',watcher_model:'None',vision_model:'None',budget_credits:100000,model_bindings:{}});
     return task;
   },path.join(root,'browser/venv/Scripts/python.exe'));
+  if(protectedActor){
+    assert(/^[a-f0-9-]{36}$/.test(task.id),'Invalid owned task identity');
+    result.actor_workspace=path.join(workspace,'tasks',task.id,'workspace');
+    fs.mkdirSync(result.actor_workspace,{recursive:true});
+    fs.copyFileSync(path.join(control,'challenge.txt'),path.join(result.actor_workspace,'actor-input.txt'));
+  }
   let settled=false,error=null;
   const sent=page.evaluate(id=>window.__ZEUS_BRIDGE__.sendUserMessage(id,'Open and inspect the supplied synthetic local browser fixture.',crypto.randomUUID()),task.id)
     .catch(reason=>{error=String(reason);}).finally(()=>{settled=true;});

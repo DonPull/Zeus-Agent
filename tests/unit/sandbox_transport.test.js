@@ -84,11 +84,11 @@ test('response publication failure stops the broker after one handler invocation
 }));
 
 test('Windows redirected broker process handles retain both successful and failed exit codes',{skip:process.platform!=='win32'},()=>withScratch(root=>{
-  const script="$ErrorActionPreference='Stop'; foreach ($expected in @(0,37)) { $argsList=@('-e',('process.exit('+$expected+')')); $child=Start-Process -FilePath $env:ZEUS_PROBE_NODE -ArgumentList $argsList -WindowStyle Hidden -PassThru -RedirectStandardOutput ($env:ZEUS_PROBE_ROOT+'\\out-'+$expected) -RedirectStandardError ($env:ZEUS_PROBE_ROOT+'\\err-'+$expected); $null=$child.Handle; $waited=$child.WaitForExit(5000); $child.Refresh(); [ordered]@{expected=$expected;waited=$waited;exit_code=$child.ExitCode} | ConvertTo-Json -Compress; $child.Dispose() }";
-  const result=spawnSync('powershell.exe',['-NoProfile','-Command',script],{env:{...process.env,ZEUS_PROBE_NODE:process.execPath,ZEUS_PROBE_ROOT:root},windowsHide:true,encoding:'utf8',timeout:15000});
+  const script="$ErrorActionPreference='Stop'; . $env:ZEUS_PROCESS_STATUS; foreach ($expected in @(0,37,259)) { $env:ZEUS_EXIT_GATE=Join-Path $env:ZEUS_PROBE_ROOT ('gate-'+$expected); $env:ZEUS_EXIT_CODE=[string]$expected; $argsList=@('-e',\"setInterval(()=>{if(require('fs').existsSync(process.env.ZEUS_EXIT_GATE))process.exit(Number(process.env.ZEUS_EXIT_CODE))},10)\"); $child=Start-Process -FilePath $env:ZEUS_PROBE_NODE -ArgumentList $argsList -WindowStyle Hidden -PassThru -RedirectStandardOutput ($env:ZEUS_PROBE_ROOT+'\\out-'+$expected) -RedirectStandardError ($env:ZEUS_PROBE_ROOT+'\\err-'+$expected); try { $pending=[ZeusBenchmarkProcessStatus]::ExitCode($child,0); [IO.File]::WriteAllText($env:ZEUS_EXIT_GATE,'exit'); $actual=[ZeusBenchmarkProcessStatus]::ExitCode($child,5000); [ordered]@{expected=$expected;pending=($null -eq $pending);waited=($null -ne $actual);exit_code=$actual} | ConvertTo-Json -Compress } finally { if (-not $child.HasExited) { $child.Kill() }; $child.Dispose() } }";
+  const result=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','RemoteSigned','-Command',script],{env:{...process.env,ZEUS_PROBE_NODE:process.execPath,ZEUS_PROBE_ROOT:root,ZEUS_PROCESS_STATUS:path.resolve('scripts/eval_harness/sandbox/process_status.ps1')},windowsHide:true,encoding:'utf8',timeout:15000});
   assert.equal(result.status,0,result.stderr);
   const rows=result.stdout.trim().split(/\r?\n/).map(line=>JSON.parse(line));
-  assert.deepEqual(rows,[{expected:0,waited:true,exit_code:0},{expected:37,waited:true,exit_code:37}]);
+  assert.deepEqual(rows,[0,37,259].map(expected=>({expected,pending:true,waited:true,exit_code:expected})));
 }));
 
 test('independent transport inspection rejects altered responses, stale receipts, invented usage and undeclared files',()=>withScratch(async root=>{

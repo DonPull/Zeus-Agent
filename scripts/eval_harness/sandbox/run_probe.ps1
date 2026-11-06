@@ -7,6 +7,7 @@ param(
     [ValidateRange(15,180)][int]$TimeoutSeconds=90
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'process_status.ps1')
 $repoDirectory=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 $sessionsRoot=[IO.Path]::GetFullPath((Join-Path $repoDirectory '.zeus\evaluations\sandbox-sessions'))
 $sessionRoot=[IO.Path]::GetFullPath($SessionDirectory).TrimEnd('\')
@@ -53,6 +54,7 @@ $broker=$null
 $brokerProof=$null
 $record=[ordered]@{schema_version=1; probe_id=$manifest.id; mode=$Mode; started_at=[DateTime]::UtcNow.ToString('o'); status='running'; inspection=$null; cleanup=$null; provider_requests=0; physical_input=$false; isolation_validated=$false}
 $record['controller_sha256']=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$record['process_status_sha256']=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'process_status.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
 $exitStatus=1
 $slot=New-Object Threading.Mutex($false,'Local\ZeusBenchmarkSandboxV1')
 $ownsSlot=$false
@@ -98,15 +100,17 @@ try {
             }
             if ((Test-Path -LiteralPath (Join-Path $sessionRoot 'output\probe-result.json')) -and $clientProof) { break }
             if ($launcher.HasExited) { throw 'Sandbox launcher exited before guest evidence and ownership were available.' }
-            if ($broker -and $broker.HasExited -and $broker.ExitCode -ne 0) { throw 'Synthetic transport failed; see its retained private receipt or stderr.' }
+            if ($broker) {
+                $brokerExit=[ZeusBenchmarkProcessStatus]::ExitCode($broker,0)
+                if ($null -ne $brokerExit -and $brokerExit -ne 0) { throw 'Synthetic transport failed; see its retained private receipt or stderr.' }
+            }
             Start-Sleep -Milliseconds 200
         }
         if (-not $clientProof -or -not (Test-Path -LiteralPath (Join-Path $sessionRoot 'output\probe-result.json'))) { throw 'Guest probe deadline expired.' }
         if ($broker) {
-            $brokerWaited=$broker.WaitForExit(5000)
-            $broker.Refresh()
-            $record['transport_exit']=[ordered]@{waited=$brokerWaited;exit_code=$broker.ExitCode}
-            if (-not $brokerWaited -or $broker.ExitCode -ne 0) { throw 'Synthetic host transport did not complete successfully; see transport_exit and its private receipt.' }
+            $brokerExit=[ZeusBenchmarkProcessStatus]::ExitCode($broker,5000)
+            $record['transport_exit']=[ordered]@{waited=($null -ne $brokerExit);exit_code=$brokerExit;source='retained-native-process-handle'}
+            if ($null -eq $brokerExit -or $brokerExit -ne 0) { throw 'Synthetic host transport did not complete successfully; see transport_exit and its private receipt.' }
         }
         $inspectionText=& $node $probeScript --inspect-summary $sessionRoot
         $inspectionExit=$LASTEXITCODE

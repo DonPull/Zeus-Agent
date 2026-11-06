@@ -466,13 +466,72 @@ Hosted inference remains **zero**; no production app source changed. Independent
 HCS disposal/CPU/disk quotas, isolated actor integration and the full core live
 baseline remain incomplete.
 
+## Protected actor and bounded artifact export — 7 November
+
+The user confirmed that the twelve scenarios remain the agreed scope and
+authorized continuation. The delivery packet now separates 12/12 implemented
+contracts/graders/native scripted workflows from isolated live-run integration
+and the uncollected 72-attempt Solo/Team baseline. Agent failures are valid
+measurements; full benchmark delivery does not require tuning to 100% success.
+
+Decisions compared with the elevated guest runtime smoke:
+
+- Run the real app, its Python actions and managed browser under the disposable
+  non-admin account. Keep the collector/signing key and intermediate runtime
+  report private to the controller. Actual startup identity, private-file/process
+  access, runtime permissions and final account cleanup must all be observed.
+- Resolve the new user's profile folders from its actual Windows token rather
+  than inheriting the controller's profile environment strings. No host account,
+  credential, policy, desktop-input or production app change is made.
+- Stop candidate processes before collecting declared artifacts. Transfer bounded
+  bytes only: at most 64 files, 2 MiB each, 8 MiB encoded packet. Preserve missing
+  files, reject links/device paths/changed bytes and bind the export hash to the
+  host-pinned signed result. The host retains data without executing submissions.
+- Prepare public input/config packets for all twelve missions, including D02's
+  initial database. Compare original starter bytes exactly; do not stage grader
+  code or reference solutions. Solo/Team roles keep the existing frozen binding.
+- Replace the intermittently blank redirected-process `ExitCode` property with
+  a retained native process-handle wait/status read. Verify running status and
+  actual exits 0, 37 and 259. The native wait distinguishes a terminated process
+  returning 259 from one still running; see Microsoft's
+  [wait](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject)
+  and [exit-code](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess)
+  contracts.
+
+The initial protected-startup guest `daefb44a-5f9c-4b7b-aa30-4da62373b0a9`
+passed its earlier startup-only contract. The stronger final guest
+`59465432-312b-430c-93bb-d076dfbe2ffc` passed all ten runtime/boundary/export checks:
+the real app wrote a file as the standard user, completed its managed browser
+action, closed owned processes, disabled the account, and exported input/output
+bytes with the exact unique challenge hash. The host verified the signed export
+and retained both files in a fresh owned directory. The initial control is not
+retroactively counted as passing the stronger export check.
+
+Final focused validation passed **117 JavaScript + 70 grader checks**, receipt
+`d0e2f062-102c-4d66-9086-4244510d5be5.json`. Combined distinct coverage with the
+preceding complete run is **463 checks**, plus the fresh guest controls. No
+production app source changed. The native-exit failure and two test-authoring
+failures remain in their original receipts: the disabled-role assertion expected
+the wrong sentinel, and a legitimate public `reference_note` was initially
+mistaken for a reference solution. Tests now compare the actual public bytes.
+A separate fixture control read its log before a page reload finished; it now
+waits for remaining network work on that controlled page before inspection.
+No production browser delay was added. ZA-014 retains the earlier undiagnosed
+failure and the subsequently observed native-exit defect.
+
+The [reviewed actor/export record](benchmarks/protected-actor-export-20261107.json)
+binds the export, public packets, source, validation and lifecycle hashes.
+Hosted inference in this slice: **zero**. These are scripted runtime/export
+controls, not twelve new model outcomes or a full isolation certificate.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Connect the host provider relay and mission-fixture transport to the isolated
-actor. Implement bounded mission input/artifact export and isolated workflow
-orchestration, including compaction and confirmed-checkpoint restart.
+Connect the host provider relay, mission-fixture transport and public mission
+packets to complete isolated actor workflows, including compaction and
+confirmed-checkpoint restart. Use the verified bounded export for independent
+grading. Keep actual mission time limits distinct from the short synthetic probe.
 Preserve the current synthetic transport as a
 no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.
 Then freeze/review a live
