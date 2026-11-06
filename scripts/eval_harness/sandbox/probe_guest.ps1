@@ -3,8 +3,12 @@ $ErrorActionPreference = 'Stop'
 $inputDirectory = 'C:\Zeus\Input'
 $outputDirectory = 'C:\Zeus\Output'
 $job = Get-Content -LiteralPath (Join-Path $inputDirectory 'job.json') -Raw | ConvertFrom-Json
+if ($job.schema_version -ne 2 -or $env:USERNAME -ne 'WDAGUtilityAccount' -or $env:COMPUTERNAME -eq $job.host_name) { throw 'This probe must execute only in the prepared disposable guest.' }
+$marker='C:\Zeus\guest-only-marker.txt'
+$markerPreexisting=Test-Path -LiteralPath $marker
+[IO.File]::WriteAllText($marker, $job.id)
 $result = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     id = $job.id
     nonce = $job.nonce
     computer = $env:COMPUTERNAME
@@ -14,6 +18,8 @@ $result = [ordered]@{
     private_read_denied = $false
     active_nonloopback_adapters = $null
     output_written = $true
+    marker_preexisting = $markerPreexisting
+    marker_created = (Test-Path -LiteralPath $marker)
 }
 try {
     # If a misconfigured mapping permits this, the host hash check will also fail.
@@ -29,6 +35,19 @@ $adapters = @([Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces
     $_.NetworkInterfaceType -ne [Net.NetworkInformation.NetworkInterfaceType]::Tunnel
 })
 $result.active_nonloopback_adapters = $adapters.Count
+$webviewRoots=@('C:\Program Files (x86)\Microsoft\EdgeWebView\Application','C:\Program Files\Microsoft\EdgeWebView\Application')
+$webviewVersions=@(foreach ($root in $webviewRoots) {
+    if (Test-Path -LiteralPath $root) {
+        Get-ChildItem -LiteralPath $root -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'msedgewebview2.exe') } | Select-Object -ExpandProperty Name
+    }
+})
+$result['runtime_inventory']=[ordered]@{
+    windows_build=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild
+    powershell=$PSVersionTable.PSVersion.ToString()
+    webview2_versions=$webviewVersions
+    node_available=[bool](Get-Command node.exe -ErrorAction SilentlyContinue)
+    python_available=[bool](Get-Command python.exe -ErrorAction SilentlyContinue)
+}
 $result['completed_at'] = [DateTime]::UtcNow.ToString('o')
 $temporary = Join-Path $outputDirectory 'probe-result.tmp'
 $destination = Join-Path $outputDirectory 'probe-result.json'

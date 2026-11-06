@@ -136,7 +136,7 @@ role usage must still be measured. These provisional maxima are **not a live
 budget approval** or a forecast; the command cannot dispatch inference and
 `--live` fails. Pilot results must inform the reviewed repeated envelope.
 
-## Next work
+## Feature setup history
 
 The user confirmed availability for the administrator/UAC setup on 6 November.
 The reviewed `scripts/eval_harness/sandbox/enable_windows_sandbox.ps1` defaults
@@ -145,19 +145,67 @@ is `sandbox-setup/98647486-be6e-44cc-a6d2-6edcde9450bb.json` under evaluations.
 The component enable step succeeded with status **restart_required**, exit 2,
 administrator true, before state Disabled, changed true and automatic restart
 false. Setup receipt: `639edc67-8b57-46f3-8b82-3d63b110802b.json`.
-Windows must be restarted manually before guest validation. Inspect the newest
-`sandbox-setup` receipt after any interruption. No automatic reboot is allowed.
+The initial shutdown/boot still reported restart pending. A subsequent normal
+restart activated Sandbox and the hypervisor; the read-only snapshot reports
+last boot `2026-11-06T13:44:54.5000000Z` and no pending component restart.
+No automatic reboot was performed.
 The pushed prerequisite checkpoint is `053a4e0`, following the validated 2D1
 checkpoint `70af36e`. The workflow/planning additions above form the completed
 software checkpoint documented by the reviewed validation record.
-The current prepared, unlaunched probe is
+The earlier prepared, unlaunched probe was
 `.zeus/evaluations/sandbox-sessions/c7b6250a-de19-415b-90bf-67d58eccce3e`.
 It contains no live credentials or personal browser profile. Keep this progress
 on disk through the required manual Windows restart; no process state is needed
 to resume implementation.
 
-After the manual restart, schedule the visible, synthetic guest boundary probe;
-prepare a fresh current-code session rather than launching old authoring copies.
+## Actual guest boundary and lifecycle probes
+
+The user requested another check after the normal restart and authorized
+continuing. One initial guest control passed its six observations and was
+cleaned up. Two subsequent protocol-2 guests passed seven checks each: input
+readability, read-only input, unmapped host-file denial, no active non-loopback
+network adapter, writable bounded output, a different computer from the host
+and no leftover unmapped guest marker.
+
+The two Windows container IDs differ. Their guest computer name is the same
+base-image name, so computer-name changes are not used as evidence of freshness.
+The marker and controller-observed container identities provide that evidence.
+The controller captured launcher/client PID plus exact process-handle creation
+time and closed only those processes; the launcher exited after the client was
+terminated. It never persists raw client command lines or guest account passwords.
+A negative control proves an unrelated live process is left running.
+
+The initial manual client snapshot used CIM's rounded creation time. Its
+sub-microsecond precision differed from the process handle; the controller now
+uses exact handle times for both proof and cleanup. The first direct script
+invocation was rejected by local execution policy; explicit process-only
+`RemoteSigned` runs the reviewed script without changing the machine policy.
+Failed/partial artifacts remain retained. No foreign process or system-wide
+VM service was terminated.
+
+`hcsdiag` enumeration was unavailable to the normal user. Independent HCS
+disposal remains unknown; host-process exit plus a subsequent fresh guest is
+partial lifecycle evidence, not a claim that all isolation/resource gates pass.
+Guest inventory reports Windows build 22621, PowerShell 5.1, no Python/Node
+commands and no installed WebView2 runtime. The actor/grader bundle remains next.
+
+The [reviewed probe record](benchmarks/sandbox-probes-20261106.json) retains the
+two actual receipt/result hashes and source hashes. The 77-unit follow-up passed,
+receipt `121b6e9f-6b9b-4289-8925-865b50525a22.json`. Combined distinct software
+coverage is now **423**, plus the two actual OS guest probes. No product runtime
+or UI source changed in this checkpoint, so the earlier complete regression
+remains applicable with these focused follow-ups. Hosted inference: **zero**.
+
+Microsoft's [experimental MXC backend](https://github.com/microsoft/mxc/blob/main/docs/backends/windows-sandbox/windows-sandbox.md)
+was inspected as an alternative. Its bridge uses guest networking and a guest
+firewall, whereas this packet fixes networking disabled at the .wsb boundary.
+Retain the existing OS-supported configuration while implementing bounded file
+transport; no new sandbox SDK or network policy was installed.
+
+## Next work
+
+No further host restart is required. Notify the user before subsequent guest
+windows. Prepare a fresh current-code session rather than launching old copies.
 Implement and validate the isolated actor, bounded provider/fixture/artifact
 transport, separate executable grader and OS lifecycle/cleanup controls.
 Then freeze/review a live

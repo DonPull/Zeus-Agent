@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "checkpoint": "sandbox-activated-and-actual-boundary-probes",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "530a0fe2143d0af000aacc0c6fac0797a9864141",
+    "dirty": true,
+    "diff_hash": "360aac8df8c7519a1ef847e61d3b39b46d606756059cd62c129555ed19cedd39",
+    "node": "v22.13.1"
+  },
+  "readiness": {
+    "sandbox_executable": true,
+    "hypervisor_present": true,
+    "reboot_pending": false,
+    "last_boot_utc": "2026-11-06T13:44:54.5000000Z"
+  },
+  "actual_guest_probes": [
+    {
+      "id": "37c520af-692f-461a-8255-c0a5fe1f38a3",
+      "receipt": ".zeus/evaluations/sandbox-sessions/37c520af-692f-461a-8255-c0a5fe1f38a3/host-lifecycle-8739a49e-ff0e-4018-9cfb-78092c54cc6c.json",
+      "receipt_sha256": "9589f089783ff1d8ca0476fc04e7b32bc343811f067ffc2d835f1caaa8384fb5",
+      "guest_result_sha256": "90d6471009a0b8f44d3a6e52db9ba05fe416915e61026be2cad9ed5044a5cb7c",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true
+      },
+      "owned_host_processes_gone": true,
+      "container_id": "733083ae-ff86-4f8b-aac5-d2f6ed593d14",
+      "independent_hcs_disposal": null,
+      "runtime_inventory": null
+    },
+    {
+      "id": "e995b611-a61a-4522-910c-7cfd2ae8adab",
+      "receipt": ".zeus/evaluations/sandbox-sessions/e995b611-a61a-4522-910c-7cfd2ae8adab/host-lifecycle-db285c13-54aa-4d77-85bb-3d38aa9a6294.json",
+      "receipt_sha256": "2563f24fa76e8e0f481b7eb6dff5e62eb26eb9a64e7b83e3ad394b9c0a49d7e7",
+      "guest_result_sha256": "434139b603956b55b432e06058bb4db0f5e0ed3874aba05a73fbc61ebae84c29",
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true
+      },
+      "owned_host_processes_gone": true,
+      "container_id": "50cc303a-d536-4467-a7ad-22185a338afa",
+      "independent_hcs_disposal": null,
+      "runtime_inventory": {
+        "windows_build": "22621",
+        "powershell": "5.1.22621.4391",
+        "webview2_versions": [],
+        "node_available": false,
+        "python_available": false
+      }
+    }
+  ],
+  "different_container_ids": true,
+  "unit_checks": 77,
+  "unit_receipt": {
+    "path": ".zeus/evaluations/regression-receipts/121b6e9f-6b9b-4289-8925-865b50525a22.json",
+    "sha256": "4e1724611e98ae620efae225bb21bf3a968baa343b4411374945796dc48d7c0d"
+  },
+  "code_sha256": {
+    "scripts/eval_harness/sandbox/session.js": "ca2166f8a6ee6b1281e3011d741b56e7816ad93cd80b5af06120cba60b76bc50",
+    "scripts/eval_harness/sandbox/probe.js": "d4b353287864b5814408a10235546fa910c8d6f4da646ae7333c8c72841319f1",
+    "scripts/eval_harness/sandbox/probe_guest.ps1": "8ce897b4db54c07c64947663112b0ef93572d6b22c2b92d3e54de87f07d0e3fc",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "e456bbb7c4b70190cb7cb8ccad36d748f949ca1be58dff240299295faef9d860",
+    "scripts/eval_harness/sandbox/prepare_runtime.py": "3226f8f806d87acb0928ab08212ea41fa722bd9d5c5548251ddedb660763f041",
+    "tests/unit/sandbox_session.test.js": "5daaf2b4011947e355ff4391cc5f468a71365e7d875ac3b527254cdb7ba8534f",
+    "tests/unit/sandbox_runtime.test.js": "cc9619584a463eab2c562e747d777e36ad8d8bb2375c8a1c2514079b2a4d623f"
+  },
+  "provider_inference_requests": 0,
+  "physical_input_sent": false,
+  "complete_benchmark_isolation_validated": false,
+  "limitations": [
+    "Guest OS boundary and exact owned host-process cleanup were exercised.",
+    "Independent HCS disposal enumeration was unavailable; it remains unknown.",
+    "Fresh guest marker and different container IDs were observed on consecutive launches.",
+    "Guest Node, Python and WebView2 are absent; a pinned runtime bundle and actor/grader execution are still required.",
+    "The complete live benchmark remains non-dispatchable."
+  ]
+}

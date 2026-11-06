@@ -33,11 +33,13 @@ The user has authorized full v1 implementation. Its
 70 passing reference/negative controls and all twelve native scripted workflow
 paths. Actual new controls cover downloads, corrections, compaction and process
 restart. Candidate pilot/repeated manifests and a Sandbox boundary probe are
-prepared. The approved Windows feature setup needs a manual restart; isolated
-actor/grader runtimes, guest lifecycle validation and repeated live measurements
+prepared. The user's normal restart activated Sandbox; consecutive guest boundary
+and fresh-storage probes passed, with owned host-process cleanup. Pinned
+actor/grader runtimes, remaining lifecycle/resource validation and repeated live measurements
 remain incomplete. No full baseline is claimed yet.
-Current combined regression coverage is **421 distinct checks**, from a complete
-411-check run and focused follow-ups; the full-v1 work log records the receipts.
+Current combined regression coverage is **423 distinct checks**, from a complete
+411-check run and focused follow-ups, plus the two actual Sandbox probes;
+the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency
 is explicitly open work, not a claimed improvement.
@@ -114,7 +116,7 @@ After alignment: implement a small complete slice, run the relevant checks, comp
 | Phase / workstream | Status | Deliverable and next acceptance evidence |
 |---|---|---|
 | 0 — checkpoint and alignment | Delivered | Original baseline and agreed roadmap retained |
-| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 421 distinct checks; see the full-v1 work log for full-run and follow-up receipts |
+| 1 — regression/accounting foundation | Delivered; maintained continuously | Honest failure records, shared usage/limits and offline CI foundation; current combined validated coverage is 423 distinct checks plus two Sandbox probes; see the full-v1 work log for full-run and follow-up receipts |
 | 2A — mission contracts/graders | All twelve authored; grader controls delivered | Six original plus B02/B03/C03/M01/M02/R01, with 70 reference/negative controls; these are grader tests, not twelve live capability results |
 | 2B — real-runtime driver | Native integration delivered; isolation pending | Normal-policy actor, artifact export, outcome grading and partial coverage; native host remains unisolated |
 | 3A–3D — execution, attachments and browser | Delivered with tracked limitations | Crash/publication repairs, shared browser, live/replay, handoff, verified transfers and usability follow-ups |

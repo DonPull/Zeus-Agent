@@ -109,8 +109,10 @@ mid-command crash test. This authoring clarification precedes any live core run.
 
 Candidate manifests enumerate the exact twelve-mission/72-attempt matrix and
 default to one D01/Solo pilot cell. They cannot dispatch inference. Sandbox
-configuration/data-reader controls are implemented, but the actual guest probe
-needs the manual Windows restart. Isolated actor and separate executable-grader
+configuration/data-reader controls and actual guest probes are implemented.
+The user's normal restart activated Sandbox; two fresh protocol-2 probes passed
+all seven checks and ownership-scoped host-process cleanup. The guest has no
+Python/Node/WebView2, so a pinned runtime bundle is next. Isolated actor and separate executable-grader
 runtimes, provider/fixture transport and lifecycle validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are

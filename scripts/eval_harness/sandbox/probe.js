@@ -8,7 +8,7 @@ const args=process.argv.slice(2),repo=path.resolve(path.dirname(fileURLToPath(im
 if(args.length===0){
   const prepared=prepareProbe(path.join(repo,'.zeus/evaluations/sandbox-sessions'));
   console.log(JSON.stringify({root:prepared.root,status:'prepared',launch_requested:false,provider_requests:0,
-    next:'After the required manual Windows restart, schedule the visible guest probe. This command has opened no windows.'},null,2));
+    next:'After confirming Sandbox is active, schedule the visible guest probe. This command has opened no windows.'},null,2));
 }else if(args.length===2&&args[0]==='--inspect'){
   const report=inspectProbe(path.resolve(args[1]));
   console.log(JSON.stringify(report,null,2));

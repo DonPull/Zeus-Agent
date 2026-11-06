@@ -71,12 +71,12 @@ export function prepareProbe(parent){
   const privateFile=path.join(privateDir,'host-only.bin');
   fs.writeFileSync(privateFile,sentinel,{flag:'wx'});
   const challenge=Buffer.from('Synthetic boundary challenge '+nonce+'\n');
-  const job={schema_version:1,id,nonce,private_host_path:privateFile,host_name:os.hostname()};
+  const job={schema_version:2,id,nonce,private_host_path:privateFile,host_name:os.hostname()};
   const inputs={'job.json':Buffer.from(JSON.stringify(job,null,2)),'challenge.txt':challenge,'probe.ps1':fs.readFileSync(path.join(directory,'probe_guest.ps1'))};
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
   const wsb=sandboxConfiguration({input,output});
   fs.writeFileSync(path.join(root,'probe.wsb'),wsb,{flag:'wx'});
-  const manifest={schema_version:1,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
+  const manifest={schema_version:2,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
     host_name:os.hostname(),nonce,input,output,private_file:privateFile,private_sha256:hash(sentinel),
     inputs:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,hash(bytes)])),configuration_sha256:hash(wsb),
     memory_mb:4096,networking:'disabled',mappings:2,provider_requests:0,launch_requested:false,
@@ -92,7 +92,7 @@ export function prepareProbe(parent){
 export function inspectProbe(root){
   unlinkedDirectory(root);
   const manifest=JSON.parse(readBoundedFile(root,'session.json',16384));
-  if(manifest.kind!=='sandbox-boundary-probe'||manifest.status!=='prepared'||path.basename(root)!==manifest.id)throw Error('Invalid probe identity');
+  if(manifest.schema_version!==2||manifest.kind!=='sandbox-boundary-probe'||manifest.status!=='prepared'||path.basename(root)!==manifest.id)throw Error('Invalid probe identity or protocol');
   const input=path.join(root,'input'),output=path.join(root,'output'),privateDir=path.join(root,'private');
   if(canonical(manifest.input)!==canonical(input)||canonical(manifest.output)!==canonical(output)||canonical(manifest.private_file)!==canonical(path.join(privateDir,'host-only.bin')))throw Error('Changed probe mappings');
   if(hash(readBoundedFile(root,'probe.wsb',16384))!==manifest.configuration_sha256)throw Error('Changed Sandbox configuration');
@@ -101,11 +101,11 @@ export function inspectProbe(root){
   const names=fs.readdirSync(output);
   if(names.length!==1||names[0]!=='probe-result.json')throw Error('Probe requires exactly one declared result file');
   const bytes=readBoundedFile(output,'probe-result.json',16384),guest=JSON.parse(bytes);
-  if(guest.id!==manifest.id||guest.nonce!==manifest.nonce||guest.schema_version!==1)throw Error('Guest result identity mismatch');
+  if(guest.id!==manifest.id||guest.nonce!==manifest.nonce||guest.schema_version!==2)throw Error('Guest result identity mismatch');
   const checks={different_computer:typeof guest.computer==='string'&&guest.computer!==manifest.host_name,
     input_read:guest.challenge_sha256===manifest.inputs['challenge.txt'],input_read_only:guest.input_write_denied===true,
     host_private_unavailable:guest.private_read_denied===true,network_disabled:guest.active_nonloopback_adapters===0,
-    writable_output:guest.output_written===true};
+    writable_output:guest.output_written===true,fresh_guest_disk:guest.marker_preexisting===false&&guest.marker_created===true};
   return {id:manifest.id,status:Object.values(checks).every(Boolean)?'probe_claims_consistent':'probe_failed',
     checks,guest,result_sha256:hash(bytes),isolation_validated:false,
     note:'No VM lifecycle evidence has been checked. This report cannot authorize an isolated benchmark run.'};

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
+import {spawnSync,spawn} from 'node:child_process';
 import {withScratch} from '../benchmarks/mission_kit.js';
 import {sandboxConfiguration,prepareProbe,inspectProbe,readBoundedFile} from '../../scripts/eval_harness/sandbox/session.js';
 
@@ -32,9 +32,9 @@ test('Sandbox exchange reads bounded data and rejects traversal, device syntax, 
 
 const windows={skip:process.platform!=='win32'};
 function fakeReport(root,manifest){
-  const report={schema_version:1,id:manifest.id,nonce:manifest.nonce,computer:'SYNTHETIC-GUEST-'+manifest.host_name,
+  const report={schema_version:2,id:manifest.id,nonce:manifest.nonce,computer:'SYNTHETIC-GUEST-'+manifest.host_name,
     challenge_sha256:manifest.inputs['challenge.txt'],input_write_denied:true,private_read_denied:true,
-    active_nonloopback_adapters:0,output_written:true};
+    active_nonloopback_adapters:0,output_written:true,marker_preexisting:false,marker_created:true};
   fs.writeFileSync(path.join(root,'output','probe-result.json'),JSON.stringify(report));
   return report;
 }
@@ -63,6 +63,29 @@ test('Sandbox probe rejects stale identities and reports failed boundary claims 
   report.nonce=manifest.nonce;report.active_nonloopback_adapters=1;
   fs.writeFileSync(path.join(root,'output/probe-result.json'),JSON.stringify(report));
   assert.equal(inspectProbe(root).status,'probe_failed');
+  report.active_nonloopback_adapters=0;report.marker_preexisting=true;
+  fs.writeFileSync(path.join(root,'output/probe-result.json'),JSON.stringify(report));
+  assert.equal(inspectProbe(root).checks.fresh_guest_disk,false);
   fs.writeFileSync(path.join(root,'output/extra.txt'),'unexpected');
   assert.throws(()=>inspectProbe(root),/exactly one/);
 }));
+
+test('Sandbox cleanup refuses an unrelated live process and retains its failed receipt',windows,async()=>{
+  const base=path.resolve('.zeus/evaluations/sandbox-sessions'),{root,manifest}=prepareProbe(base);
+  const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{windowsHide:true,stdio:'ignore'});
+  const closed=new Promise(resolve=>child.once('exit',resolve));
+  try{
+    await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
+    fs.writeFileSync(path.join(root,'host-launch.json'),JSON.stringify({pid:child.pid,started_utc:'wrong-creation-time',configuration_sha256:manifest.configuration_sha256}));
+    const cli=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','RemoteSigned','-File',path.resolve('scripts/eval_harness/sandbox/run_probe.ps1'),'-Mode','Cleanup','-SessionDirectory',root],{encoding:'utf8',windowsHide:true,timeout:15000});
+    assert.equal(cli.status,1,cli.stderr);assert.equal(JSON.parse(cli.stdout).status,'cleanup_failed');
+    assert.doesNotThrow(()=>process.kill(child.pid,0));
+    const receipts=fs.readdirSync(root).filter(name=>/^host-lifecycle-[0-9a-f-]+\.json$/.test(name));
+    assert.equal(receipts.length,1);assert.equal(JSON.parse(fs.readFileSync(path.join(root,receipts[0]),'utf8')).cleanup.launcher_gone,null);
+  }finally{
+    if(child.exitCode===null)child.kill();await closed;
+    const resolved=fs.realpathSync(root);
+    if(path.dirname(resolved).toLowerCase()!==fs.realpathSync(base).toLowerCase()||!/^[0-9a-f-]{36}$/.test(path.basename(resolved)))throw Error('Unsafe synthetic session cleanup target');
+    fs.rmSync(resolved,{recursive:true,force:true});
+  }
+});
