@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "checkpoint": "host-provider-relay-prerequisite",
+  "date": "2026-11-06",
+  "source": {
+    "source_commit": "f7a24a37176f6cb6dda628738a2e955a9560bd2d",
+    "dirty": true,
+    "diff_hash": "4c7df1ceffd528c65a96d17d36900daecf1390bc4c5aa36d127524b5f76f650b",
+    "node": "v22.13.1"
+  },
+  "binding": {
+    "connection": "abacus",
+    "origin": "https://routellm.abacus.ai/v1",
+    "model": "gpt-6.1-terra",
+    "effort": "low",
+    "protocol": "chat"
+  },
+  "catalogue": {
+    "file": ".zeus/evaluations/provider-preflight/7134172c-b234-4950-a8ff-01466d17c151/provider-ledger.json",
+    "sha256": "eec78cc1c69a1b450533ede36b097f108085bf43aaf658c57a3017825b964baf",
+    "checked_at": "2026-11-06T20:54:45.818Z",
+    "model": "gpt-6.1-terra",
+    "requests": 1
+  },
+  "validation": {
+    "file": ".zeus/evaluations/regression-receipts/ef1782fc-64d2-4fa9-a4d7-58881a5b303e.json",
+    "sha256": "6f8d63d67f9ec92338ca7b9a2fb1cbd04575a9c1117c4e1617c27d8e9515a3fd",
+    "javascript": 104,
+    "graders": 70,
+    "combined_distinct_with_preceding_full_run": 450,
+    "new_controls": [
+      "Frozen model/effort/output and supplied-image validation",
+      "Durable pre-dispatch reservation, usage/cache retention, duplicate rejection",
+      "Failed/interrupted/unknown usage stops dispatch",
+      "Catalogue, request/token, deadline and concurrency gates",
+      "Ledger write failure prevents network dispatch",
+      "Actual local HTTP fixed routes, redirects, bounds and credential-echo controls",
+      "File publication failure cannot repeat billed work",
+      "Actual transport cancellation retains unknown usage"
+    ]
+  },
+  "code_sha256": {
+    "scripts/eval_harness/provider_preflight.js": "4882545e6d40e755c3b0bc04f32e71fb0492db306f02891f496ec1fd69061bd1",
+    "scripts/eval_harness/sandbox/provider_relay.mjs": "91cfb60f2cc628e5a9e0cbdebd7226ea81f157a8a737d1ad03786bd472299a91",
+    "scripts/eval_harness/sandbox/provider_worker.py": "cec76e0d6d63a40bfe207ffaf9c6de4d2e0d77a7f0e9f72b9e11a26cb70283cd",
+    "tests/unit/provider_relay.test.js": "53aa9660278a3628f2a48b118d482d30c6f0c24e216a108c6aaa20d6d5c56d3e"
+  },
+  "provider_inference_requests": 0,
+  "guest_launches": 0,
+  "production_source_changed": false,
+  "limitations": [
+    "Host relay not yet connected to the isolated mission actor; core paid dispatch remains gated.",
+    "Responses are buffered by the file transport; original per-token streaming timing is not reproduced.",
+    "Token reservations use labelled byte estimates, not exact tokenization, provider credits or a monetary ceiling.",
+    "Independent HCS disposal, CPU and writable-mapping disk quotas remain unvalidated."
+  ]
+}

@@ -378,12 +378,48 @@ This is not a full isolation certificate: independent HCS disposal, CPU and
 writable-mapping disk quotas remain unvalidated. No full core live baseline or
 paid dispatch is enabled. The user interruption did not lose source or evidence.
 
+## Host provider relay prerequisite
+
+Delivered after `f7a24a3`. The fixed Abacus Chat relay and its file-exchange
+adapter are implemented; isolated actor integration remains pending. It reads
+the existing Windows credential inside a short-lived host-only Python worker.
+The worker returns bounded HTTP data through anonymous pipes and never returns
+the key. It uses the production keyring target/UTF-16 encoding, without changing
+the credential store. Catalogue-only preflight succeeds for `gpt-6.1-terra`.
+
+Decisions compared with synthetic-only transport:
+
+- Fix provider origin, model, low effort and Chat protocol on the host. Accept
+  only declared Chat fields, capped output and supplied inline images; no
+  arbitrary URLs, redirects, headers, remote-image fetches or protocol fallback.
+- Retain host-side request identities and persist an unknown-cost reservation
+  before network dispatch. Duplicate IDs, missing catalogue preflight, concurrent
+  requests, exhausted request/token-estimate budgets and deadlines stop dispatch.
+- Keep usage/cache/reasoning objects raw. Cache/reasoning subsets are not added
+  as extra billed tokens. Interrupted/failed/unknown usage remains recorded and
+  closes the relay; publication failure never repeats an already billed call.
+- Keep credentials out of guest mappings, argv, environment and result JSON.
+  Disable Python site customization for this standard-library-only worker.
+- Buffer responses for the existing bounded file protocol. This is recorded as
+  `buffered_response_v1`; provider duration is available, while original per-token
+  streaming timing is not reproduced. It is not a browser-speed improvement.
+
+Eight new controls include actual dummy-provider HTTP, redirects, oversized
+responses, credential echoes, cancellation, unknown usage, file-publication and
+ledger-write failures. Final focused validation passed **104 JavaScript + 70
+grader checks**, receipt `ef1782fc-64d2-4fa9-a4d7-58881a5b303e.json`; together with
+the preceding full run this gives **450 distinct checks**. A restricted run hit
+Windows temporary-path EPERM; the approved unrestricted rerun passed.
+The [reviewed relay record](benchmarks/provider-relay-20261106.json) records the
+catalogue and validation hashes. Actual hosted inference is still **zero**.
+No production app code changed and core paid dispatch remains gated.
+
 ## Next work
 
 No further host restart is required. Notify the user before subsequent guest
 windows. Prepare a fresh current-code session rather than launching old copies.
-Implement the live provider broker with host-only credentials/
-caps, all-mission fixture/artifact transport and isolated mission orchestration.
+Connect the host provider relay to the isolated actor. Implement all-mission
+fixture/artifact transport and isolated mission orchestration.
 Preserve the current synthetic transport as a
 no-inference prerequisite check. Complete remaining OS lifecycle/resource controls.
 Then freeze/review a live

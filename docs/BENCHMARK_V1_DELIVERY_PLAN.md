@@ -127,8 +127,10 @@ artifacts, omits reference solutions, runs submitted programs under a disposable
 non-admin guest account and accepts only host-pinned, signed controller results.
 All four executable missions pass reference controls and reject their negative
 controls; an actual forged result is rejected. The host execution guard remains.
-Live provider wiring, isolated mission orchestration, all-mission fixture/artifact
-transport and remaining lifecycle/resource validation still remain;
+The fixed host provider relay now has request/usage ledgers, bounded file-exchange
+integration and an actual successful catalogue-only check. Hosted inference has
+not been dispatched through it. Connecting it to the isolated actor, all-mission
+fixture/artifact transport and remaining lifecycle/resource validation still remain;
 see the [work log](BENCHMARK_V1_WORK_LOG.md).
 Full v1, repeated measurements and isolation are
 not delivered yet. Preserve progress on disk and update this section at each

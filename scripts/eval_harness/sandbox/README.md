@@ -187,3 +187,29 @@ These controls validate this grading adapter, not a complete isolation
 certificate. Independent HCS disposal, CPU and writable-mapping disk quotas
 remain unvalidated. The full core live driver is still gated; this CLI neither
 calls a provider nor enables paid dispatch.
+
+## Host provider relay
+
+`node scripts/eval_harness/provider_preflight.js` prints the frozen provider
+binding without network or credential access. Explicit `--check` makes one
+authenticated GET `/models` using the existing local Abacus key; no POST or
+inference occurs. A fresh ledger is retained under `.zeus/evaluations/provider-preflight`.
+
+The reusable relay accepts only Abacus `gpt-6.1-terra`, low effort, Chat payloads
+and supplied inline images. Its fixed-route standard-library Python worker reads
+the production Windows keyring entry and returns HTTP data only; the credential
+does not enter Node, argv, environment, guest files or logs. Redirects are never
+followed. Local tests use an explicit IPv4 loopback origin and dummy key.
+
+Every attempted paid request receives a durable host reservation before dispatch.
+One request may be in flight; request caps, output caps, wall deadlines and
+explicit serialized-byte token estimates are enforced. Estimates are not exact
+tokenization or a monetary ceiling. Raw provider usage/cache fields are retained;
+unknown usage stops further dispatch. No automatic retry, model/effort fallback
+or reset of an existing ledger is allowed. A file-publication failure retains
+the completed paid call and cannot send it again.
+
+Responses use the existing buffered file framing; per-token delivery timing is
+not preserved. The relay is not yet connected to the isolated mission actor and
+does not unlock the core live driver. Current validation used zero hosted
+inference requests and one real catalogue request.

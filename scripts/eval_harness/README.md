@@ -204,8 +204,10 @@ Pilot selection accepts `--missions B02,B03` and `--architectures solo,team`;
 the repeated schedule cannot be relabelled around a partial portfolio.
 
 These are explicitly **non-dispatchable candidate** manifests. `--live` fails
-before starting any provider request: the isolated actor, separate executable
-grader, runtime/lifecycle controls and catalogue preflight are not delivered.
+before starting any provider request: full isolated actor orchestration and
+all-mission transport/lifecycle integration are not delivered. Separate protected
+submission grading and the host provider relay/catalogue preflight now have
+their own controls; see the current work log for exact coverage.
 Candidate aggregate maxima are not a spending authorization, predicted usage
 or subscription-credit conversion. Start with the one-cell pilot after those
 gates; review actual consumption before freezing the repeated envelope.
