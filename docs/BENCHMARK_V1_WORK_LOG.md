@@ -538,3 +538,58 @@ Then freeze/review a live
 pilot manifest and use its resource evidence for the repeated full Solo/Team run.
 Keep ZA-012 context/protocol efficiency observations alongside those measurements.
 The full twelve-mission baseline is not complete merely because its graders pass.
+
+## Combined single-turn isolated mission runner — 7 November
+
+The user authorized the next integration slice. A new explicit developer runner
+prepares public task/config/input packets and controller-private scripted replies,
+then runs the real production app under the standard guest account. It connects
+the existing host relay, signed artifact/trace collection and independent graders.
+Its supported single-turn scope is C01/C02/C03/D01/D02/R01/V01.
+
+Decisions compared with disconnected runtime/export probes:
+
+- Exercise frozen model settings through the normal provider gateway and
+  permission machinery, using a disposable dummy guest credential and host fake
+  provider. Remove offline/eval auto-allow switches. This verifies the eventual
+  request shape without hosted calls; the live driver remains gated.
+- Share the existing bridge approval/cancellation loop with native mission
+  diagnostics. Read back task settings/limits, retain all persisted messages and
+  the current bounded debug snapshot, then stop the candidate account before
+  signing declared file/trace hashes. Original inputs remain part of the export.
+- Reconcile app usage, host provider ledger and immutable framed request/response
+  bytes. Label synthetic usage explicitly. Correct execution and correct output
+  remain separate: a deliberately wrong submission must produce a failed outcome.
+- Grade C01/C02/C03/D02 exports in a second fresh guest after the actor guest
+  closes. Even a known calibration program does not receive host-execution
+  permission through this runner. Other graders read exported files as data.
+- Keep short probes capped at 180 seconds. Only a declared mission calibration
+  receives a separate 780-second controller ceiling around its 600-second task
+  limit. Preserve existing transport/export byte bounds and owned-process cleanup.
+- An explicit list runs sequentially, saves each result and stops on an
+  infrastructure error. There is no automatic retry, tuning loop or model sweep.
+
+All **seven positive controls passed**: C01/C02/C03/D01/D02/R01/V01. The
+deliberately wrong D01 submission finished execution and correctly failed the
+independent outcome checks. This used eight actor guests and four separate
+executable-grading guests, with owned host processes closed after each. All
+sixteen synthetic provider requests matched the app usage and host ledgers.
+V01's outgoing request includes both original image byte hashes. The
+[reviewed calibration record](benchmarks/isolated-single-turn-calibration-20261107.json)
+retains result, lifecycle, artifact, trace, source and provider-ledger identities.
+
+Final validation passed **122 JavaScript + 70 grader checks**, receipt
+`4c2cdb6a-c237-45f2-b688-30a1e07bad7d.json`. Earlier focused receipt
+`ae04472a-95ea-46ee-b274-b95c041ad5c7.json` passed 121 + 70 before the additional
+Windows controller guard check. That check proves extended ordinary probes and
+an undeclared hosted mode are rejected before a window is launched. Together
+with the preceding full regression run, distinct coverage is 468 checks.
+Hosted inference in this slice: **zero**. No production agent/UI/Rust source changed.
+
+The remaining isolated browser/multi-turn workflows are B01/B02/B03/M01/M02,
+including actual downloads, later corrections, compaction and committed-checkpoint
+restart. Complete full hosted transport/policy/lifecycle/resource validation,
+then freeze a pilot and review its measurements before the repeated 72-attempt
+Solo/Team schedule. Scripted controls do not demonstrate model intelligence,
+genuine Team collaboration or complete authorization coverage. Independent HCS
+disposal and CPU/writable-mapping disk hard quotas remain unvalidated.

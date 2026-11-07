@@ -4,8 +4,9 @@ Status, 6 November: the user's normal restart activated Sandbox and the hypervis
 with no component restart pending. Two consecutive protocol-2 guest probes passed
 all seven boundary/fresh-storage checks and closed their owned host processes.
 A pinned public bundle now runs the real Zeus app, Python and managed Chromium
-against a synthetic guest-local fixture. Mission orchestration and the separate
-grader remain incomplete; this is not a validated full executor.
+against a synthetic guest-local fixture. Protected executable grading is also
+available. Single-turn mission integration now has a scripted calibration runner;
+browser/multi-turn integration and full executor validation remain incomplete.
 
 The current host is Windows 11 Pro 23H2 with firmware virtualization and SLAT,
 and the Windows Sandbox component was initially absent. The reviewed prerequisite is
@@ -210,8 +211,8 @@ or reset of an existing ledger is allowed. A file-publication failure retains
 the completed paid call and cannot send it again.
 
 Responses use the existing buffered file framing; per-token delivery timing is
-not preserved. The relay is not yet connected to the isolated mission actor and
-does not unlock the core live driver. Current validation used zero hosted
+not preserved. The relay is connected to the scripted single-turn mission actor;
+hosted dispatch does not unlock the core live driver. Current validation used zero hosted
 inference requests and one real catalogue request.
 
 ## Browser mission fixture transport
@@ -238,8 +239,8 @@ browser observations before those outcome criteria can pass.
 Local controls exercise four actual browser workflows, including CSV download.
 The actual guest smoke checks navigation/runtime/transport and process cleanup.
 It uses a fake model and does not report agent intelligence or unlock core live
-dispatch. Bounded artifact export and full isolated workflow orchestration remain
-pending.
+dispatch. Bounded artifact export is available; full browser/multi-turn isolated
+workflow orchestration remains pending.
 
 ## Protected actor and bounded artifact export
 
@@ -262,3 +263,36 @@ dispatch remains gated until complete isolated workflow/provider integration.
 The synthetic probe's short timeout is not the full mission's execution budget.
 Native process status uses a retained handle to avoid intermittently blank
 PowerShell exit-code properties; running status and actual exit 259 are distinct.
+
+## Scripted isolated missions
+
+`node scripts/eval_harness/run_isolated_mission.js --mission D01 --runtime-bundle <owned-bundle-directory>`
+prepares a public input/config packet, private controller replies and owned
+Sandbox session. It opens nothing. Add `--run` to launch the guest explicitly.
+Supported single-turn controls are C01, C02, C03, D01, D02, R01 and V01;
+`--control invalid-output` deliberately supplies a wrong submission.
+`--mission C01,C02,D01` runs an explicit list sequentially, stopping on an
+infrastructure error and retaining each earlier result. It never retries a run.
+`--architecture solo|team` selects the frozen task settings; a scripted master
+writing reference files does not demonstrate Team collaboration. `--live` is
+rejected. The default model binding is exercised against a dummy guest-only
+credential and a host-owned fake provider, without offline/eval permission bypass.
+No real provider credential enters the guest.
+
+The private collector stages public inputs, reads back task settings and limits,
+uses the shared bridge approval/cancellation loop, retains all persisted messages
+and the current bounded debug snapshot, stops the actor account and signs artifact/trace hashes.
+The host reconciles immutable exchange bytes, the provider ledger and app usage.
+Executable submissions are graded in a second fresh guest after the actor guest
+closes; the host does not execute exported code or HTML. Other mission graders
+read the retained files as data. Failed outcomes and infrastructure errors are
+separate retained records under `.zeus/evaluations/isolated-missions/<session-id>`.
+Each record is `scripted_runtime`, with synthetic usage, zero hosted calls and
+partial authorization coverage. This runner does not certify model capability.
+
+Ordinary probes keep their 180-second maximum. These declared mission controls
+have a 600-second task limit and a separate 780-second controller ceiling for
+startup, collection and cleanup. Existing per-file/aggregate exchange and export
+bounds remain enforced. Independent HCS disposal, CPU and writable-mapping disk
+quotas remain unvalidated; `isolation_validated` stays false. The candidate core
+live planner remains gated pending the remaining workflows and pilot review.

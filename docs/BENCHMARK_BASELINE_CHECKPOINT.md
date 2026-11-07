@@ -6,6 +6,12 @@ checks and the frontend build pass. See [the reference report](benchmarks/native
 This is the bounded measurement slice before Phase 4, not the
 complete 12-mission Zeus Benchmark v1 or an isolated safety certification.
 
+Current follow-up (7 November): Phase 4A–4C foundations are delivered. The
+[full-v1 delivery packet](BENCHMARK_V1_DELIVERY_PLAN.md) and
+[work log](BENCHMARK_V1_WORK_LOG.md) track the twelve-scenario expansion,
+isolated mission calibration and remaining live baseline work. The next-design
+section below records the historical 4 November handoff, not the current phase.
+
 ## Tangible effect and decisions
 
 This adds developer commands for comparing repeatable task outcomes and resource

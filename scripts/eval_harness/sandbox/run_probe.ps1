@@ -4,7 +4,7 @@
 param(
     [Parameter(Mandatory=$true)][ValidateSet('Run','Cleanup')][string]$Mode,
     [Parameter(Mandatory=$true)][string]$SessionDirectory,
-    [ValidateRange(15,180)][int]$TimeoutSeconds=90
+    [ValidateRange(15,780)][int]$TimeoutSeconds=90
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'process_status.ps1')
@@ -27,6 +27,11 @@ $probeScript=Join-Path $PSScriptRoot 'probe.js'
 $manifest=Get-Content -LiteralPath (Join-Path $sessionRoot 'session.json') -Raw | ConvertFrom-Json
 if ($manifest.kind -ne 'sandbox-boundary-probe' -or $manifest.id -ne (Split-Path -Leaf $sessionRoot)) { throw 'Prepared probe identity mismatch.' }
 if ($Mode -eq 'Run' -and $manifest.schema_version -ne 2) { throw 'Prepare a new protocol-2 probe.' }
+if ($Mode -eq 'Run') {
+    if ($manifest.mission_job) {
+        if ($manifest.mission_job.mode -ne 'scripted_control' -or $manifest.mission_job.controller_timeout_secs -ne 780 -or $TimeoutSeconds -ne 780) { throw 'Only the declared 780-second scripted mission control is enabled.' }
+    } elseif ($TimeoutSeconds -gt 180) { throw 'Ordinary probes retain their 180-second maximum.' }
+}
 if ((Get-FileHash -LiteralPath $configuration -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.configuration_sha256) { throw 'Prepared configuration changed.' }
 
 function Save-Json([string]$Path,$Value) {
@@ -67,10 +72,10 @@ try {
         if (@(Get-ChildItem -LiteralPath (Join-Path $sessionRoot 'output') -Force).Count) { throw 'Probe output must be empty before launch.' }
         if ($manifest.transport_smoke -or $manifest.grading_auth) {
             if ($manifest.transport_smoke -and $manifest.transport_smoke -ne 'synthetic-file-v1') { throw 'Unknown transport mode; hosted inference is not available.' }
-            $brokerName=if ($manifest.grading_auth) { 'host_grading_auth.mjs' } else { 'host_transport.mjs' }
+            $brokerName=if ($manifest.mission_job) { 'host_mission.mjs' } elseif ($manifest.grading_auth) { 'host_grading_auth.mjs' } else { 'host_transport.mjs' }
             $brokerScript=Join-Path $PSScriptRoot $brokerName
             $record['transport_code_sha256']=[ordered]@{}
-            foreach ($source in @($brokerName,'file_rpc.mjs','session.js','grading_auth.mjs','mission_rpc.mjs','mission_fixture.mjs')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
+            foreach ($source in @($brokerName,'file_rpc.mjs','session.js','grading_auth.mjs','mission_rpc.mjs','mission_fixture.mjs','mission_contract.mjs','mission_receipt.mjs','provider_relay.mjs','scripted_provider.mjs')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
             $broker=Start-Process -FilePath $node -ArgumentList @(('"'+$brokerScript+'"'),('"'+$sessionRoot+'"')) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sessionRoot 'transport-stdout.log') -RedirectStandardError (Join-Path $sessionRoot 'transport-stderr.log')
             # Retain the native handle before the redirected child can exit.
             $null=$broker.Handle

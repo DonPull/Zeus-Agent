@@ -11,7 +11,8 @@ The full milestone remains in progress until the acceptance gates below pass.
 | The 12 scenario definitions and grading rules | 12/12 implemented |
 | Reference/alternative/failing controls for those graders | Implemented; 70 checks pass |
 | Scripted execution through the real Zeus app on the host | 12/12 workflows checked |
-| Windows Sandbox runtime, protected executable grading, provider and fixture transport | Components validated, including protected actor startup/export; complete mission/workflow integration in progress |
+| Windows Sandbox runtime, protected executable grading, provider and fixture transport | Components validated; browser/multi-turn integration remains |
+| Combined isolated scripted mission calibration | 7/12 positive controls passed; a deliberate wrong output correctly failed; remaining five are browser/multi-turn workflows |
 | All 12 scenarios through the new isolated live-model runner | Not yet completed |
 | Repeated Solo/Team baseline and comparison report | Not yet collected |
 
@@ -22,6 +23,15 @@ mean tuning until every agent attempt succeeds. “In progress” currently refe
 mainly to runner integration, isolation checks and collecting measurements,
 rather than missing scenario definitions. Infrastructure progress is not a model
 capability score. The canonical roadmap remains the same.
+
+The single-turn integration checkpoint uses the real production bridge with normal
+permission handling, frozen model settings and a host-owned fake provider.
+C01, C02, C03, D01, D02, R01 and V01 passed its positive controls. Executable
+submissions go to a second fresh grading guest after the actor guest closes;
+exported code/HTML never runs on the host. These are scripted calibration
+results, not live model attempts. B01/B02/B03/M01/M02 retain their existing
+contracts/native controls while their isolated workflows are connected next.
+See the [reviewed calibration record](benchmarks/isolated-single-turn-calibration-20261107.json).
 
 ## Tangible differences and decisions
 

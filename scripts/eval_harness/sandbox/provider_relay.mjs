@@ -83,13 +83,14 @@ export function providerTransport({python='python',offlineOrigin=null}={}){
   });
 }
 /** One immutable ledger per trial. A crash leaves a reserved/unknown paid call. */
-export function createProviderRelay({privateDirectory,id,nonce,limits,transport=providerTransport(),now=Date.now}){
+export function createProviderRelay({privateDirectory,id,nonce,limits,transport=providerTransport(),now=Date.now,executionKind='hosted'}){
+  if(!['hosted','scripted_control'].includes(executionKind))throw Error('Invalid provider execution kind');
   const root=unlinkedDirectory(privateDirectory),file=path.join(root,'provider-ledger.json');
   if(typeof id!=='string'||!id||!/^\w[\w-]*$/.test(id)||!/^([0-9a-f]{48})$/.test(nonce))throw Error('Invalid provider trial identity');
   for(const [key,upper] of Object.entries({max_requests:32,max_tokens:100000000,max_output_tokens:8192,wall_time_ms:600000}))if(!Number.isSafeInteger(limits?.[key])||limits[key]<1||limits[key]>upper)throw Error('Invalid provider limit');
   if(limits.max_in_flight!==1)throw Error('Provider relay requires one request in flight');
   if(fs.existsSync(file))throw Error('Existing provider ledger cannot be reset or replayed');
-  const started=now(),record={schema_version:1,kind:'host-provider-ledger-v1',id,nonce,binding:PROVIDER_IDENTITY,limits:{...limits},
+  const started=now(),record={schema_version:1,kind:'host-provider-ledger-v1',id,nonce,binding:PROVIDER_IDENTITY,execution_kind:executionKind,limits:{...limits},
     started_at:new Date(started).toISOString(),status:'prepared',catalogue:null,requests:[],known_tokens:0,unknown_requests:0,
     input_estimate:'serialized_request_bytes_divided_by_three_not_an_exact_tokenizer',provider_credits:null,transport:'buffered_response_v1'};
   const save=()=>{const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(record,null,2),{flag:'w'});fs.renameSync(temporary,file);};

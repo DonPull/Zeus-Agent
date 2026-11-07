@@ -99,15 +99,15 @@ export function createFileClient({input,output,nonce,read,timeoutMs=20000,reques
   };
 }
 /** One host step handles immutable request files and never executes their content. */
-export function createHostExchange({input,output,nonce,read,handle,publish=publishResponse,requestValidator=validateRequest,responseValidator=validateResponse,limits=RPC_LIMITS,responseFields=()=>({})}){
+export function createHostExchange({input,output,nonce,read,handle,publish=publishResponse,requestValidator=validateRequest,responseValidator=validateResponse,limits=RPC_LIMITS,responseFields=()=>({}),additionalOutputNames=[]}){
   const handled=new Map(),rows=[];let total=0,closed=false;
   return {rows,get totalBytes(){return total;},
     async step(){
       if(closed)throw Error('Exchange is closed after a failure');
       try{
-        const names=fs.readdirSync(output);if(names.length>limits.messages*2+4)throw Error('Too many exchange files');
+        const names=fs.readdirSync(output);if(names.length>limits.messages*2+4+additionalOutputNames.length)throw Error('Too many exchange files');
         for(const name of names.sort()){
-          if(name==='probe-result.json'||name==='probe-result.tmp'||/^rpc-request-\d{6}\.json\.tmp$/.test(name))continue;
+          if(name==='probe-result.json'||name==='probe-result.tmp'||additionalOutputNames.includes(name)||/^rpc-request-\d{6}\.json\.tmp$/.test(name))continue;
           if(!/^rpc-request-\d{6}\.json$/.test(name))throw Error('Undeclared exchange output file');
           const bytes=read(output,name,limits.requestBytes),digest=sha(bytes);
           if(handled.has(name)){if(handled.get(name)!==digest)throw Error('Previously handled exchange request changed');continue;}

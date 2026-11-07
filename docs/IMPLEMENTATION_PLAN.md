@@ -50,12 +50,17 @@ browser-fixture transport also has four real-browser workflow controls and an
 actual guest/real-Zeus navigation check, with independent state/byte hashes.
 Protected actor startup and signed bounded artifact export now pass in a fresh
 guest, with the real app running under a separate non-admin account. Public
-input/config packets are prepared for all twelve missions. Complete relay/fixture
-integration with isolated mission/workflow orchestration,
+input/config packets are prepared for all twelve missions. The combined
+single-turn scripted mission runner now connects the real protected app,
+host provider ledger, signed artifact/trace collection and independent grading.
+All seven single-turn positive controls passed; a deliberately wrong output
+correctly failed. Four executable submissions were graded in separate fresh
+guests; no exported program/HTML ran on the host. Hosted calls remain zero.
+Browser/multi-turn isolated workflow integration,
 remaining lifecycle/resource validation and repeated live measurements remain
 incomplete. No full baseline is claimed yet.
-Current combined coverage is **463 distinct checks**, from the preceding full
-458-check run and final 117-unit/70-grader validation, plus actual Sandbox probes;
+Current combined coverage is **468 distinct checks**, from the preceding full
+458-check run and final 122-unit/70-grader validation, plus actual Sandbox probes;
 the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency

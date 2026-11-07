@@ -11,6 +11,8 @@ import {prepareGraderPacket,gradingSmokeMatches,prepareSubmissionPacket,validate
 import {pinControllerKey,verifyGradingResult} from './grading_auth.mjs';
 import {MISSION_RPC_LIMITS,missionRequestValidator,missionResponseValidator} from './mission_rpc.mjs';
 import {validateActorArtifacts,ARTIFACT_LIMITS} from './actor_artifacts.mjs';
+import {validateMissionPacket,missionResultMatches,MISSION_TRACE_LIMIT} from './mission_contract.mjs';
+import {inspectMissionExchange} from './mission_receipt.mjs';
 
 const directory=path.dirname(fileURLToPath(import.meta.url));
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
@@ -39,7 +41,7 @@ export function sandboxConfiguration({input,output,memoryMB=4096,runtime=null}){
     '  </MappedFolders>\n  <LogonCommand><Command>powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\\Zeus\\Input\\probe.ps1</Command></LogonCommand>\n</Configuration>\n';
 }
 
-export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,transportDenyTest=false,transportMission=null,gradingSmoke=false,candidateProbe=false,actorProbe=false,submission=null}={}){
+export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,transportDenyTest=false,transportMission=null,gradingSmoke=false,candidateProbe=false,actorProbe=false,submission=null,missionJob=null}={}){
   if(process.platform!=='win32')throw Error('The .wsb probe requires a Windows host');
   if(transportSmoke&&!runtimeBundle)throw Error('Transport smoke requires a prepared public runtime');
   if(transportDenyTest&&!transportSmoke)throw Error('A deny control requires synthetic transport');
@@ -48,6 +50,11 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   if(candidateProbe&&(!runtimeBundle||transportSmoke||gradingSmoke))throw Error('Candidate boundary probe requires its own fresh runtime guest');
   if(submission&&(!runtimeBundle||transportSmoke||gradingSmoke||candidateProbe))throw Error('A submission requires its own fresh grading guest');
   if(actorProbe&&(!runtimeBundle||transportSmoke||gradingSmoke||candidateProbe||submission))throw Error('Protected actor control requires its own fresh runtime guest');
+  if(missionJob){
+    if(!runtimeBundle||transportSmoke||gradingSmoke||candidateProbe||actorProbe||submission)throw Error('Mission execution requires its own fresh runtime guest');
+    validateMissionPacket(missionJob.bytes,missionJob.expected);
+    if(missionJob.expected.controller_timeout_secs!==780)throw Error('Mission controller deadline must be 780 seconds');
+  }
   let runtimeInfo=null;
   if(runtimeBundle){
     runtimeBundle=unlinkedDirectory(runtimeBundle);
@@ -58,7 +65,7 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
     runtimeInfo={path:runtimeBundle,manifest_sha256:hash(bytes),content_sha256:bundle.content_sha256,versions:bundle.versions};
   }
   const submitted=submission?prepareSubmissionPacket(submission.id,submission.directory):null;
-  const authenticated=candidateProbe||actorProbe||Boolean(submitted);
+  const authenticated=candidateProbe||actorProbe||Boolean(submitted)||Boolean(missionJob);
   const base=unlinkedDirectory(parent,{create:true}),id=crypto.randomUUID(),root=path.join(base,id);
   fs.mkdirSync(root);const input=path.join(root,'input'),output=path.join(root,'output'),privateDir=path.join(root,'private');
   for(const folder of [input,output,privateDir])fs.mkdirSync(folder);
@@ -76,7 +83,8 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   if(candidateProbe)job.runtime_smoke.mode='candidate-boundary-v1';
   if(actorProbe)job.runtime_smoke.mode='protected-actor-v1';
   if(submitted)job.runtime_smoke.mode='submission-grade-v1';
-  const authPacket=submitted?hash(submitted.bytes):actorProbe?hash(fs.readFileSync(path.join(directory,'actor_bootstrap.py'))):candidateProbe?hash(fs.readFileSync(path.join(directory,'candidate_boundary.py'))):null;
+  if(missionJob){job.runtime_smoke.mode='mission-job-v1';job.mission_job=missionJob.expected;}
+  const authPacket=missionJob?hash(missionJob.bytes):submitted?hash(submitted.bytes):actorProbe?hash(fs.readFileSync(path.join(directory,'actor_bootstrap.py'))):candidateProbe?hash(fs.readFileSync(path.join(directory,'candidate_boundary.py'))):null;
   if(authPacket)job.runtime_smoke.auth_packet_sha256=authPacket;
   const inputs={'job.json':Buffer.from(JSON.stringify(job,null,2)),'challenge.txt':challenge,'probe.ps1':fs.readFileSync(path.join(directory,'probe_guest.ps1'))};
   if(runtimeInfo)for(const name of ['guest_smoke.mjs','guest_diagnostics.ps1'])inputs[name]=fs.readFileSync(path.join(directory,name));
@@ -86,15 +94,21 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   if(authenticated)for(const name of ['guest_candidate_probe.mjs','prepare_candidate.ps1','candidate_python.cs','candidate_boundary.py','candidate_gate.py','grading_auth.mjs','file_rpc.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
   if(submitted){inputs['submission-packet.json']=submitted.bytes;for(const name of ['guest_submission.mjs','stop_candidate.ps1'])inputs[name]=fs.readFileSync(path.join(directory,name));}
   if(actorProbe)for(const name of ['guest_actor_probe.mjs','actor_bootstrap.py','stop_candidate.ps1','actor_artifacts.mjs','exchange_files.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
+  if(missionJob){
+    inputs['actor-packet.json']=missionJob.bytes;inputs['package.json']=Buffer.from('{"type":"module"}');
+    for(const name of ['guest_mission.mjs','guest_app.mjs','mission_contract.mjs','mission_rpc.mjs','actor_bootstrap.py','stop_candidate.ps1','actor_artifacts.mjs','exchange_files.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
+    for(const name of ['bridge_run.js','benchmark_config.js'])inputs[name]=fs.readFileSync(path.resolve(directory,'../../../tests/benchmarks',name));
+    inputs['synthetic_supervisor.js']=fs.readFileSync(path.resolve(directory,'../synthetic_supervisor.js'));
+  }
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
-  if(transportSmoke)for(let id=1;id<=(transportMission?MISSION_RPC_LIMITS:RPC_LIMITS).messages;id++)fs.writeFileSync(path.join(input,responseName(id)),Buffer.alloc(0),{flag:'wx'});
+  if(transportSmoke||missionJob)for(let id=1;id<=((transportMission||missionJob)?MISSION_RPC_LIMITS:RPC_LIMITS).messages;id++)fs.writeFileSync(path.join(input,responseName(id)),Buffer.alloc(0),{flag:'wx'});
   if(authenticated)fs.writeFileSync(path.join(input,'grading-key-ack.json'),Buffer.alloc(0),{flag:'wx'});
   const wsb=sandboxConfiguration({input,output,runtime:runtimeBundle});
   fs.writeFileSync(path.join(root,'probe.wsb'),wsb,{flag:'wx'});
   const manifest={schema_version:2,id,kind:'sandbox-boundary-probe',status:'prepared',created_at:new Date().toISOString(),
     host_name:os.hostname(),nonce,input,output,private_file:privateFile,private_sha256:hash(sentinel),
     inputs:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,hash(bytes)])),configuration_sha256:hash(wsb),
-    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,transport_smoke:transportSmoke?'synthetic-file-v1':null,fixture_mission:transportMission,grader_controls:grading?.expected??null,candidate_control:candidateProbe,actor_control:actorProbe,submission_job:submitted?.expected??null,grading_auth:authenticated,auth_packet_sha256:authPacket,provider_requests:0,launch_requested:false,
+    memory_mb:4096,networking:'disabled',mappings:runtimeBundle?3:2,runtime_bundle:runtimeInfo,transport_smoke:transportSmoke?'synthetic-file-v1':null,fixture_mission:transportMission,grader_controls:grading?.expected??null,candidate_control:candidateProbe,actor_control:actorProbe,submission_job:submitted?.expected??null,mission_job:missionJob?.expected??null,grading_auth:authenticated,auth_packet_sha256:authPacket,provider_requests:0,launch_requested:false,
     limitations:['Prepared configuration is not evidence of guest execution or isolation validation.',
       'Memory is configured; CPU, writable mapping disk quota and full actor/grader containment are not validated.']};
   fs.writeFileSync(path.join(root,'session.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
@@ -162,10 +176,13 @@ export function inspectProbe(root){
   const input=path.join(root,'input'),output=path.join(root,'output'),privateDir=path.join(root,'private');
   if(canonical(manifest.input)!==canonical(input)||canonical(manifest.output)!==canonical(output)||canonical(manifest.private_file)!==canonical(path.join(privateDir,'host-only.bin')))throw Error('Changed probe mappings');
   if(hash(readBoundedFile(root,'probe.wsb',16384))!==manifest.configuration_sha256)throw Error('Changed Sandbox configuration');
-  for(const [name,sha] of Object.entries(manifest.inputs))if(hash(readBoundedFile(input,name,name==='submission-packet.json'?8*1024*1024:1024*1024))!==sha)throw Error('Probe input changed: '+name);
+  for(const [name,sha] of Object.entries(manifest.inputs))if(hash(readBoundedFile(input,name,['submission-packet.json','actor-packet.json'].includes(name)?8*1024*1024:1024*1024))!==sha)throw Error('Probe input changed: '+name);
   if(hash(readBoundedFile(privateDir,'host-only.bin'))!==manifest.private_sha256)throw Error('Unmapped host sentinel changed');
   const names=fs.readdirSync(output);
-  if(manifest.transport_smoke){
+  if(manifest.mission_job){
+    const declared=['probe-result.json','grading-key.json','actor-export.json','mission-trace.json'];
+    if(!declared.every(name=>names.includes(name))||names.length>MISSION_RPC_LIMITS.messages+declared.length||names.some(name=>!declared.includes(name)&&!/^rpc-request-\d{6}\.json$/.test(name)))throw Error('Unexpected mission output files');
+  }else if(manifest.transport_smoke){
     if(!names.includes('probe-result.json')||names.length>(manifest.fixture_mission?MISSION_RPC_LIMITS:RPC_LIMITS).messages+1||names.some(name=>name!=='probe-result.json'&&!/^rpc-request-\d{6}\.json$/.test(name)))throw Error('Unexpected transport result files');
   }else if(manifest.grader_controls){
     if(!names.includes('probe-result.json')||names.length>2||names.some(name=>!['probe-result.json','grader-evidence.json'].includes(name)))throw Error('Unexpected grader output files');
@@ -193,7 +210,16 @@ export function inspectProbe(root){
     host_private_unavailable:base.private_read_denied===true,network_disabled:base.active_nonloopback_adapters===0,
     writable_output:base.output_written===true,fresh_guest_disk:base.marker_preexisting===false&&base.marker_created===true};
   if(manifest.grading_auth)checks.authenticated_controller=true;
-  if(manifest.actor_control){
+  if(manifest.mission_job){
+    validateMissionPacket(readBoundedFile(input,'actor-packet.json',ARTIFACT_LIMITS.packetBytes),manifest.mission_job);
+    checks.protected_mission=missionResultMatches(smoke,manifest.mission_job);
+    const exportedBytes=readBoundedFile(output,'actor-export.json',ARTIFACT_LIMITS.packetBytes),traceBytes=readBoundedFile(output,'mission-trace.json',MISSION_TRACE_LIMIT);
+    if(hash(exportedBytes)!==smoke.artifact_export?.sha256||hash(traceBytes)!==smoke.trace?.sha256)throw Error('Mission artifact/trace changed after signing');
+    const exported=validateActorArtifacts(exportedBytes,{id:manifest.id,nonce:manifest.nonce},manifest.mission_job.exported_names),trace=JSON.parse(traceBytes);
+    if(trace.id!==manifest.id||trace.nonce!==manifest.nonce||trace.mission!==manifest.mission_job.mission)throw Error('Mission trace identity changed');
+    checks.host_mission_transport=inspectMissionExchange({manifest,input,output,privateDir,actorUsage:smoke.actor?.usage});
+    actorExport={sha256:hash(exportedBytes),files:exported.files.map(({base64,...file})=>file)};
+  }else if(manifest.actor_control){
     checks.protected_actor_runtime=protectedActorMatches(smoke,manifest.runtime_bundle.versions);
     const bytes=readBoundedFile(output,'actor-export.json',ARTIFACT_LIMITS.packetBytes);
     if(hash(bytes)!==smoke.artifact_export?.sha256)throw Error('Actor export changed after signing');

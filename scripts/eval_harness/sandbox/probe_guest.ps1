@@ -72,6 +72,7 @@ if ($job.runtime_smoke) {
         if ($job.runtime_smoke.mode -eq 'candidate-boundary-v1') { $controlScript='C:\Zeus\Input\guest_candidate_probe.mjs' }
         if ($job.runtime_smoke.mode -eq 'submission-grade-v1') { $controlScript='C:\Zeus\Input\guest_submission.mjs' }
         if ($job.runtime_smoke.mode -eq 'protected-actor-v1') { $controlScript='C:\Zeus\Input\guest_actor_probe.mjs' }
+        if ($job.runtime_smoke.mode -eq 'mission-job-v1') { $controlScript='C:\Zeus\Input\guest_mission.mjs' }
         $env:ZEUS_GUEST_BASE_RESULT=($result | ConvertTo-Json -Depth 6 -Compress)
         $controlProcess=Start-Process -FilePath 'C:\Zeus\Runtime\node\node.exe' -ArgumentList $controlScript -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput 'C:\Zeus\runtime-console.txt' -RedirectStandardError 'C:\Zeus\runtime-errors.txt'
         $result['runtime_smoke']=Get-Content -LiteralPath 'C:\Zeus\runtime-report.json' -Raw | ConvertFrom-Json

@@ -22,4 +22,4 @@ if(args.length===4&&args[0]==='--grade-submission'){
   const visible=args[0]==='--inspect-summary'?{id:report.id,status:report.status,checks:report.checks,result_sha256:report.result_sha256,isolation_validated:false,note:report.note}:report;
   console.log(JSON.stringify(visible,null,2));
   process.exitCode=report.status==='probe_claims_consistent'?2:1;
-}else throw Error('Usage: node scripts/eval_harness/sandbox/probe.js [--inspect[-summary] <session-directory> | --runtime-bundle <public-bundle> [--grading-smoke | --candidate-probe | --mission-transport <B01|B02|B03|M02> | --transport-smoke [--deny-test]] | --grade-submission <mission> <submission-directory> <public-bundle>]');
+}else throw Error('Usage: node scripts/eval_harness/sandbox/probe.js [--inspect[-summary] <session-directory> | --runtime-bundle <public-bundle> [--actor-probe | --grading-smoke | --candidate-probe | --mission-transport <B01|B02|B03|M02> | --transport-smoke [--deny-test]] | --grade-submission <mission> <submission-directory> <public-bundle>]');
