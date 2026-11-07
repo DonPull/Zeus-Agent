@@ -30,6 +30,9 @@ export function missionRequestValidator(mission){return (value,nonce)=>{
   if(value.channel==='provider'){
     if(value.method!=='POST'||value.path!=='/chat/completions')throw Error('Undeclared mission provider route');
   }else if(value.channel==='fixture')fixtureRoute(mission,value.method,value.path,body);
+  else if(value.channel==='workflow'){
+    if(value.method!=='POST'||!(mission==='B03'&&value.path==='/correction'||mission==='M02'&&['/restart-checkpoint','/restart-complete'].includes(value.path)))throw Error('Undeclared workflow checkpoint route');
+  }
   else throw Error('Undeclared mission channel');
   return {...value,body};
 };}

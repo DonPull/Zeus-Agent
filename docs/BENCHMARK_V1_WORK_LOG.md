@@ -593,3 +593,86 @@ then freeze a pilot and review its measurements before the repeated 72-attempt
 Solo/Team schedule. Scripted controls do not demonstrate model intelligence,
 genuine Team collaboration or complete authorization coverage. Independent HCS
 disposal and CPU/writable-mapping disk hard quotas remain unvalidated.
+
+## Browser and multi-turn isolated integration — 7 November
+
+All twelve authored scenarios now have passing scripted controls through the
+isolated runner. B01/B02/B03/M01/M02 complete the five remaining workflows. These
+are software calibrations; no live model was called and no intelligence or active
+Team collaboration result is claimed. The
+[reviewed workflow record](benchmarks/isolated-workflows-20261107.json) binds
+the positive/negative pairs, staged source, host ledgers, signed exports and VM
+lifecycle receipts. It links the earlier seven-scenario record without recasting
+these development checkpoints as one frozen study.
+
+Decisions compared with the preceding single-turn runner:
+
+- Keep fixture state and grading in the host broker. Forward only the declared
+  local fixture routes; translate only the fixed guest proxy origin for browser
+  evidence. Use production ownership-checked observation/action/transfer readers,
+  not the actor's chat or submitted JSON, to establish browser interaction and
+  downloaded-byte provenance.
+- Authenticate correction and restart checkpoints with the controller's
+  host-pinned signing key and job/nonce/packet binding. Ordinary web requests,
+  forged signatures and repeated phases cannot create these checkpoints.
+- Reuse the existing scenario contracts and budget calculation. M01 injects
+  bounded untrusted reference noise, then checks actual compaction receipts and
+  original-message hashes. M02 verifies the old app's exit, restarts the same
+  workspace and carries reduced requests/tokens/directives/time forward after
+  the host confirms the saved note. This is a confirmed-commit restart test;
+  arbitrary mid-command crashes and lost acknowledgments remain outside it.
+- Approve only exact declared calibration scripts through normal permission
+  handling. Canonical action digests include language/code/timeout and do not
+  depend on JSON property order. This is not a new live-model permission policy.
+- Keep diagnostic exports after collector errors only when final account/process
+  cleanup is verified. Bound complete trace encoding before assigning exportable
+  state, so oversized failed-run diagnostics cannot escape the trace limit.
+
+The new negative controls all finished executing their intended operations, then
+failed the intended independent criterion: wrong ticket priority, wrong order
+summary despite a real CSV download, wrong revised draft owner, stale project
+requirements despite actual compaction, and wrong final status after a genuine
+restart. Their required browser/compaction/restart evidence still passed. No
+automatic retry/tuning loop or agent-specific solver was introduced.
+
+Two original development failures remain retained. B01 session
+`4f228aa3-41da-4c01-86d4-cd58d550ecbd` performed its actual update, but the new
+collector mistook a signaled child with null `exitCode` for a running launcher.
+Track the real close event and separately verify the actual app process identity
+has exited; a real terminated-child regression now covers this. The failed row
+remains an infrastructure error, not a passing result. A fresh B01 and the D01
+shared-cleanup recheck passed after the repair.
+
+B02 session `a1c233db-2d05-4d84-a74f-08c7cb372cea` hit a generic audio-policy
+startup error before navigation and correctly failed for a missing CSV. A fresh
+unchanged-source B02 passed. A separate controlled browser regression reproduced
+an audio setup failure when a tab closes between enumeration and mute setup;
+the definitive pre-repair log is `.zeus/evaluations/audio-race-before-fix.log`.
+The regression's initial cleanup callback returned a native function and masked
+the error; it was corrected before retaining that definitive reproduction.
+Ignore only the native missing-tab response, preserve global sound blocking and
+the existing deadline, and keep all other policy errors blocking with bounded
+diagnostics. The original generic failure cannot uniquely establish its cause.
+ZA-015 retains that distinction. No broad retry or reduced verification was added.
+
+The rebuilt bundle `08d4f508-0118-4911-be10-6478abc5ea5a`, content hash
+`b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860`, retains the
+same pinned dependency versions. All four browser positives and all five new
+negative controls were checked with it. M01's positive control is the separately
+retained pre-audio-repair runtime checkpoint; it uses no browser. The original
+runtime bundle and all failed attempts remain unchanged.
+
+Full regression receipt `08abdb2e-d563-4ff4-a0fb-842b387e2613.json` passed **476
+checks**: 128 JS, 70 graders, 126 Rust, 25 browser-service, 124 desktop and three
+private native handoff checks. The final focused receipt
+`8463aaba-3c6f-4470-bc20-b0af2cf44762.json` passed **129 JS checks**, adding the
+failed-trace export boundary check after that full run; distinct coverage is 477.
+The evaluation binary build and two focused audio regressions also passed.
+Hosted inference in this slice: **zero**.
+
+Next: connect the full hosted provider path with its response deadlines and
+failure-inclusive accounting, resolve/declare the remaining execution policy and
+resource/lifecycle acceptance gates, freeze a clean pilot manifest and check the
+current catalogue before dispatch. Use pilot evidence to review the repeated
+72-attempt envelope. The core `--live` entry point remains gated. Do not equate
+12/12 scripted workflow calibration with a collected Solo/Team live baseline.

@@ -2,7 +2,7 @@
 /** Explicit scripted calibration only; default prepares without opening a VM. */
 import path from 'node:path';
 import {prepareIsolatedMission,runPreparedMission} from './sandbox/isolated_mission.mjs';
-import {SINGLE_TURN_MISSIONS} from './sandbox/mission_contract.mjs';
+import {ISOLATED_MISSIONS} from './sandbox/mission_contract.mjs';
 const args=process.argv.slice(2),options={};let run=false;
 for(let index=0;index<args.length;index++){
   const key=args[index];if(key==='--run'){run=true;continue;}
@@ -12,7 +12,7 @@ for(let index=0;index<args.length;index++){
 }
 if(!options['--mission']||!options['--runtime-bundle'])throw Error('Require --mission (one ID or comma-separated unique IDs) and --runtime-bundle; optional --architecture solo|team, --control positive|invalid-output, --run');
 const ids=options['--mission'].split(','),architecture=options['--architecture']??'solo',variant=options['--control']??'positive';
-if(!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!SINGLE_TURN_MISSIONS.includes(id)))throw Error('Select unique supported single-turn mission IDs');
+if(!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!ISOLATED_MISSIONS.includes(id)))throw Error('Select unique supported mission IDs');
 if(!['solo','team'].includes(architecture)||!['positive','invalid-output'].includes(variant))throw Error('Invalid architecture/control');
 for(const id of ids){
   const prepared=prepareIsolatedMission({id,runtimeBundle:path.resolve(options['--runtime-bundle']),architecture,variant});

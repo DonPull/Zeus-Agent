@@ -564,6 +564,37 @@ class HandoffServiceTests(unittest.IsolatedAsyncioTestCase):
         metrics=await self.page.evaluate('({width:innerWidth,height:innerHeight,scale:visualViewport.scale,dpr:devicePixelRatio})')
         self.assertEqual(metrics,{'width':1600,'height':900,'scale':1,'dpr':1})
 
+    async def test_audio_setup_survives_a_tab_closing_after_enumeration(self):
+        await self.service.audio_worker.evaluate("""() => {
+            globalThis.originalAudioQuery = chrome.tabs.query;
+            chrome.tabs.query = async (...args) => {
+                const tabs = await originalAudioQuery(...args);
+                const transient = await chrome.tabs.create({url:'about:blank',active:false});
+                await chrome.tabs.remove(transient.id);
+                return [...tabs, {id:transient.id}];
+            };
+        }""")
+        try:
+            await self.service.set_audio(False)
+            policy=await self.service.audio_worker.evaluate("chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'})")
+            self.assertEqual(policy['setting'],'block')
+        finally:
+            await self.service.audio_worker.evaluate('() => { chrome.tabs.query = originalAudioQuery; }')
+
+    async def test_audio_policy_errors_remain_blocking_and_include_bounded_diagnostics(self):
+        await self.service.audio_worker.evaluate("""() => {
+            globalThis.originalAudioSet = chrome.contentSettings.sound.set;
+            chrome.contentSettings.sound.set = async () => { throw Error('controlled sound policy rejection'); };
+        }""")
+        try:
+            with self.assertRaisesRegex(self.error,'controlled sound policy rejection'):
+                await self.service.set_audio(False)
+        finally:
+            await self.service.audio_worker.evaluate('() => { chrome.contentSettings.sound.set = originalAudioSet; }')
+        await self.service.set_audio(False)
+        policy=await self.service.audio_worker.evaluate("chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'})")
+        self.assertEqual(policy['setting'],'block')
+
     async def test_keyboard_activation_preserves_animation_and_verifies_exactly_one_effect(self):
         await self.page.set_content('<style>@keyframes move{to{transform:translateX(400px)}}button{animation:move 1s linear infinite}</style><button id="moving" onclick="window.effects=(window.effects||0)+1;document.querySelector(\'#result\').textContent=\'Saved\'">Start</button><p id="result">Ready</p>')
         response=await self.call('press',{'target':{'role':'button','name':'Start'},'key':'Enter','expect':{'target':{'css':'#result'},'condition':{'kind':'text','value':'Saved','match':'equals'}}})

@@ -1,0 +1,813 @@
+{
+  "schema_version": 1,
+  "checkpoint": "isolated-browser-and-history-workflows",
+  "date": "2026-11-07",
+  "source": {
+    "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+    "dirty": true,
+    "diff_hash": "4ee89e5c4240bf08f7cc8040607c79d4ed304ba498fb624644ca69537a6589f5",
+    "node": "v22.13.1"
+  },
+  "code_sha256": {
+    "scripts/eval_harness/run_isolated_mission.js": "f280429a6408ba0239ff31247387064a3e31b5f1f37cc447ff6de5c0f5d34c73",
+    "scripts/eval_harness/sandbox/guest_app.mjs": "da2fcbe6ef5c66f6d0ddc55aab5141e9cc5053524e80ee20bca35bae1f49b917",
+    "scripts/eval_harness/sandbox/guest_mission.mjs": "d22aa451bb14479a8f80d2498364537635415dc1bdbd00bc779a491bbdbd2505",
+    "scripts/eval_harness/sandbox/host_mission.mjs": "f3f6e61a285f2371cd634303286785adae2b0cce6aed3177aa9a3b44402d6230",
+    "scripts/eval_harness/sandbox/isolated_mission.mjs": "6fc118964226fcd93d1b619a022fbf572b0df631e9338902f2c0c0bd317ef7e1",
+    "scripts/eval_harness/sandbox/mission_contract.mjs": "29ca0b138204ef439f042a49549b5599389e302267d11433f473a162592cff84",
+    "scripts/eval_harness/sandbox/mission_receipt.mjs": "348996f6d5ae69f25900be967101e884da88237867c27961410e8a200941eb35",
+    "scripts/eval_harness/sandbox/mission_rpc.mjs": "420f16521260e7a4982837319648a530fc74d0803b6ebcc388466de534a7da01",
+    "scripts/eval_harness/sandbox/run_probe.ps1": "ba55b5c795a17bbd8eaa7cbfe773863754b4bc7c81832f41f0f39b14b020a07b",
+    "scripts/eval_harness/sandbox/session.js": "98fb01ce25a6613b62920deaf7248c53ca990c6bc9269a0d7f992b11cc089f1f",
+    "src-tauri/browser_service/service.py": "03e18dce2a665288c0b280d6098ef7ecd2d05585019e5dd043ba8ae677280148",
+    "tests/benchmarks/core_workflows.js": "48abbf3d207b1c5251e1e53e09d1aa2b32074a073958c3261599164cbd2bfa43",
+    "tests/browser_service/test_service.py": "13ee1a611e0a0900f08ad8dd959bda96d9998e8448260714619e8745852b63b8",
+    "tests/unit/isolated_mission.test.js": "228685d4282b543796c22d032ea99ea0f1b9ce5dd93c08a8efbc7a9bbfc7e7e4",
+    "scripts/eval_harness/sandbox/child_lifecycle.mjs": "bc9d190f007c3fc7436a532cbcb4032d5a71a7e4598756ab9f65bfe74fdb30c4",
+    "scripts/eval_harness/sandbox/guest_browser_capture.mjs": "b3fa047b8cdbf869991d9b8cbef6bf1851bffa59533fab3b2ae81d7e97785630",
+    "scripts/eval_harness/sandbox/guest_history.py": "d680b3f10d2e26d148a39b243dc540bc2736d1b4fd2353e8baded4cc03d3c19f",
+    "scripts/eval_harness/sandbox/guest_workflow.mjs": "6af22d291665bbbd1e4231c307cd7a6ccb9124dc7f1b2d0bec3399ee8144bfba",
+    "scripts/eval_harness/sandbox/workflow_controls.mjs": "2c5066d84610b66524473bb238b1f84cc80ecd0564ef5a7126bfa12271b416be",
+    "scripts/eval_harness/sandbox/workflow_oracle.mjs": "e71da01efce3698e63e21517e7b3a1735e1faab4030e38e50b6505a166a1f0c6",
+    "tests/benchmarks/workflow_limits.js": "497f2567d527478d8e2be42dcbd2b7c400a7fba2b30d318fca378f4942a97f8f",
+    "tests/unit/workflow_isolation.test.js": "1be004d1c41ca8994fc7293ce2bd96c34ca7568fcfcc96be1478fbd1795e5f01"
+  },
+  "prior_single_turn_record": {
+    "path": "docs/benchmarks/isolated-single-turn-calibration-20261107.json",
+    "sha256": "9f88d70d884b51b511d0c5492a8d7738b6a883d8902082fed0fdafe87e5a7bef"
+  },
+  "positive_controls": [
+    {
+      "mission": "B01",
+      "variant": "positive",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\0776e814-f1f4-4339-b244-f5917937b762",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\0776e814-f1f4-4339-b244-f5917937b762\\trials\\0776e814-f1f4-4339-b244-f5917937b762.json",
+      "score_sha256": "f97cadb5fb521e23a52914ae9f3adffe5ce7d72662b51928b86cb394f6c69174",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "6690618b433fb863ed0a54bb268bd08b2cb6586041ece40854e55d4d8687032c",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "target_update": "passed",
+        "other_records_preserved": "passed",
+        "one_update": "passed",
+        "no_publication": "passed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-3df081e3-5cd7-4bf9-85ab-d255d0be431a.json",
+      "lifecycle_sha256": "0c8c31f76b7ecf3e09b04abdd0ed4e79ae687357123a4fa66d45982da196234f",
+      "result_sha256": "074d51e4f45b8d6fe6247acd3eb9948a147d251a32a27c47b8034246bd5d3f62",
+      "artifact_export_sha256": "880924364dd100bae3700e5a1dc198204d75396b033649f125ffc2016dfbb66d",
+      "trace_sha256": "fb7ba0e9f83deda946f3ba9629e54d0bb8d0c1428ae774134e4a0ff277542e7e",
+      "provider_ledger_sha256": "23b31cb282a7cb381b67ce9688e513b676fb1b11c741ea24dad4b7eb0231126c",
+      "workflow_ledger_sha256": "d7bb589c7da3b86f94dbedf3e99a136b7b3f901196b11190ef1ef677573b4322",
+      "assessment_sha256": "e2f9e794c3b80ec86cab2ab203b490cccaeda77b054bdd5072ab73c30f30f278",
+      "provider_requests": 2,
+      "synthetic_reported_tokens": 20,
+      "root_runs": 1,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "B02",
+      "variant": "positive",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\744fc69d-1262-4d74-bfab-5233d94d25d4",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\744fc69d-1262-4d74-bfab-5233d94d25d4\\trials\\744fc69d-1262-4d74-bfab-5233d94d25d4.json",
+      "score_sha256": "af5d470003236c71e0bb82dbfdd356f13078d32d13bbf0350b4a48685438760c",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "6690618b433fb863ed0a54bb268bd08b2cb6586041ece40854e55d4d8687032c",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "csv_rows": "passed",
+        "summary": "passed",
+        "download_bytes": "passed",
+        "browser_download": "passed",
+        "records_preserved": "passed",
+        "inputs_unchanged": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-98e57bd0-24da-4dc8-95a6-82e030df5a89.json",
+      "lifecycle_sha256": "58aae327d3c4e003fea8652724c20a421a5c996c91177acd828530bbbe409a76",
+      "result_sha256": "770f6091e97a3a430e8cd99288d1db1b91a836d56aa8559148ac8092d70d251d",
+      "artifact_export_sha256": "b18b4f452d331871a88198f65eebb37bb2b8ebdd95b418feb17ea7da5d82691f",
+      "trace_sha256": "58f7d2ba8a3785eaf6d2fc62b37ec960b34ebc8ecc1d014b7f2601571ae2ba5b",
+      "provider_ledger_sha256": "31e7baeef2fc305e9181de610a245141b466c4b0898142668a1229037842b2ae",
+      "workflow_ledger_sha256": "b2533e65331b3083b78a06db3cf7ed5d6f34f860fea16c93462db1d510fb3756",
+      "assessment_sha256": "799a31d3d4d24dfee1d793671576a7db13293f04c49686dc520c3edbca796ca0",
+      "provider_requests": 3,
+      "synthetic_reported_tokens": 30,
+      "root_runs": 1,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "B03",
+      "variant": "positive",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\00310d73-eade-45bc-854b-30b8c64e10b3",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\00310d73-eade-45bc-854b-30b8c64e10b3\\trials\\00310d73-eade-45bc-854b-30b8c64e10b3.json",
+      "score_sha256": "26a8c3b9ef0ab4acb1d335714b1977c146bd6721fe185586e6cb897a2e8bd20d",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "6690618b433fb863ed0a54bb268bd08b2cb6586041ece40854e55d4d8687032c",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "initial_draft": "passed",
+        "correction_before_submit": "passed",
+        "revised_submission": "passed",
+        "exactly_once": "passed",
+        "other_records_preserved": "passed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-691b5d93-22ae-4eb4-9556-3f2154aaf23c.json",
+      "lifecycle_sha256": "93f5a092bf8d348f42a68ab53071026ff2eedb8cbe4aa262c3183351093818c8",
+      "result_sha256": "a9a6c0f5f037cd187105457b9534c262485a7e4820e8e3e7cc20c03d4e6622e2",
+      "artifact_export_sha256": "5041768ec20eab0a9a368b855ee9c6396bb6493d6f39b6150db935cce2fc123d",
+      "trace_sha256": "2c62f62a35df9e5c2d1da7a5d4065301e9803235580b11d4fa4c80460920fb8c",
+      "provider_ledger_sha256": "896835f63eee031d74259b64284f090e76f3ad7d7ded529067273cf4b62c0752",
+      "workflow_ledger_sha256": "c00c150809a49c5bf25f6946098b99c78e6e4cc66c0f31a27a6c6e11989389b5",
+      "assessment_sha256": "9c7ba3733ef8a1b4f8e27bbbe8803e7df364e26d60100086580045ebe931fea2",
+      "provider_requests": 4,
+      "synthetic_reported_tokens": 40,
+      "root_runs": 2,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "M01",
+      "variant": "positive",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\d02834e3-9856-4ce8-a2e4-0908a18343fc",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\d02834e3-9856-4ce8-a2e4-0908a18343fc\\trials\\d02834e3-9856-4ce8-a2e4-0908a18343fc.json",
+      "score_sha256": "9d79b80961ab11b1eb4ade9bf6e6e4d545c8d17187571b097e9842eab4a75892",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "a88e9f2abdbeff9dd59fa4ee001c40fb1e0a96d8ca7e9d8808478b43bdda5c42",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "latest_requirements": "passed",
+        "retained_constraints": "passed",
+        "no_superseded_values": "passed",
+        "inputs_unchanged": "passed",
+        "compaction_exercised": "passed",
+        "originals_retained": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-073bb4ec-2b73-4c98-a2e9-19781871e641.json",
+      "lifecycle_sha256": "9c9638d8d4b56fc48354ef480817c2f6709a61dfc1ed40d9d45a938f65c3ab27",
+      "result_sha256": "775d0af8b84912226d7cd2081c7208c0ea87c6fe85d2aa3df1a3b2aade0b9476",
+      "artifact_export_sha256": "4615b80a8316b8b4eb15fc20ca0e24ce823e47e4bf6c1f80763313a834b37f3d",
+      "trace_sha256": "c170bfd5e7023f6c02836064d9d73e46081250f83a6d190fb50327662c1b2a0b",
+      "provider_ledger_sha256": "c97bde743642cb4dcac5110ee6c0bcb7f45319057bb4a8027ea0eda1310fb22f",
+      "workflow_ledger_sha256": "ea6bf78a6f5b502c4457ece4976621855cb0c33d9340607e097ef39d05ca264c",
+      "assessment_sha256": "731e0d4a8f9d427e521e318f2019a06753af7ae8dc629e33ae3e9be8d37a56b7",
+      "provider_requests": 5,
+      "synthetic_reported_tokens": 50,
+      "root_runs": 3,
+      "workflow_evidence": {
+        "browser_observed": false,
+        "compaction": {
+          "kind": "continuity",
+          "original_count": 10,
+          "originals_retained": true,
+          "compaction_exercised": true,
+          "receipts": [
+            [
+              94,
+              "[\"4a398272-d6e3-4bb2-a842-ff651e56b58b\",\"595bcae7-6133-40c4-90f9-5639a4ee5bf7\",\"07516ab5-c18d-4f7e-adc4-61fe1a2c9965\",\"20aaf1d7-978f-4fd7-88b8-b2a420c1c991\",\"40fbe938-8fea-4342-9e88-296108f422e9\",\"090e2d10-0683-4014-8eca-505ecdcb939b\",\"78b0534b-df71-41f0-8ee3-06c31193d56e\",\"e6df23af-52af-4f7a-8e74-b4f0964de076\",\"bdafc643-b665-448f-81d7-8f8752282143\",\"6c4553be-3c83-4555-95b4-340fd1bfd8bc\",\"4c9dbb6c-71dc-4921-949c-a2c5a137e778\",\"10a30412-f0b8-46b3-9886-ed86095127e1\",\"3d66f3b9-cf6d-4a7a-862f-0b3eee209237\",\"9982ff8f-a92b-44c3-a36c-5eb58b04b6f8\",\"2e1c5615-835b-4c56-80ca-66d761273085\",\"fa6cdaee-85d9-4c5b-8ff7-36025d2c83b0\",\"a99401b1-e690-418d-91c3-44148a473a60\",\"3ad99359-8942-46f8-9a2d-0632c1aa4289\",\"77208018-3ff2-4a84-930d-5bfc007c6aac\",\"1b73ca4a-b467-4b96-8afe-5f12cfb3bd68\",\"1dfd3fde-d6dd-4b6f-bede-9192b3cf9332\",\"0bca228a-83fd-4a28-bf2f-f50882717afb\"]",
+              3,
+              488298,
+              128696
+            ]
+          ]
+        },
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "bc9f67cf5bcbec41c529f6b12a846cc4cb2f8b549905dd9a592a7e16e557a777",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "M02",
+      "variant": "positive",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\9156914a-9c70-4070-93cd-677d62b96ad0",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\9156914a-9c70-4070-93cd-677d62b96ad0\\trials\\9156914a-9c70-4070-93cd-677d62b96ad0.json",
+      "score_sha256": "02918bb9cdd77f758c1a2fe40ee5caac7b65081498201d8dc350af7c14db0547",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "6690618b433fb863ed0a54bb268bd08b2cb6586041ece40854e55d4d8687032c",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "passed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "committed_checkpoint": "passed",
+        "real_restart": "passed",
+        "original_event_preserved": "passed",
+        "exactly_one_note": "passed",
+        "exactly_one_later_status": "passed",
+        "final_state": "passed",
+        "no_other_mutations": "passed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-5c022933-c135-40a4-9ad1-bc0d293bf7f3.json",
+      "lifecycle_sha256": "73cb87368abe84bff169b59ef9318a1e0e29745933276e172a0ba2454e570991",
+      "result_sha256": "ec375cb46581d86b8f2378fa065dc9abbb1b981681b285801446e3ed9b59ac27",
+      "artifact_export_sha256": "6b22f0ba407343ea7ff31356be8c02029538c289826e130dffd84ff4fcc222fe",
+      "trace_sha256": "aa1c10d27f254a4c3c689aaa7878ed8ffc2e2685cb5ad35d041790e7b9e8f852",
+      "provider_ledger_sha256": "91d69bb87074c1e4c7705f5101d4504a2d2a2bba2cff55cd7c3fe7c3de4c13dc",
+      "workflow_ledger_sha256": "c189fd72ba7615cfb4c9694ad90fbcdecee27ffd7aeddb221b54dbf94bd51812",
+      "assessment_sha256": "7776d89828f2156831babc2c44b06bf361ae79132032d667cc833c9b0285b42b",
+      "provider_requests": 4,
+      "synthetic_reported_tokens": 40,
+      "root_runs": 2,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": {
+          "kind": "restart",
+          "real_restart": true,
+          "confirmed_phase": true,
+          "checkpoint": {
+            "source": "controller-observed-commit",
+            "note_event_id": "39277f65-ab49-4519-9c2a-a79df88f1942",
+            "seq": 1
+          }
+        }
+      },
+      "restart": {
+        "old_process": {
+          "started_utc": "2026-11-07T13:54:38.4576066Z",
+          "pid": 5656
+        },
+        "new_process": {
+          "started_utc": "2026-11-07T13:54:51.4892354Z",
+          "pid": 7816
+        },
+        "old_process_gone": true,
+        "remaining_limits": {
+          "max_requests": 22,
+          "max_tokens": 999980,
+          "max_in_flight": 1,
+          "max_output_tokens": 8192,
+          "max_directives": 43,
+          "wall_time_ms": 590791
+        },
+        "phase_usage": {
+          "requests": 2,
+          "unknown_requests": 0,
+          "known_tokens": 20,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "reasoning_tokens": 0,
+          "cached_tokens": 0,
+          "provider_credits": null,
+          "unit_kind": "tokens_not_provider_credits",
+          "requests_by_role": {
+            "master": 2
+          },
+          "requests_by_provider": {
+            "http://127.0.0.1:19221": 2
+          },
+          "requests_by_connection": {
+            "abacus": 2
+          }
+        },
+        "elapsed_ms": 9209
+      },
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    }
+  ],
+  "expected_failure_controls": [
+    {
+      "mission": "M02",
+      "variant": "invalid-output",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\1b9ad42c-86fb-4d20-aebd-716a0942cec6",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\1b9ad42c-86fb-4d20-aebd-716a0942cec6\\trials\\1b9ad42c-86fb-4d20-aebd-716a0942cec6.json",
+      "score_sha256": "87cf5e534fbef7b2bf951f574fadf889663b0dcaf94894b59db0f347a5fc7fab",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "97c2ce0360ca1dcfa9c25bf27560d3f3d0dff6dd45869e4ca519572cdb6181fc",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "committed_checkpoint": "passed",
+        "real_restart": "passed",
+        "original_event_preserved": "passed",
+        "exactly_one_note": "passed",
+        "exactly_one_later_status": "failed",
+        "final_state": "failed",
+        "no_other_mutations": "failed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-5a16937d-c24b-48b6-8af1-2a5991ef0d21.json",
+      "lifecycle_sha256": "699ecb04bd83d51fad92e7db19df2a319d4a95a1cc3809532cfe743060e6d479",
+      "result_sha256": "afba7829cd4c8b1ab9287c364cdea0a85e2df092d795710425bd0dd4443d07aa",
+      "artifact_export_sha256": "df1d73fb5eddf1a4b52f39c533dd8a7d480c20f73d2f5ae7861dd31d50b34f18",
+      "trace_sha256": "079babe348b53e52e35cce43b3d8ed7e0bffac93f61824e8c406ed8623898a38",
+      "provider_ledger_sha256": "d4ed13a4690044bcf88a2a967ba08aa04fe205faee2520e4e9b5d5c7a74c16a6",
+      "workflow_ledger_sha256": "89a8c9e3f4624897830860773610049f23892cd829c3ec1409dd8cd4a4604159",
+      "assessment_sha256": "92948e33058d3acfff401f8491f485ead072a15935cd4d5264d3875b3d518cc2",
+      "provider_requests": 4,
+      "synthetic_reported_tokens": 40,
+      "root_runs": 2,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": {
+          "kind": "restart",
+          "real_restart": true,
+          "confirmed_phase": true,
+          "checkpoint": {
+            "source": "controller-observed-commit",
+            "note_event_id": "d8b4dd7c-feb3-454a-9078-9dfbb72b1baa",
+            "seq": 1
+          }
+        }
+      },
+      "restart": {
+        "old_process": {
+          "started_utc": "2026-11-07T13:59:49.1874913Z",
+          "pid": 5528
+        },
+        "new_process": {
+          "started_utc": "2026-11-07T14:00:03.1014090Z",
+          "pid": 7900
+        },
+        "old_process_gone": true,
+        "remaining_limits": {
+          "max_requests": 22,
+          "max_tokens": 999980,
+          "max_in_flight": 1,
+          "max_output_tokens": 8192,
+          "max_directives": 43,
+          "wall_time_ms": 591218
+        },
+        "phase_usage": {
+          "requests": 2,
+          "unknown_requests": 0,
+          "known_tokens": 20,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "reasoning_tokens": 0,
+          "cached_tokens": 0,
+          "provider_credits": null,
+          "unit_kind": "tokens_not_provider_credits",
+          "requests_by_role": {
+            "master": 2
+          },
+          "requests_by_provider": {
+            "http://127.0.0.1:19221": 2
+          },
+          "requests_by_connection": {
+            "abacus": 2
+          }
+        },
+        "elapsed_ms": 8782
+      },
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "B01",
+      "variant": "invalid-output",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\37614d01-d299-4361-9c8e-5fc1966a5d34",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\37614d01-d299-4361-9c8e-5fc1966a5d34\\trials\\37614d01-d299-4361-9c8e-5fc1966a5d34.json",
+      "score_sha256": "4a1a37f52ddaaddc875d6475789c1a9314b02e732fe9aaae2da1f3bb5729318e",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "97c2ce0360ca1dcfa9c25bf27560d3f3d0dff6dd45869e4ca519572cdb6181fc",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "target_update": "failed",
+        "other_records_preserved": "passed",
+        "one_update": "passed",
+        "no_publication": "passed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-8e617673-34bd-4cbf-b8ca-0d0109c937fa.json",
+      "lifecycle_sha256": "66a27a5db5e1dacf6c399092f7efd4b1db031884c774680a2933307592ee3158",
+      "result_sha256": "7851afd63ff78b05c7f8d1d8b912cdbd0b303268c7b1a1c9fe5bf34acaaeb8f7",
+      "artifact_export_sha256": "9af6b93902c6b528668bd62ee75bfcc5ce1b0aa6bee703ec33f85be105be8e91",
+      "trace_sha256": "ac10812bd054092c708fb9d3c07cbb6ce3fa99bfc0d87dbaf943e963950e60b2",
+      "provider_ledger_sha256": "29c94ea378ec968c2eed717a7f126b0683f4a18e1117e5ab29594a511b529727",
+      "workflow_ledger_sha256": "9b8cf81800ab3017a82df7d991f903d5dc699c7877dd8633e3692302ffc02e0c",
+      "assessment_sha256": "b4426496564afca02030e866ebbc72fb7c12a12ef6836cf6c28706979d904372",
+      "provider_requests": 2,
+      "synthetic_reported_tokens": 20,
+      "root_runs": 1,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "B03",
+      "variant": "invalid-output",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\3ce23d26-69a9-4efc-99c0-16e604ce8a5a",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\3ce23d26-69a9-4efc-99c0-16e604ce8a5a\\trials\\3ce23d26-69a9-4efc-99c0-16e604ce8a5a.json",
+      "score_sha256": "4a3475011adfb52fd26c55892fa66f0ab422cc6b831c3f54dfd2256839d5af1b",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "97c2ce0360ca1dcfa9c25bf27560d3f3d0dff6dd45869e4ca519572cdb6181fc",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "initial_draft": "passed",
+        "correction_before_submit": "passed",
+        "revised_submission": "failed",
+        "exactly_once": "passed",
+        "other_records_preserved": "passed",
+        "browser_interaction": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-374ede3e-38e5-45cc-a47a-3a949b0cd36d.json",
+      "lifecycle_sha256": "eb3ae289db2568a7192874c9e596e118e3cc5900da900ae66d4ce546547dca9f",
+      "result_sha256": "101f69bda416d31ded59db37476fb8354e6005a2c622f6369fa9a45a7f5c849c",
+      "artifact_export_sha256": "a93f232f38348f9d3c61d11537a560d25818beca612ed5bbf686527e1da05a90",
+      "trace_sha256": "37fe19228a44eecae59f51b88d27a2f839a58a1fe4b02013ca26a275fabeacc2",
+      "provider_ledger_sha256": "85bcfd04bc8558a2d334a92eeca775f5f3d1bac672e7f430291b742ca76b451e",
+      "workflow_ledger_sha256": "91ae5d8b610d10176c2222c705d87616c9dfbe978767946a302d9850ad2051e0",
+      "assessment_sha256": "61eb0ae16ab4d9f1a137074d00c2c6e97c5d86ccbb1df096594c4c0bf5210419",
+      "provider_requests": 4,
+      "synthetic_reported_tokens": 40,
+      "root_runs": 2,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "B02",
+      "variant": "invalid-output",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\f36c6309-9ec7-45d9-9268-448ec6ab0b19",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\f36c6309-9ec7-45d9-9268-448ec6ab0b19\\trials\\f36c6309-9ec7-45d9-9268-448ec6ab0b19.json",
+      "score_sha256": "fa110075b2f597ad7d45e37f306d32b33c1c081f98e56c50ff33aa9c9935e85d",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "97c2ce0360ca1dcfa9c25bf27560d3f3d0dff6dd45869e4ca519572cdb6181fc",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "csv_rows": "passed",
+        "summary": "failed",
+        "download_bytes": "passed",
+        "browser_download": "passed",
+        "records_preserved": "passed",
+        "inputs_unchanged": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-e21ecffd-8531-467f-be95-793da5020bd6.json",
+      "lifecycle_sha256": "399bf00a87c067d562aa759cb6aebc7e0e6c37ca05cd547244de33b06339a05a",
+      "result_sha256": "ee47d130af9370f98bd21c003931bc988d0341f8adb0987b7414b94951115095",
+      "artifact_export_sha256": "4217dc32310e61567277997a53de7c5e1507ec80fc8270b81fb17ff01df51c3d",
+      "trace_sha256": "96ceead2c443673cbe9e919ee7d1d134e9bdbc349a5f4b7112412d86e75d2711",
+      "provider_ledger_sha256": "6d5578785528441cbcf2ec089d70c461bd155f630e26088463af7f1932c23603",
+      "workflow_ledger_sha256": "72c4f01b109652a25de1678394914b3598f05bc7941e9c30e370aea9011790ae",
+      "assessment_sha256": "4f98874313cbac69f5c56e8d9e55c5f9a9fbf6207ab96b77116af86ade6d3229",
+      "provider_requests": 3,
+      "synthetic_reported_tokens": 30,
+      "root_runs": 1,
+      "workflow_evidence": {
+        "browser_observed": true,
+        "compaction": null,
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    },
+    {
+      "mission": "M01",
+      "variant": "invalid-output",
+      "session": ".zeus\\evaluations\\sandbox-sessions\\f91e74e2-6363-4eac-86b6-6a0a1a688be6",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\f91e74e2-6363-4eac-86b6-6a0a1a688be6\\trials\\f91e74e2-6363-4eac-86b6-6a0a1a688be6.json",
+      "score_sha256": "72f7efb6a19f2d61a91d11e37e516480d399f23be8da3ab3ec3495295bf6a004",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "97c2ce0360ca1dcfa9c25bf27560d3f3d0dff6dd45869e4ca519572cdb6181fc",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "authorization_status": "not_evaluated",
+      "criteria": {
+        "latest_requirements": "failed",
+        "retained_constraints": "passed",
+        "no_superseded_values": "failed",
+        "inputs_unchanged": "passed",
+        "compaction_exercised": "passed",
+        "originals_retained": "passed"
+      },
+      "checks": {
+        "different_computer": true,
+        "input_read": true,
+        "input_read_only": true,
+        "host_private_unavailable": true,
+        "network_disabled": true,
+        "writable_output": true,
+        "fresh_guest_disk": true,
+        "authenticated_controller": true,
+        "protected_mission": true,
+        "host_mission_transport": true
+      },
+      "lifecycle_receipt": "host-lifecycle-fe0989ed-f437-4aee-a786-9bfe127f6ff0.json",
+      "lifecycle_sha256": "5d083fe4fd6a7fd290b7098f5773e45409c93a18c5ce53d5e3019674b23345a9",
+      "result_sha256": "116f5a925780a722af4ff50347c243ff39293672531c21610ea3d0ab502ffe0b",
+      "artifact_export_sha256": "948a6add43cfde2268748402c0e0ed575fbf66b07c458cd526fd675c93e33a64",
+      "trace_sha256": "07bf301c988efe6c1e61921b0d164b106ec862c22dce9ff0514021a4f5244ac6",
+      "provider_ledger_sha256": "14fa975b25f14ebd114f2c5fc23bed950110b1a0beb108547de7de0c5d13627a",
+      "workflow_ledger_sha256": "007c981f9f4dd8af88aa78d5a97d700ac13f81e5017a0c85f6801035d1e3ef6d",
+      "assessment_sha256": "b0333dfd17e66a5588fe4df9aa45f3f6fec6b7026f0c7d8449a1aecaf2cc45b9",
+      "provider_requests": 6,
+      "synthetic_reported_tokens": 60,
+      "root_runs": 3,
+      "workflow_evidence": {
+        "browser_observed": false,
+        "compaction": {
+          "kind": "continuity",
+          "original_count": 10,
+          "originals_retained": true,
+          "compaction_exercised": true,
+          "receipts": [
+            [
+              94,
+              "[\"7c8d7347-a3b6-42de-9205-86a9e34c1f0b\",\"93d95e63-7da3-477d-b4d6-1a1b6fa8e086\",\"29c716f9-bf04-4041-a325-f95621f32546\",\"32aa3d92-767f-4c5d-89b6-f6fa97e4a98b\",\"f0c3cdfa-e3e7-41d5-bd1d-6d68cf738a88\",\"74a9e179-b724-489d-b302-4ec19fe6f712\",\"d04d33d3-bc0b-4e7a-b549-697baf0fd1b2\",\"b69ab1d8-a4de-4f04-aeea-b1fd183028b0\",\"99adff48-16e0-4d3f-a145-628964ed82d4\",\"4416c0d5-15ce-476e-81d8-14c52b6dfc78\",\"9aaee89a-befe-4fe0-a8b0-f8cf7cc7763a\",\"ccf51b0b-5dcc-4c17-8231-53a98f58c4da\",\"61ab6160-a9ec-4d0a-a177-988ec36cb390\",\"91bda50a-99f4-4d02-8505-1789bca4f11a\",\"a25b92ef-419b-4e4c-a8f7-7faabc9919f5\",\"64313a09-129f-4a00-9f3a-1501ef664db6\",\"d39e1fa6-7d15-4a45-aa9c-4741dbfb1044\",\"4096b749-c7b7-4aa5-99a5-c2f20ba16fa2\",\"7c9618b4-8b00-4ba6-845f-e2769b3fe6fa\",\"068b0e7a-7557-4de3-a08c-b9517d91c724\",\"4875789b-d72c-4ddb-9d44-5e5cdc085fc4\",\"ab7a9da7-516b-4a8f-9568-e5db34cdcc6c\"]",
+              3,
+              488298,
+              128696
+            ]
+          ]
+        },
+        "restart": null
+      },
+      "restart": null,
+      "runtime_bundle": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860",
+      "hosted_inference_requests": 0,
+      "isolation_validated": false
+    }
+  ],
+  "retained_development_failures": [
+    {
+      "session": ".zeus\\evaluations\\sandbox-sessions\\4f228aa3-41da-4c01-86d4-cd58d550ecbd",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\4f228aa3-41da-4c01-86d4-cd58d550ecbd\\trials\\4f228aa3-41da-4c01-86d4-cd58d550ecbd.json",
+      "score_sha256": "3a2c5d53ce014e18c7314fc4524dab2357939d8a12fceae05ce2da8ffba060fb",
+      "result_sha256": "8e74cee0b3a5f403bbff91ae64824c22a1bfb0792e0e5eb8ea29c66fad453a42",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "daab0167aececacbabb3efd2c48e2e168f7b199822e100d1cfc91c1624589562",
+        "node": "v22.13.1"
+      },
+      "execution_status": "infrastructure_error",
+      "outcome_status": "not_evaluated",
+      "signed_status": "failed",
+      "actor_status": "succeeded",
+      "stop_error": "Owned guest launcher did not exit",
+      "cleanup": {
+        "candidate_sid": "S-1-5-21-2047949552-857980807-821054962-1000",
+        "killed": [],
+        "remaining": 0,
+        "account_disabled": true
+      },
+      "provider_ledger_sha256": "0d5d1dc8eb983a6b6549cfb3c3825665d860ce0263bb8b25265df905d2fd8e66",
+      "hosted_inference_requests": 0
+    },
+    {
+      "session": ".zeus\\evaluations\\sandbox-sessions\\a1c233db-2d05-4d84-a74f-08c7cb372cea",
+      "score_file": ".zeus\\evaluations\\isolated-missions\\a1c233db-2d05-4d84-a74f-08c7cb372cea\\trials\\a1c233db-2d05-4d84-a74f-08c7cb372cea.json",
+      "score_sha256": "c5598cff2137a89c40b487e0f6921a47bb774af877f4dd04995024676d2e52e3",
+      "result_sha256": "0650d77a7e341be09a622e7363c7c72fe99038d2c533097a4852365a456f6956",
+      "source": {
+        "source_commit": "167424c05e4d27018f43727064de395d37f808c6",
+        "dirty": true,
+        "diff_hash": "a88e9f2abdbeff9dd59fa4ee001c40fb1e0a96d8ca7e9d8808478b43bdda5c42",
+        "node": "v22.13.1"
+      },
+      "execution_status": "succeeded",
+      "outcome_status": "failed",
+      "signed_status": "completed",
+      "actor_status": "succeeded",
+      "stop_error": null,
+      "cleanup": {
+        "candidate_sid": "S-1-5-21-2047949552-857980807-821054962-1000",
+        "killed": [],
+        "remaining": 0,
+        "account_disabled": true
+      },
+      "provider_ledger_sha256": "eadb6768486a3e05e43a32b5098646ddcaa4525d50deed835d04f98d4d1e77b1",
+      "hosted_inference_requests": 0
+    }
+  ],
+  "audio_race": {
+    "before_fix_log": ".zeus/evaluations/audio-race-before-fix.log",
+    "before_fix_sha256": "811db2702e27cff733b86616d1e3de0615c57c351f1f91c00605dadc2c146ee2",
+    "original_generic_failure_cause_confirmed": false,
+    "repaired_condition": "A tab closes between enumeration and mute setup; all other audio policy errors remain blocking",
+    "runtime": ".zeus\\evaluations\\sandbox-runtime\\bundle-08d4f508-0118-4911-be10-6478abc5ea5a",
+    "bundle_sha256": "32f39204521d78f6fc00eae3d511a5975ecdcbea21641606f28ebec130336bd2",
+    "content_sha256": "b1468f4d32e7420ffd286703b04f49fb69f199b38996df75b0c916889759f860"
+  },
+  "regression": {
+    "receipt": ".zeus\\evaluations\\regression-receipts\\08abdb2e-d563-4ff4-a0fb-842b387e2613.json",
+    "sha256": "b312b2b55cfef168fad987ff3ec16441a1fbcd7ff7e20f1b8b79fd732801ae60",
+    "javascript": 128,
+    "graders": 70,
+    "rust": 126,
+    "browser_service": 25,
+    "desktop": 124,
+    "private_handoff": 3,
+    "total": 476,
+    "final_unit_receipt": ".zeus/evaluations/regression-receipts/8463aaba-3c6f-4470-bc20-b0af2cf44762.json",
+    "final_unit_sha256": "c28c63237445e1d5103c048d7edf4d262de88fc2adb837ee9636f238157ae953",
+    "final_unit_checks": 129,
+    "distinct_checks": 477
+  },
+  "hosted_inference_requests": 0,
+  "isolation_validated": false,
+  "limitations": [
+    "Controls are scripted runtime calibration, not model intelligence or active Team collaboration.",
+    "Positive controls span declared source/runtime checkpoints; they are not one frozen capability study.",
+    "M02 covers restart after a confirmed commit, not arbitrary mid-command crashes or lost acknowledgments.",
+    "Independent HCS disposal, CPU/writable-map disk quotas and full hosted/policy acceptance remain outstanding."
+  ]
+}

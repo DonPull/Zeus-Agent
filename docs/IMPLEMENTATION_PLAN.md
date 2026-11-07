@@ -56,11 +56,16 @@ host provider ledger, signed artifact/trace collection and independent grading.
 All seven single-turn positive controls passed; a deliberately wrong output
 correctly failed. Four executable submissions were graded in separate fresh
 guests; no exported program/HTML ran on the host. Hosted calls remain zero.
-Browser/multi-turn isolated workflow integration,
-remaining lifecycle/resource validation and repeated live measurements remain
-incomplete. No full baseline is claimed yet.
-Current combined coverage is **468 distinct checks**, from the preceding full
-458-check run and final 122-unit/70-grader validation, plus actual Sandbox probes;
+The remaining five browser/multi-turn workflows are now integrated: host-owned
+fixture state, signed external correction/restart checkpoints, actual downloads,
+forced compaction and an app restart with reduced remaining budgets. All twelve
+have positive scripted controls; all five new workflows also reject their
+deliberately wrong outcomes. A reproduced closed-tab audio-policy race is repaired, with original
+failures retained. Hosted integration/policy, remaining lifecycle/resource gates
+and repeated live measurements remain incomplete. No full baseline is claimed yet.
+Current full regression coverage is **476 checks**, from the latest 128-unit,
+70-grader, 126-Rust, 25-browser-service, 124-desktop and three private-handoff run,
+plus the final 129-unit trace-boundary check (**477 distinct checks**) and actual Sandbox probes;
 the full-v1 work log records the receipts.
 The matched sample used more requests and reported tokens than the pre-Phase-4
 reference, with more duplicate-directive rejections; context/protocol efficiency

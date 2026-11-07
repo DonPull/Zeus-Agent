@@ -35,7 +35,14 @@ globalThis.setAudio = async allow => {
     await chrome.contentSettings.sound.clear({});
     await chrome.contentSettings.sound.set({primaryPattern:'<all_urls>',setting:allow?'allow':'block'});
     const tabs = await chrome.tabs.query({});
-    await Promise.all(tabs.map(tab=>chrome.tabs.update(tab.id,{muted:!allow})));
+    await Promise.all(tabs.map(async tab => {
+        try { await chrome.tabs.update(tab.id,{muted:!allow}); }
+        catch (error) {
+            // Tabs can close after query(). Global sound policy already covers
+            // new tabs; a vanished tab has no sound left to control.
+            if (!/^No tab with id: \d+\.?$/.test(String(error?.message ?? error))) throw error;
+        }
+    }));
     return chrome.contentSettings.sound.get({primaryUrl:'https://zeus.invalid/'});
 };
 chrome.tabs.onCreated.addListener(async tab => {
@@ -343,8 +350,8 @@ class Service:
         try:
             result=await asyncio.wait_for(self.audio_worker.evaluate('(allow)=>setAudio(allow)',allow),3)
             if result.get('setting') != ('allow' if allow else 'block'):raise ValueError('Policy mismatch')
-        except Exception:
-            fail('BROWSER_AUDIO_UNAVAILABLE','Could not confirm browser sound policy')
+        except Exception as error:
+            fail('BROWSER_AUDIO_UNAVAILABLE',f'Could not confirm browser sound policy ({type(error).__name__}: {str(error)[:600]})')
 
     def download_started(self, download):
         if len(self.transfers)>=64:

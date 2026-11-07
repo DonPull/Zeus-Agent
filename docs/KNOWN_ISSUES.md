@@ -270,6 +270,25 @@ process handle, without using that adapted property. Running status and exits
 and verified cleanup. This repairs the observed defect. The older failed run
 still cannot be conclusively attributed to it because its output was not retained.
 
+## ZA-015 — Intermittent browser audio startup confirmation
+
+**Status: a reproduced closed-tab race is repaired; the original generic failure's exact cause remains unconfirmed.**
+
+Isolated B02 attempt `a1c233db-2d05-4d84-a74f-08c7cb372cea` failed before
+navigation with `BROWSER_AUDIO_UNAVAILABLE: Could not confirm browser sound policy`.
+Its missing CSV correctly failed independent grading. A separate unchanged-source
+attempt `b5046526-9468-41f3-af79-6d8c3c28ddf8` passed; both remain retained.
+
+A real-browser regression then reproduced the same error category by closing a
+tab between enumeration and `chrome.tabs.update`. Its definitive pre-repair trace
+is `.zeus/evaluations/audio-race-before-fix.log`. Ignore only that native
+`No tab with id` response for a vanished tab. Keep the browser-wide sound policy,
+the same confirmation deadline and blocking behavior for every other error.
+Bounded exception details now accompany failures to distinguish future causes.
+Both the closed-tab case and a genuine policy rejection have regression coverage.
+Full receipt `08abdb2e-d563-4ff4-a0fb-842b387e2613.json` passed 476 checks.
+The earlier generic message cannot prove that its cause was this particular race.
+
 ## Chat/replay usability follow-up — 2026-11-01
 
 The user's next manual review identified replay seek flashes and delayed highlighting, gaps during playback, accumulated playback delays, scrolling modal headers, hidden expanded-draft images, permanent prompt truncation in titles, and a completed plan displayed at 0%. These are addressed in the [chat workflow follow-up](CHAT_WORKFLOW_REFINEMENT.md), with explicit decisions and regression coverage. The plan failure was `[Done]` being parsed as pending; it is not evidence that semantic goal verification is solved. Playback rate remains limited by actual image validation/decoding/rendering. General task-state reliability, arbitrary-site recovery and broader UI polish remain tracked work.

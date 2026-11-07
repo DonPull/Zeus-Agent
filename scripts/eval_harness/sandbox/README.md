@@ -269,7 +269,7 @@ PowerShell exit-code properties; running status and actual exit 259 are distinct
 `node scripts/eval_harness/run_isolated_mission.js --mission D01 --runtime-bundle <owned-bundle-directory>`
 prepares a public input/config packet, private controller replies and owned
 Sandbox session. It opens nothing. Add `--run` to launch the guest explicitly.
-Supported single-turn controls are C01, C02, C03, D01, D02, R01 and V01;
+All twelve core mission controls are supported, including B01/B02/B03/M01/M02;
 `--control invalid-output` deliberately supplies a wrong submission.
 `--mission C01,C02,D01` runs an explicit list sequentially, stopping on an
 infrastructure error and retaining each earlier result. It never retries a run.
@@ -290,9 +290,33 @@ separate retained records under `.zeus/evaluations/isolated-missions/<session-id
 Each record is `scripted_runtime`, with synthetic usage, zero hosted calls and
 partial authorization coverage. This runner does not certify model capability.
 
+Browser fixture state remains in the host broker. A fixed guest loopback proxy
+forwards only declared fixture routes; no arbitrary destination or header is
+available. The private controller gathers actual observation/action/transfer
+records through production ownership-checked readers. The host translates only
+the fixed proxy origin to its own fixture origin, preserving request body and
+download hashes, then uses the existing independent graders. Backend HTTP state
+without separate browser evidence cannot pass those interaction criteria.
+
+Correction and restart checkpoints use a separate signed controller RPC channel.
+The host-pinned key, job/nonce/packet identity and once-only phase checks prevent
+ordinary fixture requests or actor JSON from creating these checkpoints. M01
+adds bounded untrusted reference noise through a guest-only controller and checks
+real compaction receipts plus original-message hashes. M02 stops the actual app,
+verifies exit using its owned process identity, reopens the same workspace and
+carries remaining requests/tokens/directives/time forward. It tests restart after
+a confirmed commit, not arbitrary mid-command crashes or lost acknowledgments.
+
+Scripted browser permissions approve only the exact declared action content,
+language and timeout, through normal cards. These calibration hashes are not a
+live-model permission policy. The shared child lifecycle reader uses actual close
+events, including signaled exits with a null `exitCode`. Diagnostics can still be
+exported after an infrastructure error when final account/process cleanup is
+verified; a failed collector never becomes a passed mission through that export.
+
 Ordinary probes keep their 180-second maximum. These declared mission controls
 have a 600-second task limit and a separate 780-second controller ceiling for
 startup, collection and cleanup. Existing per-file/aggregate exchange and export
 bounds remain enforced. Independent HCS disposal, CPU and writable-mapping disk
 quotas remain unvalidated; `isolation_validated` stays false. The candidate core
-live planner remains gated pending the remaining workflows and pilot review.
+live planner remains gated pending hosted/policy/resource validation and pilot review.

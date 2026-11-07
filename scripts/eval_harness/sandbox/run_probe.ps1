@@ -75,7 +75,7 @@ try {
             $brokerName=if ($manifest.mission_job) { 'host_mission.mjs' } elseif ($manifest.grading_auth) { 'host_grading_auth.mjs' } else { 'host_transport.mjs' }
             $brokerScript=Join-Path $PSScriptRoot $brokerName
             $record['transport_code_sha256']=[ordered]@{}
-            foreach ($source in @($brokerName,'file_rpc.mjs','session.js','grading_auth.mjs','mission_rpc.mjs','mission_fixture.mjs','mission_contract.mjs','mission_receipt.mjs','provider_relay.mjs','scripted_provider.mjs')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
+            foreach ($source in @($brokerName,'file_rpc.mjs','session.js','grading_auth.mjs','mission_rpc.mjs','mission_fixture.mjs','mission_contract.mjs','mission_receipt.mjs','provider_relay.mjs','scripted_provider.mjs','workflow_oracle.mjs')) { $record.transport_code_sha256[$source]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $source) -Algorithm SHA256).Hash.ToLowerInvariant() }
             $broker=Start-Process -FilePath $node -ArgumentList @(('"'+$brokerScript+'"'),('"'+$sessionRoot+'"')) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sessionRoot 'transport-stdout.log') -RedirectStandardError (Join-Path $sessionRoot 'transport-stderr.log')
             # Retain the native handle before the redirected child can exit.
             $null=$broker.Handle

@@ -37,7 +37,7 @@ test('single-turn isolated packets bind model/configuration, inputs, output name
     }
   }
   assert.throws(()=>prepareIsolatedMission({id:'D01',mode:'hosted'}),/gated/);
-  assert.throws(()=>controlReplies('B01'),/Undeclared/);
+  assert.equal(controlReplies('B01')[0].type,'run_action');
 });
 test('scripted controls preserve exact known reference bytes and include a deliberate wrong-output control',()=>{
   const replies=controlReplies('C01');assert.equal(replies[0].type,'write_file');assert.equal(replies[0].content,fs.readFileSync('tests/benchmarks/missions/v1/C01/reference/flattener.py','utf8'));

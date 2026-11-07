@@ -6,7 +6,8 @@ import {fileURLToPath} from 'node:url';
 import {prepareActorPacket} from './actor_packet.mjs';
 import {prepareProbe,inspectProbe,readBoundedFile,unlinkedDirectory} from './session.js';
 import {retainActorArtifacts} from './actor_artifacts.mjs';
-import {missionDigest,SINGLE_TURN_MISSIONS,MISSION_TRACE_LIMIT} from './mission_contract.mjs';
+import {missionDigest,controlActionDigest,SINGLE_TURN_MISSIONS,WORKFLOW_MISSIONS,MISSION_TRACE_LIMIT} from './mission_contract.mjs';
+import {workflowControlReplies} from './workflow_controls.mjs';
 import {createIsolatedGrader} from './isolated_grader.mjs';
 import {mission,withScratch,deployMission,python} from '../../../tests/benchmarks/mission_kit.js';
 import {gradeMission} from '../../../tests/benchmarks/mission_graders/outcomes.js';
@@ -15,6 +16,7 @@ import {sourceBuild} from '../runner.js';
 const directory=path.dirname(fileURLToPath(import.meta.url)),repo=path.resolve(directory,'../../..');
 const sessions=path.join(repo,'.zeus/evaluations/sandbox-sessions');
 export function controlReplies(id,variant='positive'){
+  if(WORKFLOW_MISSIONS.includes(id))return workflowControlReplies(id,variant);
   if(!SINGLE_TURN_MISSIONS.includes(id)||!['positive','invalid-output'].includes(variant))throw Error('Undeclared single-turn calibration');
   const {dir,task}=mission(id);
   return withScratch(root=>{
@@ -33,7 +35,8 @@ export function prepareIsolatedMission({id,architecture='solo',runtimeBundle,mod
   if(mode!=='scripted_control')throw Error('Hosted mission dispatch remains gated');
   const controls=Buffer.from(JSON.stringify(controlReplies(id,variant))),actor=prepareActorPacket(id,architecture),packet=JSON.parse(actor.bytes);
   const expected={mission:id,architecture,mode,variant,packet_sha256:actor.sha256,configuration_fingerprint:packet.configuration.configuration_fingerprint,
-    exported_names:actor.exportedNames,limits:packet.limits,controller_timeout_secs:780,control_replies_sha256:missionDigest(controls)};
+    exported_names:actor.exportedNames,limits:packet.limits,controller_timeout_secs:780,control_replies_sha256:missionDigest(controls),
+    control_actions:JSON.parse(controls).filter(reply=>reply.type==='run_action').map(reply=>controlActionDigest(reply.action))};
   const prepared=prepareProbe(sessions,{runtimeBundle,missionJob:{bytes:actor.bytes,expected}});
   fs.writeFileSync(path.join(prepared.root,'private/control-replies.json'),controls,{flag:'wx'});
   fs.writeFileSync(path.join(prepared.root,'private/build.json'),JSON.stringify(sourceBuild(repo),null,2),{flag:'wx'});
@@ -77,7 +80,8 @@ export async function runPreparedMission(root,{signal,onSession=()=>{}}={}){
     const retained=retainActorArtifacts(bytes,{id,nonce:manifest.nonce},manifest.mission_job.exported_names,path.join(output,'submission'));
     artifacts=retained.files;
     atomicWrite(path.join(output,'trace.json'),JSON.stringify(observed.trace,null,2));
-    if(['C01','C02','C03','D02'].includes(packet.mission))outcome=await createIsolatedGrader({runtimeBundle:manifest.runtime_bundle.path,onSession})({id:packet.mission,submission:retained.directory,signal});
+    if(WORKFLOW_MISSIONS.includes(packet.mission))outcome=JSON.parse(readBoundedFile(path.join(root,'private'),'mission-assessment.json',1024*1024));
+    else if(['C01','C02','C03','D02'].includes(packet.mission))outcome=await createIsolatedGrader({runtimeBundle:manifest.runtime_bundle.path,onSession})({id:packet.mission,submission:retained.directory,signal});
     else outcome=await gradeMission(packet.mission,retained.directory);
     if(outcome.error)throw Error('Independent grader failed: '+outcome.error.message);
     atomicWrite(path.join(output,'assessment.json'),JSON.stringify(outcome,null,2));

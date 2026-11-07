@@ -96,8 +96,8 @@ export function prepareProbe(parent,{runtimeBundle=null,transportSmoke=false,tra
   if(actorProbe)for(const name of ['guest_actor_probe.mjs','actor_bootstrap.py','stop_candidate.ps1','actor_artifacts.mjs','exchange_files.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
   if(missionJob){
     inputs['actor-packet.json']=missionJob.bytes;inputs['package.json']=Buffer.from('{"type":"module"}');
-    for(const name of ['guest_mission.mjs','guest_app.mjs','mission_contract.mjs','mission_rpc.mjs','actor_bootstrap.py','stop_candidate.ps1','actor_artifacts.mjs','exchange_files.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
-    for(const name of ['bridge_run.js','benchmark_config.js'])inputs[name]=fs.readFileSync(path.resolve(directory,'../../../tests/benchmarks',name));
+    for(const name of ['guest_mission.mjs','guest_app.mjs','child_lifecycle.mjs','guest_workflow.mjs','guest_browser_capture.mjs','guest_history.py','mission_contract.mjs','mission_rpc.mjs','actor_bootstrap.py','stop_candidate.ps1','actor_artifacts.mjs','exchange_files.mjs'])inputs[name]=fs.readFileSync(path.join(directory,name));
+    for(const name of ['bridge_run.js','benchmark_config.js','workflow_limits.js'])inputs[name]=fs.readFileSync(path.resolve(directory,'../../../tests/benchmarks',name));
     inputs['synthetic_supervisor.js']=fs.readFileSync(path.resolve(directory,'../synthetic_supervisor.js'));
   }
   for(const [name,bytes] of Object.entries(inputs))fs.writeFileSync(path.join(input,name),bytes,{flag:'wx'});
@@ -211,13 +211,13 @@ export function inspectProbe(root){
     writable_output:base.output_written===true,fresh_guest_disk:base.marker_preexisting===false&&base.marker_created===true};
   if(manifest.grading_auth)checks.authenticated_controller=true;
   if(manifest.mission_job){
-    validateMissionPacket(readBoundedFile(input,'actor-packet.json',ARTIFACT_LIMITS.packetBytes),manifest.mission_job);
+    const packet=validateMissionPacket(readBoundedFile(input,'actor-packet.json',ARTIFACT_LIMITS.packetBytes),manifest.mission_job);
     checks.protected_mission=missionResultMatches(smoke,manifest.mission_job);
     const exportedBytes=readBoundedFile(output,'actor-export.json',ARTIFACT_LIMITS.packetBytes),traceBytes=readBoundedFile(output,'mission-trace.json',MISSION_TRACE_LIMIT);
     if(hash(exportedBytes)!==smoke.artifact_export?.sha256||hash(traceBytes)!==smoke.trace?.sha256)throw Error('Mission artifact/trace changed after signing');
     const exported=validateActorArtifacts(exportedBytes,{id:manifest.id,nonce:manifest.nonce},manifest.mission_job.exported_names),trace=JSON.parse(traceBytes);
     if(trace.id!==manifest.id||trace.nonce!==manifest.nonce||trace.mission!==manifest.mission_job.mission)throw Error('Mission trace identity changed');
-    checks.host_mission_transport=inspectMissionExchange({manifest,input,output,privateDir,actorUsage:smoke.actor?.usage});
+    checks.host_mission_transport=inspectMissionExchange({manifest,input,output,privateDir,actorUsage:smoke.actor?.usage,packet});
     actorExport={sha256:hash(exportedBytes),files:exported.files.map(({base64,...file})=>file)};
   }else if(manifest.actor_control){
     checks.protected_actor_runtime=protectedActorMatches(smoke,manifest.runtime_bundle.versions);
